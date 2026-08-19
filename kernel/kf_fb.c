@@ -69,6 +69,33 @@ int64_t k_fb_putpixel(int64_t x, int64_t y, int64_t color) {
     return 1;
 }
 
+/* XOR a pixel: framebuffer[x,y] ^= color. Drawing the same shape twice with
+   XOR erases it, which is how the cursor is moved without a backbuffer. */
+int64_t k_fb_xor(int64_t x, int64_t y, int64_t color) {
+    if ((uint64_t)x >= fb_w || (uint64_t)y >= fb_h) return 0;
+    uintptr_t off = (uintptr_t)y * fb_pitch + (uintptr_t)x * (fb_bpp / 8);
+    volatile uint32_t* p = (volatile uint32_t*)(fb_addr + off);
+    *p ^= (uint32_t)color;
+    return 1;
+}
+
+/* Draw an 8x14 arrow cursor at (x,y) in XOR mode. Calling it twice on the
+   same position erases it (XOR is its own inverse). */
+int64_t k_fb_cursor(int64_t x, int64_t y) {
+    static const uint8_t CURSOR[14] = {
+        0x80, 0xC0, 0xE0, 0xF0, 0xF8, 0xFC, 0xFE, 0xFF,
+        0xE0, 0xC0, 0xE0, 0xF0, 0xF0, 0xF8
+    };
+    const uint32_t WHITE = 0xFFFFFF;
+    for (int r = 0; r < 14; r++) {
+        uint8_t row = CURSOR[r];
+        for (int bit = 0; bit < 8; bit++)
+            if (row & (0x80 >> bit))
+                k_fb_xor(x + bit, y + r, WHITE);
+    }
+    return 1;
+}
+
 int64_t k_fb_fill(int64_t color) {
     uint32_t c = (uint32_t)color;
     for (uint32_t y = 0; y < fb_h; y++)
