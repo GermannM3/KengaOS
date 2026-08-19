@@ -122,9 +122,9 @@ static void agent_proc(void) {
         lg_uart("AGENT: "); lg_uart(m.data); lg_uart("\n");
         char reply[MSG_MAX];
         int k = 0; const char* p = "ack: ";
-        for (; *p && k < MSG_MAX - 1; k++) reply[k] = *p;
+        for (; *p && k < MSG_MAX - 1; k++) reply[k] = *p++;
         p = m.data;
-        for (; *p && k < MSG_MAX - 1; k++) reply[k] = *p;
+        for (; *p && k < MSG_MAX - 1; k++) reply[k] = *p++;
         reply[k] = 0;
         k_ipc_send(m.from, reply);   /* reply to the sender */
         k_task_yield();
