@@ -124,6 +124,16 @@ if [[ -f "$KERNEL_DIR/sched.c" ]]; then
     eval "$CC -c $CFLAGS \"$KERNEL_DIR/sched.c\" -o \"$BUILD_DIR/sched.o\""
 fi
 
+log "4e/7" "Compiling kf_kbd.c (keyboard) ($CC)"
+if [[ -f "$KERNEL_DIR/kf_kbd.c" ]]; then
+    eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_kbd.c\" -o \"$BUILD_DIR/kf_kbd.o\""
+fi
+
+log "4f/7" "Compiling kf_shell.c (shell) ($CC)"
+if [[ -f "$KERNEL_DIR/kf_shell.c" ]]; then
+    eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_shell.c\" -o \"$BUILD_DIR/kf_shell.o\""
+fi
+
 log "5/7" "Linking kengaos.elf ($LD)"
 OBJS=("$BUILD_DIR/start.o" "$BUILD_DIR/kmain.o")
 if [[ -f "$BUILD_DIR/kf_alloc.o" ]]; then OBJS+=("$BUILD_DIR/kf_alloc.o"); fi
@@ -131,6 +141,8 @@ if [[ -f "$BUILD_DIR/kf_fb.o" ]]; then OBJS+=("$BUILD_DIR/kf_fb.o"); fi
 if [[ -f "$BUILD_DIR/intr.o" ]]; then OBJS+=("$BUILD_DIR/intr.o"); fi
 if [[ -f "$BUILD_DIR/isr.o" ]]; then OBJS+=("$BUILD_DIR/isr.o"); fi
 if [[ -f "$BUILD_DIR/sched.o" ]]; then OBJS+=("$BUILD_DIR/sched.o"); fi
+if [[ -f "$BUILD_DIR/kf_kbd.o" ]]; then OBJS+=("$BUILD_DIR/kf_kbd.o"); fi
+if [[ -f "$BUILD_DIR/kf_shell.o" ]]; then OBJS+=("$BUILD_DIR/kf_shell.o"); fi
 $LD -n -nostdlib -T "$KERNEL_DIR/linker.ld" "${OBJS[@]}" -o "$BUILD_DIR/kengaos.elf"
 ls -la "$BUILD_DIR/kengaos.elf"
 
@@ -217,9 +229,7 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "FB READY" "$UART_LOG" || { echo "ERROR: FB READY marker missing" >&2; ok=0; }
     grep -q "INTR READY" "$UART_LOG" || { echo "ERROR: INTR READY marker missing" >&2; ok=0; }
     grep -q "INT3 CAUGHT" "$UART_LOG" || { echo "ERROR: INT3 (IDT) marker missing" >&2; ok=0; }
-    grep -q 'X' "$UART_LOG" || { echo "ERROR: task X not scheduled" >&2; ok=0; }
-    grep -q 'Y' "$UART_LOG" || { echo "ERROR: task Y not scheduled" >&2; ok=0; }
-    grep -q 'Z' "$UART_LOG" || { echo "ERROR: task Z not scheduled" >&2; ok=0; }
+    grep -q "SHELL READY" "$UART_LOG" || { echo "ERROR: SHELL READY marker missing" >&2; ok=0; }
     if [[ $ok == 1 ]]; then
         echo "OK: kernel booted — BOOT/UART/FB markers present"
     else

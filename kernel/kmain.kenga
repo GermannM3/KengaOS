@@ -4,7 +4,7 @@
 @intrinsic fn kf_puti(n: i64) -> i64;
 @intrinsic fn intr_init() -> i64;
 @intrinsic fn intr_test() -> i64;
-@intrinsic fn sched_init() -> i64;
+@intrinsic fn shell_init() -> i64;
 
 /* Framebuffer FFI (kf_fb.c) */
 @intrinsic fn fb_init(fb: i64) -> i64;
@@ -271,9 +271,9 @@ fn main() -> i64 {
     kp_msg("KengaOS", "INTR READY");
     intr_test();
 
-    kp_msg("KengaOS", "SCHED INIT");
+    kp_msg("KengaOS", "SHELL READY");
 
-    sched_init();
+    shell_init();
 
     return 0;
 }

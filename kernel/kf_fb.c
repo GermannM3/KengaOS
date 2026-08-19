@@ -274,3 +274,68 @@ int64_t k_fb_text(int64_t x, int64_t y, int64_t fg, int64_t bg, const char* s) {
     }
     return 1;
 }
+
+/* --- text console (M2.3): char buffer + cursor + scroll --- */
+#define CON_COLS_MAX 160
+#define CON_ROWS_MAX 90
+#define CON_FG 0x00d4aa
+#define CON_BG 0x0a0e14
+#define CON_DIM 0x8892a4
+
+static int con_cols = 0, con_rows = 0;
+static int con_cx = 0, con_cy = 0;
+static char con_buf[CON_COLS_MAX * CON_ROWS_MAX];
+
+static void con_redraw(void) {
+    if (!fb_ok) return;
+    k_fb_fill(CON_BG);
+    for (int y = 0; y < con_rows; y++)
+        for (int x = 0; x < con_cols; x++) {
+            char c = con_buf[y * con_cols + x];
+            if (c && c != ' ') k_fb_draw_char((int64_t)x * 8, (int64_t)y * 8, CON_FG, CON_BG, c);
+        }
+    /* cursor block */
+    for (int yy = 0; yy < 8; yy++)
+        for (int xx = 0; xx < 6; xx++)
+            fb_put((uint32_t)con_cx * 8 + xx, (uint32_t)con_cy * 8 + yy, 0x2ee6d6);
+}
+
+int64_t k_fb_con_init(void) {
+    if (!fb_ok) return 0;
+    con_cols = (int)(fb_w / 8); if (con_cols > CON_COLS_MAX) con_cols = CON_COLS_MAX;
+    con_rows = (int)(fb_h / 8); if (con_rows > CON_ROWS_MAX) con_rows = CON_ROWS_MAX;
+    con_cx = 0; con_cy = 0;
+    for (int i = 0; i < con_cols * con_rows; i++) con_buf[i] = ' ';
+    con_redraw();
+    return 1;
+}
+
+void k_fb_con_clear(void) {
+    for (int i = 0; i < con_cols * con_rows; i++) con_buf[i] = ' ';
+    con_cx = 0; con_cy = 0;
+    con_redraw();
+}
+
+void k_fb_con_putc(int64_t c) {
+    if (!fb_ok) return;
+    if (c == '\n') { con_cx = 0; con_cy++; }
+    else if (c == '\b') { if (con_cx > 0) con_cx--; con_buf[con_cy * con_cols + con_cx] = ' '; }
+    else if (c == '\t') { do { con_buf[con_cy * con_cols + con_cx] = ' '; con_cx++; } while (con_cx % 4); }
+    else if (c >= 32) {
+        con_buf[con_cy * con_cols + con_cx] = (char)c;
+        con_cx++;
+    }
+    if (con_cx >= con_cols) { con_cx = 0; con_cy++; }
+    if (con_cy >= con_rows) {
+        for (int i = 0; i < (con_rows - 1) * con_cols; i++) con_buf[i] = con_buf[i + con_cols];
+        for (int i = (con_rows - 1) * con_cols; i < con_rows * con_cols; i++) con_buf[i] = ' ';
+        con_cy = con_rows - 1;
+    }
+    con_redraw();
+}
+
+int64_t k_fb_con_print(const char* s) {
+    if (!s) return 0;
+    for (; *s; s++) k_fb_con_putc((int64_t)(unsigned char)*s);
+    return 1;
+}

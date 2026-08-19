@@ -182,6 +182,16 @@ void k_kf_intr_handler(void* regs) {
         return;
     }
 
+    /* Hardware IRQs (32..47 after PIC remap): EOI and dispatch. */
+    if (r->vector >= 32 && r->vector < 48) {
+        if (r->vector >= 40) {
+            __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)0x20), "Nd"((uint16_t)0xA0));
+        }
+        __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)0x20), "Nd"((uint16_t)0x20));
+        if (r->vector == 33) k_kbd_irq();   /* IRQ1: keyboard */
+        return;
+    }
+
     uint64_t cr2 = 0;
     if (r->vector == 14) {
         __asm__ __volatile__("mov %%cr2, %0" : "=r"(cr2));

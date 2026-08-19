@@ -57,6 +57,23 @@ extern uint16_t kernel_cs;
 int64_t k_sched_init(void);
 uint64_t k_sched_yield(uint64_t current_ctx);
 
+/* Keyboard (kernel/kf_kbd.c): PS/2 IRQ1 -> ring buffer. */
+int64_t k_kbd_init(void);
+int64_t k_kbd_pending(void);
+int64_t k_kbd_read(void);
+void k_kbd_irq(void);
+
+/* Framebuffer text console (kernel/kf_fb.c). */
+int64_t k_fb_con_init(void);
+int64_t k_fb_con_print(const char* s);
+void k_fb_con_putc(int64_t c);
+void k_fb_con_clear(void);
+
+/* Shell (kernel/kf_shell.c). */
+int64_t k_shell_init(void);
+uint64_t k_task_create(void (*entry)(void));
+uint64_t k_task_yield(void);
+
 /* Framebuffer FFI (implemented in kernel/kf_fb.c): init from a
    limine_framebuffer*, then draw pixels/rects/text into the linear framebuffer. */
 int64_t k_fb_init(int64_t fb);
