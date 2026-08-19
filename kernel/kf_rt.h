@@ -100,6 +100,11 @@ int64_t k_logger_pid(void);
 int64_t k_agent_pid(void);
 const char* dec(int64_t n);
 
+/* Virtual filesystem (kernel/kf_vfs.c). */
+int64_t k_vfs_count(void);
+const char* k_vfs_name(int64_t idx);
+int64_t k_vfs_cat(const char* name, char* out, int max);
+
 /* Framebuffer FFI (implemented in kernel/kf_fb.c): init from a
    limine_framebuffer*, then draw pixels/rects/text into the linear framebuffer. */
 int64_t k_fb_init(int64_t fb);

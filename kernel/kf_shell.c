@@ -35,6 +35,8 @@ static void run_cmd(const char* cmd) {
         k_fb_con_print("  ps     - list processes\n");
         k_fb_con_print("  log x  - IPC send 'x' to logger\n");
         k_fb_con_print("  ask x  - IPC round-trip to agent\n");
+        k_fb_con_print("  ls     - list vfs files\n");
+        k_fb_con_print("  cat x  - print vfs file\n");
         k_fb_con_print("  tasks  - scheduler status\n");
     } else if (scmp(cmd, "clear") == 0) {
         k_fb_con_clear();
@@ -67,6 +69,21 @@ static void run_cmd(const char* cmd) {
                 k_fb_con_print(reply);
                 k_fb_con_print("\n");
             }
+        }
+    } else if (scmp(cmd, "ls") == 0) {
+        int64_t n = k_vfs_count();
+        for (int64_t i = 0; i < n; i++) {
+            k_fb_con_print(k_vfs_name(i));
+            k_fb_con_print("\n");
+        }
+    } else if (sncmp(cmd, "cat ", 4) == 0) {
+        char buf[128];
+        if (k_vfs_cat(cmd + 4, buf, sizeof buf)) {
+            k_fb_con_print(buf);
+        } else {
+            k_fb_con_print("no such file: ");
+            k_fb_con_print(cmd + 4);
+            k_fb_con_print("\n");
         }
     } else if (scmp(cmd, "mem") == 0) {
         int64_t freek = k_mem_free_bytes() / 1024;
