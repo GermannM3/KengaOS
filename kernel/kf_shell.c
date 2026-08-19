@@ -34,6 +34,7 @@ static void run_cmd(const char* cmd) {
         k_fb_con_print("  mem    - memory info\n");
         k_fb_con_print("  ps     - list processes\n");
         k_fb_con_print("  log x  - IPC send 'x' to logger\n");
+        k_fb_con_print("  ask x  - IPC round-trip to agent\n");
         k_fb_con_print("  tasks  - scheduler status\n");
     } else if (scmp(cmd, "clear") == 0) {
         k_fb_con_clear();
@@ -56,6 +57,17 @@ static void run_cmd(const char* cmd) {
     } else if (sncmp(cmd, "log ", 4) == 0) {
         int64_t r = k_ipc_send(k_logger_pid(), cmd + 4);
         if (!r) k_fb_con_print("ipc queue full\n");
+    } else if (sncmp(cmd, "ask ", 4) == 0) {
+        /* IPC round-trip: send to agent, wait for reply, print it. */
+        int64_t r = k_ipc_send(k_agent_pid(), cmd + 4);
+        if (!r) { k_fb_con_print("ipc queue full\n"); }
+        else {
+            char reply[64];
+            if (k_ipc_recv_str(reply, sizeof reply)) {
+                k_fb_con_print(reply);
+                k_fb_con_print("\n");
+            }
+        }
     } else if (scmp(cmd, "mem") == 0) {
         int64_t freek = k_mem_free_bytes() / 1024;
         int64_t totk = k_mem_total_bytes() / 1024;
@@ -101,8 +113,8 @@ static void shell_task(void) {
 int64_t k_shell_init(void) {
     k_kbd_init();           /* PIC remap + IRQ1 -> vector 33 */
     k_fb_con_init();        /* clear console */
-    k_proc_init();          /* spawn the logger process (IPC) */
-    k_task_create(shell_task);
+    k_proc_init();          /* spawn logger + agent (IPC) */
+    k_proc_spawn("shell", shell_task);   /* register shell so it can recv IPC */
     __asm__ __volatile__("sti");
     for (;;) k_task_yield();   /* main becomes the idle task */
     return 1;

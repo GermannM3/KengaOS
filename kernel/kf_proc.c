@@ -33,6 +33,7 @@ typedef struct {
 static kf_proc_t procs[MAX_PROC];
 static int64_t   next_pid = 1;
 static int64_t   logger_pid = 0;
+static int64_t   agent_pid = 0;
 
 static void lg_uart(const char* s) { for (; *s; s++) __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)*s), "Nd"((uint16_t)0x3F8)); }
 
@@ -79,6 +80,16 @@ int64_t k_ipc_recv(ipc_msg* out) {
     }
 }
 
+/* Receive a message into a string buffer (blocking). */
+int64_t k_ipc_recv_str(char* buf, int max) {
+    ipc_msg m;
+    if (!k_ipc_recv(&m)) return 0;
+    int k = 0;
+    for (; m.data[k] && k < max - 1; k++) buf[k] = m.data[k];
+    buf[k] = 0;
+    return 1;
+}
+
 int64_t k_proc_count(void) {
     int n = 0;
     for (int i = 0; i < MAX_PROC; i++) if (procs[i].active) n++;
@@ -103,12 +114,32 @@ static void logger_proc(void) {
     }
 }
 
+/* --- kenga-agent: echoes the message back to the sender (IPC round-trip) --- */
+static void agent_proc(void) {
+    for (;;) {
+        ipc_msg m;
+        k_ipc_recv(&m);
+        lg_uart("AGENT: "); lg_uart(m.data); lg_uart("\n");
+        char reply[MSG_MAX];
+        int k = 0; const char* p = "ack: ";
+        for (; *p && k < MSG_MAX - 1; k++) reply[k] = *p;
+        p = m.data;
+        for (; *p && k < MSG_MAX - 1; k++) reply[k] = *p;
+        reply[k] = 0;
+        k_ipc_send(m.from, reply);   /* reply to the sender */
+        k_task_yield();
+    }
+}
+
+/* "init": spawns the session processes (logger + kenga-agent). */
 int64_t k_proc_init(void) {
     logger_pid = k_proc_spawn("logger", logger_proc);
+    agent_pid  = k_proc_spawn("agent", agent_proc);
     return logger_pid;
 }
 
 int64_t k_logger_pid(void) { return logger_pid; }
+int64_t k_agent_pid(void) { return agent_pid; }
 
 /* helper for printing numbers to the console (used above) */
 const char* dec(int64_t n) {

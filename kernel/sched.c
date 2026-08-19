@@ -55,7 +55,10 @@ uint64_t k_task_create(void (*entry)(void)) {
     uint8_t* stack = &stack_arena[arena_used];
     arena_used += STACK_SIZE;
     uint64_t top = (uint64_t)(uintptr_t)(stack + STACK_SIZE) & ~0xFULL;
-    uint64_t* f = (uint64_t*)(top - 8 * 7);
+    /* Tasks are entered via `ret` (not `call`), so start rsp % 16 == 8 to match
+       a normal function-call entry. That keeps rbp 16-aligned after the prologue
+       so -O2 SSE (movaps) doesn't #GP on a misaligned stack operand. */
+    uint64_t* f = (uint64_t*)(top - 8 * 8);
     f[0] = 0;                        /* rbx */
     f[1] = 0;                        /* r12 */
     f[2] = 0;                        /* r13 */
