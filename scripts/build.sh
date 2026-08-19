@@ -190,7 +190,11 @@ rm -rf "$BUILD_DIR/iso_root"
 mkdir -p "$BUILD_DIR/iso_root/boot"
 cp "$BUILD_DIR/kengaos.elf" "$BUILD_DIR/iso_root/boot/kengaos.elf"
 # Limine looks for boot/limine.conf (limine.cfg is the in-repo source name).
-cp "$KERNEL_DIR/limine.cfg" "$BUILD_DIR/iso_root/boot/limine.conf"
+# Generate the initrd and tell Limine to load it as a module.
+if command -v python3 >/dev/null 2>&1; then PY=python3; else PY=python; fi
+"$PY" "$ROOT/scripts/mkinitrd.py" "$BUILD_DIR/iso_root/boot/initrd.img" "$ROOT"
+# Insert module_path into the /KengaOS kernel entry of the generated config.
+sed '/kernel_path:/a\    module_path: boot():/boot/initrd.img' "$KERNEL_DIR/limine.cfg" > "$BUILD_DIR/iso_root/boot/limine.conf"
 # limine-bios.sys lives in the ISO ROOT (that's where limine-bios-cd.bin looks for it).
 cp "$LIMINE_DIR/limine-bios.sys" "$BUILD_DIR/iso_root/limine-bios.sys"
 cp "$LIMINE_DIR/limine-bios-cd.bin" "$BUILD_DIR/iso_root/boot/limine-bios-cd.bin"

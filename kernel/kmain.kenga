@@ -11,6 +11,8 @@
 @intrinsic fn mem_pages_free() -> i64;
 @intrinsic fn mem_palloc() -> i64;
 @intrinsic fn mem_pfree(addr: i64) -> i64;
+@intrinsic fn kf_get_modules() -> i64;
+@intrinsic fn vfs_init_rd(addr: i64, size: i64) -> i64;
 
 /* Framebuffer FFI (kf_fb.c) */
 @intrinsic fn fb_init(fb: i64) -> i64;
@@ -285,6 +287,23 @@ fn main() -> i64 {
         if pv == 0xAB { kp_msg("KengaOS", "PALLOC OK"); } else { kp_msg("KengaOS", "PALLOC FAIL"); }
     } else {
         kp_msg("KengaOS", "PALLOC NONE");
+    }
+
+    let mr: i64 = kf_get_modules();
+    if mr != 0 {
+        let mc: i64 = mmio_read64(mr + 8);
+        if mc > 0 {
+            let mods: i64 = mmio_read64(mr + 16);
+            let mod: i64 = mmio_read64(mods);
+            let maddr: i64 = mmio_read64(mod + 8);
+            let msize: i64 = mmio_read64(mod + 16);
+            let vn: i64 = vfs_init_rd(maddr, msize);
+            uart_puts("initrd files=");
+            kf_puti(vn);
+            uart_putc(10);
+        } else {
+            kp_msg("KengaOS", "INITRD NONE");
+        }
     }
 
     let w: i64 = fb_width();

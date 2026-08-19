@@ -46,6 +46,9 @@ int64_t k_kf_get_hhdm(void);
 /* Limine memory map response* — from start.S. */
 int64_t k_kf_get_memmap(void);
 
+/* Limine modules response* — from start.S. */
+int64_t k_kf_get_modules(void);
+
 /* Physical memory / heap (kernel/kf_mem.c). */
 int64_t k_mem_init(void);
 int64_t k_mem_free_bytes(void);
@@ -104,6 +107,7 @@ const char* dec(int64_t n);
 int64_t k_vfs_count(void);
 const char* k_vfs_name(int64_t idx);
 int64_t k_vfs_cat(const char* name, char* out, int max);
+int64_t k_vfs_init_rd(int64_t addr, int64_t size);
 
 /* Framebuffer FFI (implemented in kernel/kf_fb.c): init from a
    limine_framebuffer*, then draw pixels/rects/text into the linear framebuffer. */
