@@ -20,6 +20,29 @@ static uint32_t  fb_pitch = 0;
 static uint8_t   fb_bpp = 0;
 static int       fb_ok = 0;
 
+/* Print an int64 to the UART (COM1, 0x3F8) as decimal. Used for boot/FB
+   diagnostics. Avoids a static-buffer `str` return across the FFI boundary. */
+static void uart_putc_ch(uint8_t c) {
+    volatile uint8_t unused;
+    __asm__ __volatile__("outb %0, %1" : : "a"(c), "Nd"((uint16_t)0x3F8));
+    (void)unused;
+}
+
+int64_t k_kf_puti(int64_t n) {
+    unsigned long long v;
+    char tmp[24];
+    int t = 0;
+    if (n < 0) {
+        uart_putc_ch((uint8_t)'-');
+        v = (unsigned long long)(-(n + 1)) + 1ull;
+    } else {
+        v = (unsigned long long)n;
+    }
+    do { tmp[t++] = (char)('0' + (v % 10)); v /= 10; } while (v);
+    while (t) uart_putc_ch((uint8_t)tmp[--t]);
+    return 0;
+}
+
 int64_t k_fb_init(int64_t fb) {
     fb_ok = 0;
     fb_addr = 0; fb_w = 0; fb_h = 0; fb_pitch = 0; fb_bpp = 0;

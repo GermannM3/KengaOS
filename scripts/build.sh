@@ -193,12 +193,15 @@ elif ! command -v qemu-system-x86_64 >/dev/null 2>&1; then
     echo "warning: qemu-system-x86_64 not found, smoke test skipped"
 fi
 
-# CI gate: the boot must have produced both markers.
+# CI gate: the boot must have produced the BOOT / UART / FB markers.
 if [[ "$QEMU_RAN" == 1 ]]; then
-    if grep -q "Hello from Kenga kernel" "$UART_LOG" && grep -Eq "KengaOS.*booting" "$UART_LOG"; then
-        echo "OK: kernel booted — all UART boot markers present"
+    ok=1
+    grep -Eq "KengaOS.*booting" "$UART_LOG" || { echo "ERROR: BOOT marker missing" >&2; ok=0; }
+    grep -q "Hello from Kenga kernel" "$UART_LOG" || { echo "ERROR: UART marker missing" >&2; ok=0; }
+    grep -q "FB READY" "$UART_LOG" || { echo "ERROR: FB READY marker missing" >&2; ok=0; }
+    if [[ $ok == 1 ]]; then
+        echo "OK: kernel booted — BOOT/UART/FB markers present"
     else
-        echo "ERROR: boot markers missing from UART log" >&2
         exit 1
     fi
 fi

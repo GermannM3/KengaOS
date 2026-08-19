@@ -43,6 +43,9 @@ int64_t k_kf_get_framebuffer(void);
 /* HHDM offset (Limine v12), or 0 if none — from start.S. */
 int64_t k_kf_get_hhdm(void);
 
+/* Print an int64 to the UART (COM1, port 0x3F8) as decimal. */
+int64_t k_kf_puti(int64_t n);
+
 /* Framebuffer FFI (implemented in kernel/kf_fb.c): init from a
    limine_framebuffer*, then draw pixels/rects/text into the linear framebuffer. */
 int64_t k_fb_init(int64_t fb);

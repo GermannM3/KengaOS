@@ -1,6 +1,7 @@
 @intrinsic fn kf_get_boot_info() -> i64;
 @intrinsic fn kf_get_framebuffer() -> i64;
 @intrinsic fn kf_str(addr: i64) -> str;
+@intrinsic fn kf_puti(n: i64) -> i64;
 
 /* Framebuffer FFI (kf_fb.c) */
 @intrinsic fn fb_init(fb: i64) -> i64;
@@ -235,6 +236,25 @@ fn main() -> i64 {
     kp_msg("KengaOS", "UART 16550 at 0x3F8 ready");
     kp_msg("KengaOS", "kmain.kenga compiled via emit-c --freestanding");
     kp_msg("KengaOS", "Hello from Kenga kernel!");
+
+    let fbp: i64 = kf_get_framebuffer();
+    let fbok: i64 = fb_init(fbp);
+    if fbok == 1 {
+        uart_puts("FB addr=");
+        kf_puti(mmio_read64(fbp + 0));
+        uart_puts(" w=");
+        kf_puti(fb_width());
+        uart_puts(" h=");
+        kf_puti(fb_height());
+        uart_puts(" pitch=");
+        kf_puti(mmio_read64(fbp + 24));
+        uart_puts(" bpp=");
+        kf_puti(mmio_read16(fbp + 32));
+        uart_putc(10);
+        kp_msg("KengaOS", "FB READY");
+    } else {
+        kp_msg("KengaOS", "FB NONE");
+    }
 
     fb_boot_screen(bi);
 
