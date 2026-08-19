@@ -35,6 +35,27 @@ limine_bootloader_info_request:
     .quad 0
     .quad 0
 
+/* struct limine_framebuffer_request:
+     id[4] | revision (u64) | response* (u64)  — response на offset 40 */
+.global limine_framebuffer_request
+limine_framebuffer_request:
+    .quad 0xc7b1dd30df4c8b88   /* LIMINE_COMMON_MAGIC hi */
+    .quad 0x0a82e883a194f07b   /* LIMINE_COMMON_MAGIC lo */
+    .quad 0x9d5827dcd881dd75   /* framebuffer request id */
+    .quad 0xa3148604f6fab11b
+    .quad 0
+    .quad 0
+
+/* struct limine_hhdm_request: id[4] | revision (u64) | response* (u64) */
+.global limine_hhdm_request
+limine_hhdm_request:
+    .quad 0xc7b1dd30df4c8b88   /* LIMINE_COMMON_MAGIC hi */
+    .quad 0x0a82e883a194f07b   /* LIMINE_COMMON_MAGIC lo */
+    .quad 0x48dcf1cb8ad2b852   /* hhdm request id */
+    .quad 0x63984e959a98244b
+    .quad 0
+    .quad 0
+
 .global limine_requests_end_marker
 limine_requests_end_marker:
     .quad 0xadc0e0531bb10d03
@@ -62,6 +83,37 @@ _start:
 .type k_kf_get_boot_info, @function
 k_kf_get_boot_info:
     mov rax, [rip + limine_bootloader_info_request + 40]
+    ret
+
+/* Kenga FFI: kf_get_framebuffer() -> i64
+   Возвращает первый (нулевой) framebuffer — struct limine_framebuffer*,
+   или 0, если framebuffer не выдан.
+   Response: revision u64 @0, framebuffer_count u64 @8, framebuffers** @16. */
+.global k_kf_get_framebuffer
+.type k_kf_get_framebuffer, @function
+k_kf_get_framebuffer:
+    mov rax, [rip + limine_framebuffer_request + 40]
+    test rax, rax
+    jz .kfb_done
+    mov rax, [rax + 16]          /* framebuffers** */
+    test rax, rax
+    jz .kfb_done
+    mov rax, [rax]               /* framebuffers[0] */
+.kfb_done:
+    ret
+
+/* Kenga FFI: kf_get_hhdm() -> i64
+   Возвращает HHDM-оффсет (u64 @0 в response), или 0, если не выдан.
+   К физическому адресу фреймбуфера нужно прибавить его, чтобы получить
+   доступный в higher-half виртуальный адрес. */
+.global k_kf_get_hhdm
+.type k_kf_get_hhdm, @function
+k_kf_get_hhdm:
+    mov rax, [rip + limine_hhdm_request + 40]
+    test rax, rax
+    jz .khhdm_done
+    mov rax, [rax]               /* response->offset */
+.khhdm_done:
     ret
 
 .section .bss.stack, "aw", @nobits

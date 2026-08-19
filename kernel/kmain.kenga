@@ -1,5 +1,18 @@
 @intrinsic fn kf_get_boot_info() -> i64;
+@intrinsic fn kf_get_framebuffer() -> i64;
 @intrinsic fn kf_str(addr: i64) -> str;
+
+/* Framebuffer FFI (kf_fb.c) */
+@intrinsic fn fb_init(fb: i64) -> i64;
+@intrinsic fn fb_ready() -> i64;
+@intrinsic fn fb_width() -> i64;
+@intrinsic fn fb_height() -> i64;
+@intrinsic fn fb_fill(color: i64) -> i64;
+@intrinsic fn fb_rect(x: i64, y: i64, w: i64, h: i64, color: i64) -> i64;
+@intrinsic fn fb_hrect(x: i64, y: i64, w: i64, h: i64, color: i64) -> i64;
+@intrinsic fn fb_text(x: i64, y: i64, fg: i64, bg: i64, s: str) -> i64;
+
+/* --- UART (сохранено для CI-гейта) --- */
 
 fn uart_init() -> i64 {
     asm_outb(0x3F8 + 1, 0x00);
@@ -47,6 +60,57 @@ fn kp_msg(tag: str, msg: str) -> i64 {
     return 0;
 }
 
+/* --- Фреймбуфер: цветовой экран загрузки --- */
+
+fn fb_boot_screen(bi: i64) -> i64 {
+    let BG: i64 = 0x0a0e14;
+    let PANEL: i64 = 0x12161f;
+    let BAR: i64 = 0x151b28;
+    let LINE: i64 = 0x1b2333;
+    let GREEN: i64 = 0x00d4aa;
+    let BLUE: i64 = 0x5b9dff;
+    let DIM: i64 = 0x8892a4;
+    let WHITE: i64 = 0xe6edf3;
+
+    let fb: i64 = kf_get_framebuffer();
+    let ok: i64 = fb_init(fb);
+    if ok != 1 { return 0; }
+
+    let w: i64 = fb_width();
+    let h: i64 = fb_height();
+
+    fb_fill(BG);
+
+    /* Верхняя панель */
+    fb_hrect(0, 0, w, 42, BAR);
+    fb_hrect(0, 42, w, 2, GREEN);
+    fb_text(24, 14, GREEN, BAR, "KengaOS");
+    fb_text(24 + 8 * 7 + 16, 15, DIM, BAR, "x86_64  ·  v0.1  ·  boot");
+    fb_text(w - 8 * 14 - 24, 15, BLUE, BAR, "Limine 12.6");
+
+    /* Заголовок лога */
+    fb_text(24, 66, BLUE, BG, "kernel boot log");
+
+    /* Лог */
+    let y: i64 = 86;
+    fb_text(24, y, DIM, BG, "bootloader: Limine 12.6.0");
+    fb_text(24, y + 12, GREEN, BG, "[KengaOS] v0.1 booting on bare metal (x86_64)");
+    fb_text(24, y + 24, GREEN, BG, "[KengaOS] UART 16550 at 0x3F8 ready");
+    fb_text(24, y + 36, GREEN, BG, "[KengaOS] kmain.kenga compiled via emit-c --freestanding");
+    fb_text(24, y + 48, GREEN, BG, "[KengaOS] Hello from Kenga kernel!");
+    fb_text(24, y + 60, DIM, BG, "framebuffer: linear FB active (32bpp)");
+
+    /* Нижняя плашка-статус */
+    let sb_y: i64 = h - 44;
+    fb_hrect(0, sb_y, w, 2, LINE);
+    fb_hrect(0, sb_y + 2, w, 42, PANEL);
+    fb_text(24, sb_y + 15, WHITE, PANEL, "system: idle");
+    fb_text(24 + 8 * 13 + 16, sb_y + 15, GREEN, PANEL, "kernel: alive");
+    fb_text(w - 8 * 22 - 24, sb_y + 15, DIM, PANEL, "running on 64-bit long mode");
+
+    return 1;
+}
+
 fn main() -> i64 {
     let ok: i64 = uart_init();
 
@@ -71,6 +135,8 @@ fn main() -> i64 {
     kp_msg("KengaOS", "UART 16550 at 0x3F8 ready");
     kp_msg("KengaOS", "kmain.kenga compiled via emit-c --freestanding");
     kp_msg("KengaOS", "Hello from Kenga kernel!");
+
+    fb_boot_screen(bi);
 
     while 1 == 1 {
         asm_hlt();

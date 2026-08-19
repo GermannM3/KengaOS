@@ -37,6 +37,14 @@ qemu-system-x86_64 -M q35 -cdrom build/kengaos.iso -serial stdio
 
 ---
 
+## Скриншот
+
+Экран загрузки ядра (linear framebuffer 1280×800, рисуется самим ядром на Kenga):
+
+![Экран загрузки KengaOS](docs/boot-fb.png)
+
+---
+
 ## Что уже есть (M1)
 
 | Возможность | Статус |
@@ -44,6 +52,7 @@ qemu-system-x86_64 -M q35 -cdrom build/kengaos.iso -serial stdio
 | Загрузка через **Limine 12.6.0** (stivale2-free, `.limine_requests` section) | ✅ |
 | 64-бит long mode + HHDM higher-half mapping | ✅ |
 | **UART 16550** — порты I/O (`asm_inb` / `asm_outb`), не mmio | ✅ |
+| **Linear framebuffer** (Limine `framebuffer_request`) + 8×8 bitmap-шрифт | ✅ |
 | Kernel-side `malloc` / `free` (bump-аллокатор, FFI в `kf_alloc.c`) | ✅ |
 | Panic / oops handlers | ✅ |
 | CI: сборка ISO + smoke-тест в QEMU (UART-маркеры) | ✅ |

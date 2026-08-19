@@ -73,9 +73,24 @@ where gcc >nul 2>&1 && (
 echo No C compiler for kf_alloc.c
 :kf_ok
 
+echo [4b/7] Compiling kf_fb.c (framebuffer driver) ...
+where x86_64-elf-gcc >nul 2>&1 && (
+    x86_64-elf-gcc -c -ffreestanding -mcmodel=large -mno-red-zone -m64 -O2 -Wall -Wextra "%KERNEL_DIR%\kf_fb.c" -o "%BUILD_DIR%\kf_fb.o"
+    if errorlevel 1 goto :fail
+    goto :kffb_ok
+)
+where gcc >nul 2>&1 && (
+    gcc -c -ffreestanding -mcmodel=large -mno-red-zone -m64 -O2 -Wall -Wextra "%KERNEL_DIR%\kf_fb.c" -o "%BUILD_DIR%\kf_fb.o"
+    if errorlevel 1 goto :fail
+    goto :kffb_ok
+)
+echo No C compiler for kf_fb.c
+:kffb_ok
+
 echo [5/7] Linking kengaos.elf ...
 set OBJS=%BUILD_DIR%\start.o %BUILD_DIR%\kmain.o
 if exist "%BUILD_DIR%\kf_alloc.o" set OBJS=%OBJS% %BUILD_DIR%\kf_alloc.o
+if exist "%BUILD_DIR%\kf_fb.o" set OBJS=%OBJS% %BUILD_DIR%\kf_fb.o
 if exist "%BUILD_DIR%\start.o" (
     if exist "%BUILD_DIR%\kmain.o" (
         where x86_64-elf-ld >nul 2>&1 && (

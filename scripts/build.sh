@@ -104,9 +104,17 @@ else
     echo "warning: kf_alloc.c missing, skipping"
 fi
 
+log "4b/7" "Compiling kf_fb.c (framebuffer driver) ($CC)"
+if [[ -f "$KERNEL_DIR/kf_fb.c" ]]; then
+    eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_fb.c\" -o \"$BUILD_DIR/kf_fb.o\""
+else
+    echo "warning: kf_fb.c missing, skipping"
+fi
+
 log "5/7" "Linking kengaos.elf ($LD)"
 OBJS=("$BUILD_DIR/start.o" "$BUILD_DIR/kmain.o")
 if [[ -f "$BUILD_DIR/kf_alloc.o" ]]; then OBJS+=("$BUILD_DIR/kf_alloc.o"); fi
+if [[ -f "$BUILD_DIR/kf_fb.o" ]]; then OBJS+=("$BUILD_DIR/kf_fb.o"); fi
 $LD -n -nostdlib -T "$KERNEL_DIR/linker.ld" "${OBJS[@]}" -o "$BUILD_DIR/kengaos.elf"
 ls -la "$BUILD_DIR/kengaos.elf"
 

@@ -37,6 +37,24 @@ void* kf_alloc(size_t n);
 /* struct limine_bootloader_info_response* (Limine v12) passed by start.S. */
 int64_t k_kf_get_boot_info(void);
 
+/* First limine_framebuffer* (Limine v12), or 0 if none — from start.S. */
+int64_t k_kf_get_framebuffer(void);
+
+/* HHDM offset (Limine v12), or 0 if none — from start.S. */
+int64_t k_kf_get_hhdm(void);
+
+/* Framebuffer FFI (implemented in kernel/kf_fb.c): init from a
+   limine_framebuffer*, then draw pixels/rects/text into the linear framebuffer. */
+int64_t k_fb_init(int64_t fb);
+int64_t k_fb_ready(void);
+int64_t k_fb_width(void);
+int64_t k_fb_height(void);
+int64_t k_fb_putpixel(int64_t x, int64_t y, int64_t color);
+int64_t k_fb_fill(int64_t color);
+int64_t k_fb_rect(int64_t x, int64_t y, int64_t w, int64_t h, int64_t color);
+int64_t k_fb_hrect(int64_t x, int64_t y, int64_t w, int64_t h, int64_t color);
+int64_t k_fb_text(int64_t x, int64_t y, int64_t fg, int64_t bg, const char* s);
+
 /* Turn a numeric address into a C string pointer (for uart_puts on MMIO/tag
    strings living at raw addresses). */
 static inline const char* k_kf_str(int64_t addr) {
