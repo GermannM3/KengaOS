@@ -1,0 +1,11 @@
+# Build output
+/build/
+*.iso
+*.log
+
+# Limine binaries are auto-downloaded by scripts/build.sh
+/limine/
+
+# OS / editor noise
+Thumbs.db
+Desktop.ini

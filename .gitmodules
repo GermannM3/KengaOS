@@ -1,0 +1,3 @@
+[submodule "kenga-lang"]
+	path = kenga-lang
+	url = https://github.com/GermannM3/kenga-lang.git
