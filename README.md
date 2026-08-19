@@ -1,108 +1,110 @@
-# KengaOS
+<p align="center">
+  <img src="docs/banner.png" alt="KengaOS" width="920"/>
+</p>
 
-```
- _  __                          ___  ____
-| |/ /___  __ _ _ __ __ _  ___ / _ \/ ___|  ___
-| ' // _ \/ _` | '__/ _` |/ _ \ | | \___ \ / _ \
-| . \  __/ (_| | | | (_| |  __/ |_| |___) | (_) |
-|_|\_\___|\__,_|_|  \__,_|\___|\___/|____/ \___/
-```
+<p align="center">
+  <strong>KengaOS</strong> — минималистичная 64-бит ОС, написанная на языке <a href="https://github.com/GermannM3/kenga-lang">Kenga</a><br/>
+  загрузка · UART · планировщик · ядро · x86_64
+</p>
 
-A tiny 64-bit hobby OS for x86_64, written in [Kenga](https://github.com/GermannM3/kenga-lang) and booted with [Limine](https://limine-bootloader.org).
+<p align="center">
+  <a href="https://github.com/GermannM3/KengaOS/actions/workflows/ci.yml"><img src="https://github.com/GermannM3/KengaOS/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
+  <a href="https://github.com/GermannM3/KengaOS/actions/workflows/release.yml"><img src="https://github.com/GermannM3/KengaOS/actions/workflows/release.yml/badge.svg" alt="Release"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-2ee6d6?labelColor=12151a" alt="MIT"/></a>
+  <a href="https://github.com/GermannM3/kenga-lang"><img src="https://img.shields.io/badge/kenga--lang-pinned-5b9dff?labelColor=12151a" alt="kenga-lang"/></a>
+</p>
 
-The whole kernel — except the assembly entry point and a few FFI stubs — is written in the Kenga programming language and compiled to freestanding C via `kenga emit-c --freestanding`.
+---
 
-[![CI](https://github.com/GermannM3/KengaOS/actions/workflows/ci.yml/badge.svg)](https://github.com/GermannM3/KengaOS/actions/workflows/ci.yml)
-[![Release](https://github.com/GermannM3/KengaOS/actions/workflows/release.yml/badge.svg)](https://github.com/GermannM3/KengaOS/actions/workflows/release.yml)
+## Для знакомых (30 секунд)
 
-## Screenshot
+**KengaOS** — это хобби-операционная система, где весь ядроевой код (кроме точки входа на ассемблере и нескольких FFI-стабов) написан на языке Kenga и компилируется в freestanding C через `kenga emit-c --freestanding`.
 
-Boot menu (Limine + KengaOS entry):
+### Быстрая сборка
 
-![KengaOS boot menu](docs/screenshot-boot-menu.png)
-
-Kernel boot log over UART 16550 (COM1, 115200 8N1):
-
-```
-bootloader: Limine 12.6.0
-[KengaOS] v0.1 booting on bare metal (x86_64)
-[KengaOS] UART 16550 at 0x3F8 ready
-[KengaOS] kmain.kenga compiled via emit-c --freestanding
-[KengaOS] Hello from Kenga kernel!
+```bash
+git clone --recursive https://github.com/GermannM3/KengaOS.git
+cd KengaOS
+./scripts/build.sh          # Linux / macOS
+scripts\build.cmd           # Windows (MSYS2 / Git Bash)
 ```
 
-## Status
+### Запуск в QEMU
 
-Phase 1 (M1) is done: the kernel loads via Limine and talks over UART. A graphical framebuffer console and the rest of the roadmap are in progress.
-
-**Done (M1)**
-- Limine 12.6.0 boot protocol (stivale2-free, `.limine_requests` section)
-- 64-bit long mode + HHDM higher-half mapping
-- UART 16550 driver in pure Kenga (port I/O via `asm_inb` / `asm_outb` intrinsics)
-- Kernel-side `malloc` / `free` (bump allocator, FFI into `kf_alloc.c`)
-- Kernel panic / oops handlers
-- CI: builds the ISO and smoke-tests it in QEMU (UART marker gate)
-
-**Roadmap (M2+)**
-- GDT / IDT / PIT (timer), interrupts and exceptions
-- Preemptive scheduler with threads and IPC channels
-- Framebuffer console + PS/2 keyboard driver (real on-screen output)
-- Buddy/allocator upgrades, paging and syscalls
-- Shell, init, and an agent daemon over IPC
-
-## Repository layout
-
-```
-kernel/            Kenga kernel sources (kmain.kenga, start.S, linker.ld, limine.cfg)
-scripts/           build.sh / build.cmd — one-command build + QEMU smoke test
-docs/              screenshots and docs
-.github/workflows/ CI + release pipelines
-kenga-lang/        the Kenga compiler (git submodule, pinned)
+```bash
+qemu-system-x86_64 -M q35 -cdrom build/kengaos.iso -serial stdio
 ```
 
-## Building
+---
 
-Prerequisites: a C toolchain (clang or gcc), `ld.lld` or GNU ld, `xorriso`, and QEMU (optional, for the smoke test). On CI these are installed automatically.
+## Что уже есть (M1)
 
-The kenga compiler is a pinned git submodule. Clone with submodules:
+| Возможность | Статус |
+|---|---|
+| Загрузка через **Limine 12.6.0** (stivale2-free, `.limine_requests` section) | ✅ |
+| 64-бит long mode + HHDM higher-half mapping | ✅ |
+| **UART 16550** — порты I/O (`asm_inb` / `asm_outb`), не mmio | ✅ |
+| Kernel-side `malloc` / `free` (bump-аллокатор, FFI в `kf_alloc.c`) | ✅ |
+| Panic / oops handlers | ✅ |
+| CI: сборка ISO + smoke-тест в QEMU (UART-маркеры) | ✅ |
+| Release-пайплайн: **ISO + 7 toolchain-таргетов** (Linux, Windows, macOS × 2, Android × 2, iOS) | ✅ |
 
-```sh
+## Дорожная карта (M2+)
+
+- **GDT / IDT / PIT** — таймер, прерывания и исключения
+- **Превентивный планировщик** с потоками и IPC-каналами
+- **Framebuffer-консоль** + драйвер PS/2 клавиатуры
+- Buddy/paging/syscalls
+- Shell, init и агент-демон через IPC
+
+---
+
+## Сборка
+
+Для сборки нужен C-тулчейн (clang или gcc), `ld.lld` (или GNU ld), `xorriso` и QEMU (опционально, для smoke-теста). На CI всё ставится автоматически.
+
+Kenga-компилятор — git submodule, закреплён на конкретном коммите:
+
+```bash
 git clone --recursive https://github.com/GermannM3/KengaOS.git
 cd KengaOS
 ```
 
-Then build the ISO and run the QEMU smoke test:
+`build.sh` / `build.cmd` выполняет 7 шагов:
 
-```sh
-./scripts/build.sh          # Linux / macOS
-scripts\build.cmd           # Windows (MSYS2/Git Bash)
+1. Сборка компилятора Kenga (`cargo build --release`), если отсутствует
+2. Компиляция `kmain.kenga` → C через `kenga emit-c --freestanding`
+3. Ассемблирование и компиляция `start.S` / `kmain.c` / `kf_alloc.c` (freestanding, без libc)
+4. Линковка `kengaos.elf` (higher-half, linker.ld)
+5. Скачивание бинарников Limine 12.6.0 (если нужно) и сборка загружаемого `build/kengaos.iso`
+6. Запуск в QEMU на несколько секунд и проверка UART-маркеров
+7. Готово — ISO можно писать на флешку или грузить в любом VM
+
+---
+
+## Структура репозитория
+
+```
+kernel/            Исходники ядра (kmain.kenga, start.S, linker.ld, limine.cfg)
+scripts/           build.sh / build.cmd — одна команда для сборки + QEMU smoke
+docs/              Скриншоты и документация
+.github/workflows/ CI + release-пайплайны
+kenga-lang/        Компилятор Kenga (git submodule, закреплён)
 ```
 
-`build.sh` will:
-1. Build the kenga compiler (`cargo build --release`) if it is missing;
-2. Compile `kmain.kenga` → C via `kenga emit-c --freestanding`;
-3. Assemble and compile `start.S` / `kmain.c` / `kf_alloc.c` (freestanding, no libc);
-4. Link `kengaos.elf` (higher-half, linker.ld);
-5. Download Limine 12.6.0 binaries if needed and build a bootable `build/kengaos.iso`;
-6. Boot it in QEMU for a few seconds and verify the UART boot markers.
+---
 
-## Running
+## Язык Kenga
 
-```sh
-qemu-system-x86_64 -M q35 -cdrom build/kengaos.iso -serial stdio
-```
+Kenga — компактный строго типизированный системный язык, компилирующийся в C. Ключевые идеи:
 
-Or write `build/kengaos.iso` to a USB stick / boot it in any VM that supports BIOS boot.
+- Семверный компилятор с чистым emit-c бэкендом (`kenga emit-c --freestanding` для bare metal)
+- Встроенные интринсики для доступа к аппаратуре: `asm_inb/outb`, `mmio_read8/write8`
+- Атрибут `@intrinsic` для FFI-импорта/экспорта C-функций
+- Таргеты для десктопа (Linux/macOS/Windows) и мобильных (Android/iOS)
 
-## The Kenga language
+---
 
-Kenga is a small, strongly typed systems language that compiles to C. Key ideas:
+## Лицензия
 
-- Semver-ed compiler with a clean emit-c backend (`kenga emit-c --freestanding` for bare metal).
-- Built-in intrinsics for hardware access: `asm_inb/outb`, `mmio_read8/write8` and friends.
-- `@intrinsic` FFI attribute to import/expose C functions (kernel allocators, `kf_*` runtime).
-- Target tiers for desktop (Linux/macOS/Windows) and mobile (Android/iOS).
-
-## License
-
-MIT — see [LICENSE](LICENSE). Kenga itself is [MIT](https://github.com/GermannM3/kenga-lang).
+[MIT](LICENSE) © Kenga AI / [GermannM3](https://github.com/GermannM3)
