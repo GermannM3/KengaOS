@@ -111,10 +111,20 @@ else
     echo "warning: kf_fb.c missing, skipping"
 fi
 
+log "4c/7" "Compiling intr.c (GDT/IDT/panic) + isr.S (stubs) ($CC)"
+if [[ -f "$KERNEL_DIR/intr.c" ]]; then
+    eval "$CC -c $CFLAGS \"$KERNEL_DIR/intr.c\" -o \"$BUILD_DIR/intr.o\""
+fi
+if [[ -f "$KERNEL_DIR/isr.S" ]]; then
+    eval "$CC -c $CFLAGS \"$KERNEL_DIR/isr.S\" -o \"$BUILD_DIR/isr.o\""
+fi
+
 log "5/7" "Linking kengaos.elf ($LD)"
 OBJS=("$BUILD_DIR/start.o" "$BUILD_DIR/kmain.o")
 if [[ -f "$BUILD_DIR/kf_alloc.o" ]]; then OBJS+=("$BUILD_DIR/kf_alloc.o"); fi
 if [[ -f "$BUILD_DIR/kf_fb.o" ]]; then OBJS+=("$BUILD_DIR/kf_fb.o"); fi
+if [[ -f "$BUILD_DIR/intr.o" ]]; then OBJS+=("$BUILD_DIR/intr.o"); fi
+if [[ -f "$BUILD_DIR/isr.o" ]]; then OBJS+=("$BUILD_DIR/isr.o"); fi
 $LD -n -nostdlib -T "$KERNEL_DIR/linker.ld" "${OBJS[@]}" -o "$BUILD_DIR/kengaos.elf"
 ls -la "$BUILD_DIR/kengaos.elf"
 
@@ -199,6 +209,8 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -Eq "KengaOS.*booting" "$UART_LOG" || { echo "ERROR: BOOT marker missing" >&2; ok=0; }
     grep -q "Hello from Kenga kernel" "$UART_LOG" || { echo "ERROR: UART marker missing" >&2; ok=0; }
     grep -q "FB READY" "$UART_LOG" || { echo "ERROR: FB READY marker missing" >&2; ok=0; }
+    grep -q "INTR READY" "$UART_LOG" || { echo "ERROR: INTR READY marker missing" >&2; ok=0; }
+    grep -q "INT3 CAUGHT" "$UART_LOG" || { echo "ERROR: INT3 (IDT) marker missing" >&2; ok=0; }
     if [[ $ok == 1 ]]; then
         echo "OK: kernel booted — BOOT/UART/FB markers present"
     else

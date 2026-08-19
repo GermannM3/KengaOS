@@ -46,6 +46,11 @@ int64_t k_kf_get_hhdm(void);
 /* Print an int64 to the UART (COM1, port 0x3F8) as decimal. */
 int64_t k_kf_puti(int64_t n);
 
+/* Interrupt core (kernel/intr.c): install GDT+IDT and catch exceptions. */
+int64_t k_intr_init(void);
+int64_t k_intr_test(void);
+void k_kf_intr_handler(void* regs);
+
 /* Framebuffer FFI (implemented in kernel/kf_fb.c): init from a
    limine_framebuffer*, then draw pixels/rects/text into the linear framebuffer. */
 int64_t k_fb_init(int64_t fb);

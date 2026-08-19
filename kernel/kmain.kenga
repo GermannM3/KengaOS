@@ -2,6 +2,8 @@
 @intrinsic fn kf_get_framebuffer() -> i64;
 @intrinsic fn kf_str(addr: i64) -> str;
 @intrinsic fn kf_puti(n: i64) -> i64;
+@intrinsic fn intr_init() -> i64;
+@intrinsic fn intr_test() -> i64;
 
 /* Framebuffer FFI (kf_fb.c) */
 @intrinsic fn fb_init(fb: i64) -> i64;
@@ -260,6 +262,13 @@ fn main() -> i64 {
 
     let w: i64 = fb_width();
     let h: i64 = fb_height();
+
+    let iok: i64 = intr_init();
+    uart_puts("intr_init=");
+    if iok == 1 { uart_puts("ok"); } else { uart_puts("FAIL"); }
+    uart_putc(10);
+    kp_msg("KengaOS", "INTR READY");
+    intr_test();
 
     let mok: i64 = mouse_init();
     uart_puts("mouse_init=");

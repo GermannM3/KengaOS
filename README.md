@@ -54,6 +54,7 @@ qemu-system-x86_64 -M q35 -cdrom build/kengaos.iso -serial stdio
 | **UART 16550** — порты I/O (`asm_inb` / `asm_outb`), не mmio | ✅ |
 | **Linear framebuffer** (Limine `framebuffer_request`) + 8×8 bitmap-шрифт | ✅ |
 | **PS/2 мышь** (polling, порты 0x60/0x64) + курсор (XOR-рисование) | ✅ |
+| **GDT + IDT** (Limine CS=0x28), обработчики исключений + красивый panic (UART+FB) | ✅ |
 | Kernel-side `malloc` / `free` (bump-аллокатор, FFI в `kf_alloc.c`) | ✅ |
 | Panic / oops handlers | ✅ |
 | CI: сборка ISO + smoke-тест в QEMU (UART-маркеры) | ✅ |
@@ -63,8 +64,9 @@ qemu-system-x86_64 -M q35 -cdrom build/kengaos.iso -serial stdio
 
 - **GDT / IDT / PIT** — таймер, прерывания и исключения
 - **Превентивный планировщик** с потоками и IPC-каналами
-- **Окна/панели** (композитор поверх фреймбуфера) + PS/2 клавиатура
-- **GDT / IDT / PIT** — прерывания (IRQ для мыши/клавиатуры/таймера)
+- **PIT-таймер + round-robin планировщик** (многозадачность)
+- **PS/2 клавиатура + консоль + shell**
+- **Физическая память / page allocator → heap → buddy**
 - Buddy/paging/syscalls
 - Shell, init и агент-демон через IPC
 

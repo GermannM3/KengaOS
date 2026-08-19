@@ -87,10 +87,28 @@ where gcc >nul 2>&1 && (
 echo No C compiler for kf_fb.c
 :kffb_ok
 
+echo [4c/7] Compiling intr.c + isr.S (interrupts) ...
+where x86_64-elf-gcc >nul 2>&1 && (
+    x86_64-elf-gcc -c -ffreestanding -mcmodel=large -mno-red-zone -m64 -O2 -Wall -Wextra "%KERNEL_DIR%\intr.c" -o "%BUILD_DIR%\intr.o"
+    x86_64-elf-gcc -c -ffreestanding -mcmodel=large -mno-red-zone -m64 -O2 -Wall -Wextra "%KERNEL_DIR%\isr.S" -o "%BUILD_DIR%\isr.o"
+    if errorlevel 1 goto :fail
+    goto :intr_ok
+)
+where gcc >nul 2>&1 && (
+    gcc -c -ffreestanding -mcmodel=large -mno-red-zone -m64 -O2 -Wall -Wextra "%KERNEL_DIR%\intr.c" -o "%BUILD_DIR%\intr.o"
+    gcc -c -ffreestanding -mcmodel=large -mno-red-zone -m64 -O2 -Wall -Wextra "%KERNEL_DIR%\isr.S" -o "%BUILD_DIR%\isr.o"
+    if errorlevel 1 goto :fail
+    goto :intr_ok
+)
+echo No C compiler for intr.c/isr.S
+:intr_ok
+
 echo [5/7] Linking kengaos.elf ...
 set OBJS=%BUILD_DIR%\start.o %BUILD_DIR%\kmain.o
 if exist "%BUILD_DIR%\kf_alloc.o" set OBJS=%OBJS% %BUILD_DIR%\kf_alloc.o
 if exist "%BUILD_DIR%\kf_fb.o" set OBJS=%OBJS% %BUILD_DIR%\kf_fb.o
+if exist "%BUILD_DIR%\intr.o" set OBJS=%OBJS% %BUILD_DIR%\intr.o
+if exist "%BUILD_DIR%\isr.o" set OBJS=%OBJS% %BUILD_DIR%\isr.o
 if exist "%BUILD_DIR%\start.o" (
     if exist "%BUILD_DIR%\kmain.o" (
         where x86_64-elf-ld >nul 2>&1 && (
