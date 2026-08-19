@@ -1,0 +1,17 @@
+# Shell scripts must be LF and executable on all platforms
+*.sh text eol=lf
+
+# Kernel sources: normalize to LF too (avoid mixed line endings in diffs)
+*.c text eol=lf
+*.h text eol=lf
+*.kenga text eol=lf
+*.ld text eol=lf
+*.S text eol=lf
+*.cfg text eol=lf
+
+# Binary / build artifacts
+*.png binary
+*.iso binary
+*.elf binary
+*.o binary
+*.exe binary
