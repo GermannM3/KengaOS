@@ -95,6 +95,7 @@ jobs:
 
       - name: Pack (Windows, desktop)
         if: runner.os == 'Windows' && matrix.lite == true
+        working-directory: kenga-lang
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force ../dist | Out-Null
