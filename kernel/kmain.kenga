@@ -8,6 +8,9 @@
 @intrinsic fn mem_init() -> i64;
 @intrinsic fn mem_free_bytes() -> i64;
 @intrinsic fn mem_total_bytes() -> i64;
+@intrinsic fn mem_pages_free() -> i64;
+@intrinsic fn mem_palloc() -> i64;
+@intrinsic fn mem_pfree(addr: i64) -> i64;
 
 /* Framebuffer FFI (kf_fb.c) */
 @intrinsic fn fb_init(fb: i64) -> i64;
@@ -269,8 +272,20 @@ fn main() -> i64 {
     if mok == 1 { uart_puts("ok"); } else { uart_puts("FAIL"); }
     uart_puts(" free_kb=");
     kf_puti(mem_free_bytes() / 1024);
+    uart_puts(" frames_kb=");
+    kf_puti(mem_pages_free() * 4);
     uart_putc(10);
     kp_msg("KengaOS", "MEM READY");
+
+    let pf: i64 = mem_palloc();
+    if pf != 0 {
+        mmio_write8(pf, 0xAB);
+        let pv: i64 = mmio_read8(pf);
+        mem_pfree(pf);
+        if pv == 0xAB { kp_msg("KengaOS", "PALLOC OK"); } else { kp_msg("KengaOS", "PALLOC FAIL"); }
+    } else {
+        kp_msg("KengaOS", "PALLOC NONE");
+    }
 
     let w: i64 = fb_width();
     let h: i64 = fb_height();

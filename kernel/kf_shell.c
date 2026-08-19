@@ -71,11 +71,14 @@ static void run_cmd(const char* cmd) {
     } else if (scmp(cmd, "mem") == 0) {
         int64_t freek = k_mem_free_bytes() / 1024;
         int64_t totk = k_mem_total_bytes() / 1024;
-        k_fb_con_print("free heap: ");
+        k_fb_con_print("heap: ");
         k_fb_con_print(dec(freek));
-        k_fb_con_print(" KiB / ");
+        k_fb_con_print(" KiB free / ");
         k_fb_con_print(dec(totk));
-        k_fb_con_print(" KiB usable\n");
+        k_fb_con_print(" KiB\n");
+        k_fb_con_print("free frames: ");
+        k_fb_con_print(dec(k_mem_pages_free() * 4));
+        k_fb_con_print(" KiB\n");
     } else if (sncmp(cmd, "echo ", 5) == 0) {
         k_fb_con_print(cmd + 5);
         k_fb_con_print("\n");

@@ -50,6 +50,9 @@ int64_t k_kf_get_memmap(void);
 int64_t k_mem_init(void);
 int64_t k_mem_free_bytes(void);
 int64_t k_mem_total_bytes(void);
+int64_t k_mem_palloc(void);
+int64_t k_mem_pfree(int64_t addr);
+int64_t k_mem_pages_free(void);
 
 /* Print an int64 to the UART (COM1, port 0x3F8) as decimal. */
 int64_t k_kf_puti(int64_t n);
