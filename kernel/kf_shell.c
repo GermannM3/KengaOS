@@ -40,7 +40,7 @@ static void run_cmd(const char* cmd) {
     } else if (scmp(cmd, "info") == 0) {
         k_fb_con_print("KengaOS v0.1 x86_64\n");
         k_fb_con_print("Kenga kernel over Limine, framebuffer console\n");
-        k_fb_con_redraw();   /* force full redraw */
+        k_fb_con_redraw();
     } else if (scmp(cmd, "tasks") == 0) {
         k_fb_con_print("cooperative round-robin scheduler active\n");
     } else if (scmp(cmd, "ps") == 0) {

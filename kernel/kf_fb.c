@@ -298,7 +298,7 @@ static void con_draw_cell(int x, int y) {
 }
 
 static void con_draw_cursor(void) {
-    if (last_cx >= 0) con_draw_cell(last_cx, last_cy);   /* clear old cursor */
+    if (last_cx >= 0) con_draw_cell(last_cx, last_cy);
     last_cx = con_cx; last_cy = con_cy;
     for (int yy = 0; yy < 8; yy++)
         for (int xx = 0; xx < 6; xx++)

@@ -34,6 +34,8 @@ static kf_proc_t procs[MAX_PROC];
 static int64_t   next_pid = 1;
 static int64_t   logger_pid = 0;
 
+static void lg_uart(const char* s) { for (; *s; s++) __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)*s), "Nd"((uint16_t)0x3F8)); }
+
 int64_t k_proc_spawn(const char* name, void (*entry)(void)) {
     for (int i = 0; i < MAX_PROC; i++) if (!procs[i].active) {
         procs[i].pid = next_pid++;
@@ -87,7 +89,6 @@ int64_t k_proc_pid_at(int64_t idx) { return procs[idx].pid; }
 const char* k_proc_name_at(int64_t idx) { return procs[idx].active ? procs[idx].name : ""; }
 
 /* --- logger process: prints received messages to console + UART --- */
-static void lg_uart(const char* s) { for (; *s; s++) __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)*s), "Nd"((uint16_t)0x3F8)); }
 static void logger_proc(void) {
     for (;;) {
         ipc_msg m;
