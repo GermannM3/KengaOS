@@ -43,6 +43,14 @@ int64_t k_kf_get_framebuffer(void);
 /* HHDM offset (Limine v12), or 0 if none — from start.S. */
 int64_t k_kf_get_hhdm(void);
 
+/* Limine memory map response* — from start.S. */
+int64_t k_kf_get_memmap(void);
+
+/* Physical memory / heap (kernel/kf_mem.c). */
+int64_t k_mem_init(void);
+int64_t k_mem_free_bytes(void);
+int64_t k_mem_total_bytes(void);
+
 /* Print an int64 to the UART (COM1, port 0x3F8) as decimal. */
 int64_t k_kf_puti(int64_t n);
 

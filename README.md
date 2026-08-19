@@ -60,7 +60,8 @@ qemu-system-x86_64 -M q35 -cdrom build/kengaos.iso -serial stdio
 | **PS/2 мышь** (polling, порты 0x60/0x64) + курсор (XOR-рисование) | ✅ |
 | **GDT + IDT** (Limine CS=0x28), обработчики исключений + красивый panic (UART+FB) | ✅ |
 | **Round-robin планировщик** (multitasking): `task_create`/`task_yield`, own stacks | ✅ |
-| **PS/2 клавиатура** (IRQ1→вектор 33, ring buffer) + **framebuffer-консоль** + **shell** (`help`, `info`, `clear`, `echo`) | ✅ |
+| **PS/2 клавиатура** (IRQ1→вектор 33, ring buffer) + **framebuffer-консоль** + **shell** (`help`, `info`, `clear`, `echo`, `mem`, `tasks`) | ✅ |
+| **Физическая память + kernel heap** (Limine memmap → больший usable-регион, HHDM; ~62 МБ heap) | ✅ |
 | Kernel-side `malloc` / `free` (bump-аллокатор, FFI в `kf_alloc.c`) | ✅ |
 | Panic / oops handlers | ✅ |
 | CI: сборка ISO + smoke-тест в QEMU (UART-маркеры) | ✅ |

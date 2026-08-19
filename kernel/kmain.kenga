@@ -5,6 +5,9 @@
 @intrinsic fn intr_init() -> i64;
 @intrinsic fn intr_test() -> i64;
 @intrinsic fn shell_init() -> i64;
+@intrinsic fn mem_init() -> i64;
+@intrinsic fn mem_free_bytes() -> i64;
+@intrinsic fn mem_total_bytes() -> i64;
 
 /* Framebuffer FFI (kf_fb.c) */
 @intrinsic fn fb_init(fb: i64) -> i64;
@@ -260,6 +263,14 @@ fn main() -> i64 {
     }
 
     fb_boot_screen(bi);
+
+    let mok: i64 = mem_init();
+    uart_puts("mem_init=");
+    if mok == 1 { uart_puts("ok"); } else { uart_puts("FAIL"); }
+    uart_puts(" free_kb=");
+    kf_puti(mem_free_bytes() / 1024);
+    uart_putc(10);
+    kp_msg("KengaOS", "MEM READY");
 
     let w: i64 = fb_width();
     let h: i64 = fb_height();

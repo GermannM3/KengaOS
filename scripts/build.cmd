@@ -59,18 +59,18 @@ if exist "%BUILD_DIR%\kmain.c" (
     echo kmain.c not generated, skipping compile step
 )
 
-echo [4/7] Compiling kf_alloc.c (kernel FFI allocator) ...
+echo [4/7] Compiling kf_mem.c (physical memory + heap) ...
 where x86_64-elf-gcc >nul 2>&1 && (
-    x86_64-elf-gcc -c -ffreestanding -mcmodel=large -mno-red-zone -m64 -O2 -Wall -Wextra "%KERNEL_DIR%\kf_alloc.c" -o "%BUILD_DIR%\kf_alloc.o"
+    x86_64-elf-gcc -c -ffreestanding -mcmodel=large -mno-red-zone -m64 -O2 -Wall -Wextra "%KERNEL_DIR%\kf_mem.c" -o "%BUILD_DIR%\kf_mem.o"
     if errorlevel 1 goto :fail
     goto :kf_ok
 )
 where gcc >nul 2>&1 && (
-    gcc -c -ffreestanding -mcmodel=large -mno-red-zone -m64 -O2 -Wall -Wextra "%KERNEL_DIR%\kf_alloc.c" -o "%BUILD_DIR%\kf_alloc.o"
+    gcc -c -ffreestanding -mcmodel=large -mno-red-zone -m64 -O2 -Wall -Wextra "%KERNEL_DIR%\kf_mem.c" -o "%BUILD_DIR%\kf_mem.o"
     if errorlevel 1 goto :fail
     goto :kf_ok
 )
-echo No C compiler for kf_alloc.c
+echo No C compiler for kf_mem.c
 :kf_ok
 
 echo [4b/7] Compiling kf_fb.c (framebuffer driver) ...
@@ -119,7 +119,7 @@ echo No C compiler for sched.c
 
 echo [5/7] Linking kengaos.elf ...
 set OBJS=%BUILD_DIR%\start.o %BUILD_DIR%\kmain.o
-if exist "%BUILD_DIR%\kf_alloc.o" set OBJS=%OBJS% %BUILD_DIR%\kf_alloc.o
+if exist "%BUILD_DIR%\kf_mem.o" set OBJS=%OBJS% %BUILD_DIR%\kf_mem.o
 if exist "%BUILD_DIR%\kf_fb.o" set OBJS=%OBJS% %BUILD_DIR%\kf_fb.o
 if exist "%BUILD_DIR%\intr.o" set OBJS=%OBJS% %BUILD_DIR%\intr.o
 if exist "%BUILD_DIR%\isr.o" set OBJS=%OBJS% %BUILD_DIR%\isr.o

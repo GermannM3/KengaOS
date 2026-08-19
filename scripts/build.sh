@@ -97,11 +97,11 @@ $CC -c $CFLAGS "$KERNEL_DIR/start.S" -o "$BUILD_DIR/start.o"
 log "3/7" "Compiling kmain.c (freestanding, no libc) ($CC)"
 eval "$CC -c $CFLAGS_C \"$BUILD_DIR/kmain.c\" -o \"$BUILD_DIR/kmain.o\""
 
-log "4/7" "Compiling kf_alloc.c (kernel FFI allocator) ($CC)"
-if [[ -f "$KERNEL_DIR/kf_alloc.c" ]]; then
-    eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_alloc.c\" -o \"$BUILD_DIR/kf_alloc.o\""
+log "4/7" "Compiling kf_mem.c (physical memory + heap) ($CC)"
+if [[ -f "$KERNEL_DIR/kf_mem.c" ]]; then
+    eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_mem.c\" -o \"$BUILD_DIR/kf_mem.o\""
 else
-    echo "warning: kf_alloc.c missing, skipping"
+    echo "warning: kf_mem.c missing, skipping"
 fi
 
 log "4b/7" "Compiling kf_fb.c (framebuffer driver) ($CC)"
@@ -136,7 +136,7 @@ fi
 
 log "5/7" "Linking kengaos.elf ($LD)"
 OBJS=("$BUILD_DIR/start.o" "$BUILD_DIR/kmain.o")
-if [[ -f "$BUILD_DIR/kf_alloc.o" ]]; then OBJS+=("$BUILD_DIR/kf_alloc.o"); fi
+if [[ -f "$BUILD_DIR/kf_mem.o" ]]; then OBJS+=("$BUILD_DIR/kf_mem.o"); fi
 if [[ -f "$BUILD_DIR/kf_fb.o" ]]; then OBJS+=("$BUILD_DIR/kf_fb.o"); fi
 if [[ -f "$BUILD_DIR/intr.o" ]]; then OBJS+=("$BUILD_DIR/intr.o"); fi
 if [[ -f "$BUILD_DIR/isr.o" ]]; then OBJS+=("$BUILD_DIR/isr.o"); fi
@@ -230,6 +230,7 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "INTR READY" "$UART_LOG" || { echo "ERROR: INTR READY marker missing" >&2; ok=0; }
     grep -q "INT3 CAUGHT" "$UART_LOG" || { echo "ERROR: INT3 (IDT) marker missing" >&2; ok=0; }
     grep -q "SHELL READY" "$UART_LOG" || { echo "ERROR: SHELL READY marker missing" >&2; ok=0; }
+    grep -q "MEM READY" "$UART_LOG" || { echo "ERROR: MEM READY marker missing" >&2; ok=0; }
     if [[ $ok == 1 ]]; then
         echo "OK: kernel booted — BOOT/UART/FB markers present"
     else

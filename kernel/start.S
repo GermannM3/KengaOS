@@ -56,6 +56,16 @@ limine_hhdm_request:
     .quad 0
     .quad 0
 
+/* struct limine_memmap_request: id[4] | revision (u64) | response* (u64) */
+.global limine_memmap_request
+limine_memmap_request:
+    .quad 0xc7b1dd30df4c8b88   /* LIMINE_COMMON_MAGIC hi */
+    .quad 0x0a82e883a194f07b   /* LIMINE_COMMON_MAGIC lo */
+    .quad 0x67cf3d9d378a806f   /* memmap request id */
+    .quad 0xe304acdfc50c3c62
+    .quad 0
+    .quad 0
+
 .global limine_requests_end_marker
 limine_requests_end_marker:
     .quad 0xadc0e0531bb10d03
@@ -114,6 +124,16 @@ k_kf_get_hhdm:
     jz .khhdm_done
     mov rax, [rax]               /* response->offset */
 .khhdm_done:
+    ret
+
+/* Kenga FFI: kf_get_memmap() -> i64
+   Returns limine_memmap_request.response
+   (struct limine_memmap_response*:
+      revision u64 @0, entries u64 @8, entries** u64 @16). */
+.global k_kf_get_memmap
+.type k_kf_get_memmap, @function
+k_kf_get_memmap:
+    mov rax, [rip + limine_memmap_request + 40]
     ret
 
 .section .bss.stack, "aw", @nobits
