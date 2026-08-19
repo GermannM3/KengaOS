@@ -63,9 +63,13 @@ jobs:
 
       - name: Install Android NDK
         if: contains(matrix.target, 'android')
-        uses: r0adkll/install-ndk@v2
-        with:
-          ndk-version: r27c
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd "$RUNNER_TEMP"
+          curl -fsSLo ndk.zip "https://dl.google.com/android/repository/android-ndk-r27c-linux.zip"
+          unzip -q ndk.zip
+          echo "ANDROID_NDK_HOME=$RUNNER_TEMP/android-ndk-r27c" >> "$GITHUB_ENV"
 
       - name: Configure Android cross toolchain
         if: contains(matrix.target, 'android')
