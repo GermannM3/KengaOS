@@ -4,6 +4,7 @@
 @intrinsic fn kf_puti(n: i64) -> i64;
 @intrinsic fn intr_init() -> i64;
 @intrinsic fn intr_test() -> i64;
+@intrinsic fn sched_init() -> i64;
 
 /* Framebuffer FFI (kf_fb.c) */
 @intrinsic fn fb_init(fb: i64) -> i64;
@@ -270,16 +271,9 @@ fn main() -> i64 {
     kp_msg("KengaOS", "INTR READY");
     intr_test();
 
-    let mok: i64 = mouse_init();
-    uart_puts("mouse_init=");
-    if mok == 1 {
-        uart_puts("ok");
-    } else {
-        uart_puts("FAIL");
-    }
-    uart_putc(10);
+    kp_msg("KengaOS", "SCHED INIT");
 
-    mouse_loop(w, h);
+    sched_init();
 
     return 0;
 }

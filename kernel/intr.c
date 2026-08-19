@@ -117,7 +117,7 @@ static void gdt_install(void) {
 /* --- IDT --- */
 static idt_entry_t idt[256];
 
-static uint16_t kernel_cs = 0x08;
+uint16_t kernel_cs = 0x08;   /* actual Limine kernel CS, read at boot */
 
 static void idt_set(int n, uint64_t off) {
     idt[n].lo    = (uint16_t)(off & 0xFFFF);
@@ -210,12 +210,32 @@ void k_kf_intr_handler(void* regs) {
     for (;;) { __asm__ __volatile__("cli; hlt"); }
 }
 
+static void enable_sse(void) {
+    uint64_t cr4, cr0;
+    __asm__ __volatile__("mov %%cr4, %0" : "=r"(cr4));
+    cr4 |= (1ULL << 9);   /* OSFXSR */
+    cr4 |= (1ULL << 10);  /* OSXMMEXCPT */
+    __asm__ __volatile__("mov %0, %%cr4" : : "r"(cr4));
+    __asm__ __volatile__("mov %%cr0, %0" : "=r"(cr0));
+    cr0 &= ~(1ULL << 2);  /* clear EM */
+    cr0 |=  (1ULL << 1);  /* set MP */
+    __asm__ __volatile__("mov %0, %%cr0" : : "r"(cr0));
+}
+
 int64_t k_intr_init(void) {
     /* Limine already sets up a working GDT; we rely on its kernel code/data
        segments. Use the actual current CS for IDT gates (not a hardcoded 0x08). */
     dump_cs();
+    enable_sse();   /* -O2 emits SSE; needed or xorps -> #UD */
     idt_install();
-    /* sti disabled for now: IRQs (PIT->vector 8) fire before we remap the PIC. */
+    return 1;
+}
+
+/* Replace an IDT gate at runtime (e.g. point vector 32 at the timer ISR).
+   The IDTR already points at the idt[] array, so writes take effect at once. */
+int64_t k_intr_set_gate(int64_t n, int64_t off) {
+    if (n < 0 || n >= 256) return 0;
+    idt_set((int)n, (uint64_t)off);
     return 1;
 }
 

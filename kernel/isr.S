@@ -1311,3 +1311,27 @@ isr_common:
     pop r15
     add rsp, 16
     iretq
+
+/* --- Cooperative yield (M2.2). ---
+     Saves rbx,r12-r15,rbp + return address, calls k_sched_yield(ctx),
+     switches rsp to the next task's ctx and `ret`s into it.
+     Frame (from ctx): rbx,r12,r13,r14,r15,rbp,ret_addr. */
+.global k_task_yield
+k_task_yield:
+    push rbp
+    mov rbp, rsp
+    push r15
+    push r14
+    push r13
+    push r12
+    push rbx
+    mov rdi, rsp
+    call k_sched_yield
+    mov rsp, rax
+    pop rbx
+    pop r12
+    pop r13
+    pop r14
+    pop r15
+    pop rbp
+    ret

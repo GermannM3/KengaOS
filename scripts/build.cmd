@@ -103,12 +103,27 @@ where gcc >nul 2>&1 && (
 echo No C compiler for intr.c/isr.S
 :intr_ok
 
+echo [4d/7] Compiling sched.c (scheduler) ...
+where x86_64-elf-gcc >nul 2>&1 && (
+    x86_64-elf-gcc -c -ffreestanding -mcmodel=large -mno-red-zone -m64 -O2 -Wall -Wextra "%KERNEL_DIR%\sched.c" -o "%BUILD_DIR%\sched.o"
+    if errorlevel 1 goto :fail
+    goto :sched_ok
+)
+where gcc >nul 2>&1 && (
+    gcc -c -ffreestanding -mcmodel=large -mno-red-zone -m64 -O2 -Wall -Wextra "%KERNEL_DIR%\sched.c" -o "%BUILD_DIR%\sched.o"
+    if errorlevel 1 goto :fail
+    goto :sched_ok
+)
+echo No C compiler for sched.c
+:sched_ok
+
 echo [5/7] Linking kengaos.elf ...
 set OBJS=%BUILD_DIR%\start.o %BUILD_DIR%\kmain.o
 if exist "%BUILD_DIR%\kf_alloc.o" set OBJS=%OBJS% %BUILD_DIR%\kf_alloc.o
 if exist "%BUILD_DIR%\kf_fb.o" set OBJS=%OBJS% %BUILD_DIR%\kf_fb.o
 if exist "%BUILD_DIR%\intr.o" set OBJS=%OBJS% %BUILD_DIR%\intr.o
 if exist "%BUILD_DIR%\isr.o" set OBJS=%OBJS% %BUILD_DIR%\isr.o
+if exist "%BUILD_DIR%\sched.o" set OBJS=%OBJS% %BUILD_DIR%\sched.o
 if exist "%BUILD_DIR%\start.o" (
     if exist "%BUILD_DIR%\kmain.o" (
         where x86_64-elf-ld >nul 2>&1 && (

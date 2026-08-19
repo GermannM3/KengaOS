@@ -49,7 +49,13 @@ int64_t k_kf_puti(int64_t n);
 /* Interrupt core (kernel/intr.c): install GDT+IDT and catch exceptions. */
 int64_t k_intr_init(void);
 int64_t k_intr_test(void);
+int64_t k_intr_set_gate(int64_t n, int64_t off);
 void k_kf_intr_handler(void* regs);
+extern uint16_t kernel_cs;
+
+/* Scheduler (kernel/sched.c): round-robin multitasking. */
+int64_t k_sched_init(void);
+uint64_t k_sched_yield(uint64_t current_ctx);
 
 /* Framebuffer FFI (implemented in kernel/kf_fb.c): init from a
    limine_framebuffer*, then draw pixels/rects/text into the linear framebuffer. */
