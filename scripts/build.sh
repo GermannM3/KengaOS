@@ -134,6 +134,11 @@ if [[ -f "$KERNEL_DIR/kf_shell.c" ]]; then
     eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_shell.c\" -o \"$BUILD_DIR/kf_shell.o\""
 fi
 
+log "4g/7" "Compiling kf_proc.c (processes + IPC) ($CC)"
+if [[ -f "$KERNEL_DIR/kf_proc.c" ]]; then
+    eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_proc.c\" -o \"$BUILD_DIR/kf_proc.o\""
+fi
+
 log "5/7" "Linking kengaos.elf ($LD)"
 OBJS=("$BUILD_DIR/start.o" "$BUILD_DIR/kmain.o")
 if [[ -f "$BUILD_DIR/kf_mem.o" ]]; then OBJS+=("$BUILD_DIR/kf_mem.o"); fi
@@ -143,6 +148,7 @@ if [[ -f "$BUILD_DIR/isr.o" ]]; then OBJS+=("$BUILD_DIR/isr.o"); fi
 if [[ -f "$BUILD_DIR/sched.o" ]]; then OBJS+=("$BUILD_DIR/sched.o"); fi
 if [[ -f "$BUILD_DIR/kf_kbd.o" ]]; then OBJS+=("$BUILD_DIR/kf_kbd.o"); fi
 if [[ -f "$BUILD_DIR/kf_shell.o" ]]; then OBJS+=("$BUILD_DIR/kf_shell.o"); fi
+if [[ -f "$BUILD_DIR/kf_proc.o" ]]; then OBJS+=("$BUILD_DIR/kf_proc.o"); fi
 $LD -n -nostdlib -T "$KERNEL_DIR/linker.ld" "${OBJS[@]}" -o "$BUILD_DIR/kengaos.elf"
 ls -la "$BUILD_DIR/kengaos.elf"
 
@@ -230,6 +236,7 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "INTR READY" "$UART_LOG" || { echo "ERROR: INTR READY marker missing" >&2; ok=0; }
     grep -q "INT3 CAUGHT" "$UART_LOG" || { echo "ERROR: INT3 (IDT) marker missing" >&2; ok=0; }
     grep -q "SHELL READY" "$UART_LOG" || { echo "ERROR: SHELL READY marker missing" >&2; ok=0; }
+    grep -q "PROC READY" "$UART_LOG" || { echo "ERROR: PROC READY marker missing" >&2; ok=0; }
     grep -q "MEM READY" "$UART_LOG" || { echo "ERROR: MEM READY marker missing" >&2; ok=0; }
     if [[ $ok == 1 ]]; then
         echo "OK: kernel booted — BOOT/UART/FB markers present"

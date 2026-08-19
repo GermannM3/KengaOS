@@ -286,6 +286,25 @@ static int con_cols = 0, con_rows = 0;
 static int con_cx = 0, con_cy = 0;
 static char con_buf[CON_COLS_MAX * CON_ROWS_MAX];
 
+static int last_cx = -1, last_cy = -1;
+
+static void con_draw_cell(int x, int y) {
+    char c = con_buf[y * con_cols + x];
+    for (int rr = 0; rr < 8; rr++)
+        for (int cc = 0; cc < 8; cc++)
+            fb_put((uint32_t)x * 8 + cc, (uint32_t)y * 8 + rr, CON_BG);
+    if (c && c != ' ')
+        k_fb_draw_char((int64_t)x * 8, (int64_t)y * 8, CON_FG, CON_BG, c);
+}
+
+static void con_draw_cursor(void) {
+    if (last_cx >= 0) con_draw_cell(last_cx, last_cy);   /* clear old cursor */
+    last_cx = con_cx; last_cy = con_cy;
+    for (int yy = 0; yy < 8; yy++)
+        for (int xx = 0; xx < 6; xx++)
+            fb_put((uint32_t)con_cx * 8 + xx, (uint32_t)con_cy * 8 + yy, 0x2ee6d6);
+}
+
 static void con_redraw(void) {
     if (!fb_ok) return;
     k_fb_fill(CON_BG);
@@ -294,10 +313,6 @@ static void con_redraw(void) {
             char c = con_buf[y * con_cols + x];
             if (c && c != ' ') k_fb_draw_char((int64_t)x * 8, (int64_t)y * 8, CON_FG, CON_BG, c);
         }
-    /* cursor block */
-    for (int yy = 0; yy < 8; yy++)
-        for (int xx = 0; xx < 6; xx++)
-            fb_put((uint32_t)con_cx * 8 + xx, (uint32_t)con_cy * 8 + yy, 0x2ee6d6);
 }
 
 int64_t k_fb_con_init(void) {
@@ -319,10 +334,11 @@ void k_fb_con_clear(void) {
 void k_fb_con_putc(int64_t c) {
     if (!fb_ok) return;
     if (c == '\n') { con_cx = 0; con_cy++; }
-    else if (c == '\b') { if (con_cx > 0) con_cx--; con_buf[con_cy * con_cols + con_cx] = ' '; }
+    else if (c == '\b') { if (con_cx > 0) con_cx--; con_buf[con_cy * con_cols + con_cx] = ' '; con_draw_cell(con_cx, con_cy); }
     else if (c == '\t') { do { con_buf[con_cy * con_cols + con_cx] = ' '; con_cx++; } while (con_cx % 4); }
     else if (c >= 32) {
         con_buf[con_cy * con_cols + con_cx] = (char)c;
+        con_draw_cell(con_cx, con_cy);
         con_cx++;
     }
     if (con_cx >= con_cols) { con_cx = 0; con_cy++; }
@@ -330,12 +346,26 @@ void k_fb_con_putc(int64_t c) {
         for (int i = 0; i < (con_rows - 1) * con_cols; i++) con_buf[i] = con_buf[i + con_cols];
         for (int i = (con_rows - 1) * con_cols; i < con_rows * con_cols; i++) con_buf[i] = ' ';
         con_cy = con_rows - 1;
+        con_redraw();
+    } else {
+        con_draw_cursor();
     }
-    con_redraw();
 }
 
 int64_t k_fb_con_print(const char* s) {
     if (!s) return 0;
     for (; *s; s++) k_fb_con_putc((int64_t)(unsigned char)*s);
     return 1;
+}
+
+int64_t k_fb_con_redraw(void) { con_redraw(); return 1; }
+
+/* Dump console buffer rows 0..3 to UART (diagnostic). */
+void k_fb_con_dump(void) {
+    for (int r = 0; r < 4; r++) {
+        for (int c = 0; c < 16; c++) {
+            __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)con_buf[r * con_cols + c]), "Nd"((uint16_t)0x3F8));
+        }
+        __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)'|'), "Nd"((uint16_t)0x3F8));
+    }
 }

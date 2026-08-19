@@ -45,6 +45,9 @@ uint64_t k_sched_yield(uint64_t current_ctx) {
     return current_ctx;
 }
 
+/* Current running task index (used by IPC to find the calling process). */
+uint64_t k_sched_current(void) { return current; }
+
 /* Build the initial k_task_yield frame so the first resume `ret`s into entry.
    Frame (from ctx): rbx,r12,r13,r14,r15,rbp,ret_addr. */
 uint64_t k_task_create(void (*entry)(void)) {

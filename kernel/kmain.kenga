@@ -283,6 +283,7 @@ fn main() -> i64 {
     intr_test();
 
     kp_msg("KengaOS", "SHELL READY");
+    kp_msg("KengaOS", "PROC READY");
 
     shell_init();
 

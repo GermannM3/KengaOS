@@ -23,18 +23,6 @@ static int sncmp(const char* a, const char* b, int n) {
     return 0;
 }
 
-static const char* dec(int64_t n) {
-    static char buf[24];
-    int i = 0; unsigned long long v;
-    if (n < 0) { buf[i++] = '-'; v = (unsigned long long)(-(n + 1)) + 1ull; }
-    else v = (unsigned long long)n;
-    char t[24]; int k = 0;
-    do { t[k++] = (char)('0' + (v % 10)); v /= 10; } while (v);
-    while (k) buf[i++] = t[--k];
-    buf[i] = 0;
-    return buf;
-}
-
 static void run_cmd(const char* cmd) {
     if (cmd[0] == 0) { k_fb_con_print("kenga> "); return; }
     if (scmp(cmd, "help") == 0) {
@@ -44,14 +32,30 @@ static void run_cmd(const char* cmd) {
         k_fb_con_print("  info   - kernel info\n");
         k_fb_con_print("  echo x - print x\n");
         k_fb_con_print("  mem    - memory info\n");
+        k_fb_con_print("  ps     - list processes\n");
+        k_fb_con_print("  log x  - IPC send 'x' to logger\n");
         k_fb_con_print("  tasks  - scheduler status\n");
     } else if (scmp(cmd, "clear") == 0) {
         k_fb_con_clear();
     } else if (scmp(cmd, "info") == 0) {
         k_fb_con_print("KengaOS v0.1 x86_64\n");
         k_fb_con_print("Kenga kernel over Limine, framebuffer console\n");
+        k_fb_con_redraw();   /* force full redraw */
     } else if (scmp(cmd, "tasks") == 0) {
         k_fb_con_print("cooperative round-robin scheduler active\n");
+    } else if (scmp(cmd, "ps") == 0) {
+        int64_t n = k_proc_count();
+        k_fb_con_print("processes:\n");
+        for (int64_t i = 0; i < n; i++) {
+            k_fb_con_print("  pid ");
+            k_fb_con_print(dec(k_proc_pid_at(i)));
+            k_fb_con_print("  ");
+            k_fb_con_print(k_proc_name_at(i));
+            k_fb_con_print("\n");
+        }
+    } else if (sncmp(cmd, "log ", 4) == 0) {
+        int64_t r = k_ipc_send(k_logger_pid(), cmd + 4);
+        if (!r) k_fb_con_print("ipc queue full\n");
     } else if (scmp(cmd, "mem") == 0) {
         int64_t freek = k_mem_free_bytes() / 1024;
         int64_t totk = k_mem_total_bytes() / 1024;
@@ -97,6 +101,7 @@ static void shell_task(void) {
 int64_t k_shell_init(void) {
     k_kbd_init();           /* PIC remap + IRQ1 -> vector 33 */
     k_fb_con_init();        /* clear console */
+    k_proc_init();          /* spawn the logger process (IPC) */
     k_task_create(shell_task);
     __asm__ __volatile__("sti");
     for (;;) k_task_yield();   /* main becomes the idle task */

@@ -76,11 +76,24 @@ int64_t k_fb_con_init(void);
 int64_t k_fb_con_print(const char* s);
 void k_fb_con_putc(int64_t c);
 void k_fb_con_clear(void);
+void k_fb_con_dump(void);
+int64_t k_fb_con_redraw(void);
 
 /* Shell (kernel/kf_shell.c). */
 int64_t k_shell_init(void);
 uint64_t k_task_create(void (*entry)(void));
 uint64_t k_task_yield(void);
+uint64_t k_sched_current(void);
+
+/* Processes + IPC (kernel/kf_proc.c). */
+int64_t k_proc_init(void);
+int64_t k_proc_spawn(const char* name, void (*entry)(void));
+int64_t k_ipc_send(int64_t pid, const char* data);
+int64_t k_proc_count(void);
+int64_t k_proc_pid_at(int64_t idx);
+const char* k_proc_name_at(int64_t idx);
+int64_t k_logger_pid(void);
+const char* dec(int64_t n);
 
 /* Framebuffer FFI (implemented in kernel/kf_fb.c): init from a
    limine_framebuffer*, then draw pixels/rects/text into the linear framebuffer. */
