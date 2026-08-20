@@ -20,7 +20,7 @@ fn cur_erase(mx: i64, my: i64) -> i64 {
 
 /* --- drawing helpers (Kenga-facing) --- */
 fn drect(x: i64, y: i64, w: i64, h: i64, c: i64) -> i64 { return fb_hrect(x, y, w, h, c); }
-fn dtext(x: i64, y: i64, fg: i64, bg: i64, s: str) -> i64 { return fb_text(x, y, fg, bg, s); }
+fn dtext(x: i64, y: i64, fg: i64, bg: i64, s: str) -> i64 { return fb_text2x(x, y, fg, bg, s); }
 fn din(x: i64, y: i64, w: i64, h: i64, mx: i64, my: i64) -> i64 {
     if mx >= x && mx < x + w && my >= y && my < y + h { return 1; }
     return 0;

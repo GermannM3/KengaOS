@@ -47,6 +47,7 @@ import "desktop.kenga";
 @intrinsic fn fb_grad_rect(x: i64, y: i64, w: i64, h: i64, c0: i64, c1: i64) -> i64;
 @intrinsic fn fb_glow(cx: i64, cy: i64, rad: i64, color: i64, amax: i64) -> i64;
 @intrinsic fn wp_draw(x: i64, y: i64, w: i64, h: i64) -> i64;
+@intrinsic fn fb_text2x(x: i64, y: i64, fg: i64, bg: i64, s: str) -> i64;
 
 /* GUI bridge (desktop.kenga) */
 @intrinsic fn kbd_init() -> i64;

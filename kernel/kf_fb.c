@@ -568,6 +568,72 @@ int64_t k_fb_text(int64_t x, int64_t y, int64_t fg, int64_t bg, const char* s) {
     return 1;
 }
 
+/* Smooth 2x text: renders the 8x8 font scaled to 16x16 with edge
+   anti-aliasing (each glyph pixel -> 2x2 block; edge pixels get alpha
+   blending). This is what kills the 'DOS look' in the UI. */
+int64_t k_fb_draw_char2x(int64_t x, int64_t y, int64_t fg, int64_t bg, int64_t c) {
+    if ((uint64_t)x >= fb_w - 15 || (uint64_t)y >= fb_h - 15) return 0;
+    uint32_t f = (uint32_t)fg;
+    uint32_t b = (uint32_t)bg;
+    const uint8_t* glyph = 0;
+    if (c >= 32 && c <= 126) {
+        glyph = FONT8X8[(int)c - 32];
+    } else if (c >= 0x410 && c <= 0x44F) {
+        int cyr_idx = (int)(c - 0x410);
+        if (cyr_idx >= 0 && cyr_idx < 64) glyph = FONT_CYR[cyr_idx];
+    }
+    if (!glyph) return 0;
+    /* 16x16 coverage: each source pixel contributes 4 output pixels.
+       Horizontal edges get 40% coverage on the right column, vertical
+       edges 40% on the bottom row -> faux anti-aliasing. */
+    for (int r = 0; r < 8; r++) {
+        uint8_t row = glyph[r];
+        uint8_t row_below = (r + 1 < 8) ? glyph[r + 1] : 0;
+        for (int bit = 0; bit < 8; bit++) {
+            int on = (row >> (7 - bit)) & 1;
+            if (!on) continue;
+            int on_right  = (bit + 1 < 8) ? (row >> (7 - (bit + 1))) & 1 : 0;
+            int on_below  = (row_below >> (7 - bit)) & 1;
+            int x2 = (int)x + bit * 2;
+            int y2 = (int)y + r * 2;
+            /* solid core */
+            fb_put((uint32_t)x2, (uint32_t)y2, f);
+            fb_put((uint32_t)x2 + 1, (uint32_t)y2, f);
+            fb_put((uint32_t)x2, (uint32_t)y2 + 1, f);
+            /* right edge: half coverage if the neighbor is off */
+            if (!on_right) {
+                uint32_t mix_r = ((f >> 16 & 255) * 128 + (b >> 16 & 255) * 127) >> 8;
+                uint32_t mix_g = ((f >> 8 & 255) * 128 + (b >> 8 & 255) * 127) >> 8;
+                uint32_t mix_b = ((f & 255) * 128 + (b & 255) * 127) >> 8;
+                fb_put((uint32_t)x2 + 1, (uint32_t)y2, (mix_r << 16) | (mix_g << 8) | mix_b);
+            } else {
+                fb_put((uint32_t)x2 + 1, (uint32_t)y2, f);
+            }
+            /* bottom edge */
+            if (!on_below) {
+                uint32_t mix_r = ((f >> 16 & 255) * 128 + (b >> 16 & 255) * 127) >> 8;
+                uint32_t mix_g = ((f >> 8 & 255) * 128 + (b >> 8 & 255) * 127) >> 8;
+                uint32_t mix_b = ((f & 255) * 128 + (b & 255) * 127) >> 8;
+                fb_put((uint32_t)x2 + 1, (uint32_t)y2 + 1, (mix_r << 16) | (mix_g << 8) | mix_b);
+            } else {
+                fb_put((uint32_t)x2 + 1, (uint32_t)y2 + 1, f);
+            }
+        }
+    }
+    /* clear the background for glyph spacing */
+    return 16;
+}
+
+int64_t k_fb_text2x(int64_t x, int64_t y, int64_t fg, int64_t bg, const char* s) {
+    int64_t cx = x;
+    for (const char* p = s; *p; p++) {
+        int64_t adv = k_fb_draw_char2x(cx, y, fg, bg, (int64_t)(unsigned char)*p);
+        if (adv == 0) adv = 16;
+        cx += adv;
+    }
+    return cx - x;
+}
+
 /* --- text console (M2.3): char buffer + cursor + scroll --- */
 #define CON_COLS_MAX 160
 #define CON_ROWS_MAX 90
