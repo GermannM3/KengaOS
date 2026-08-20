@@ -38,6 +38,7 @@ static void run_cmd(const char* cmd) {
         k_fb_con_print("  log x  - IPC send 'x' to logger\n");
         k_fb_con_print("  ask x  - IPC round-trip to agent\n");
         k_fb_con_print("  spawn x- agent creates an agent\n");
+        k_fb_con_print("  demo   - living-OS showcase\n");
         k_fb_con_print("  agents - list agents\n");
         k_fb_con_print("  ls     - list vfs files\n");
         k_fb_con_print("  cat x  - print vfs file\n");
@@ -113,6 +114,28 @@ static void run_cmd(const char* cmd) {
             char reply[64];
             if (k_ipc_recv_str(reply, sizeof reply)) { k_fb_con_print(reply); k_fb_con_print("\n"); }
         }
+    } else if (scmp(cmd, "demo") == 0) {
+        char rb[64];
+        k_fb_con_print("=== KengaOS: living OS demo ===\n");
+        if (k_ipc_send(k_agent_pid(), "hi")) {
+            if (k_ipc_recv_str(rb, sizeof rb)) { k_fb_con_print("agent : "); k_fb_con_print(rb); k_fb_con_print("\n"); }
+        }
+        if (k_ipc_send(k_agent_pid(), "spawn kid")) {
+            if (k_ipc_recv_str(rb, sizeof rb)) { k_fb_con_print("spawn : "); k_fb_con_print(rb); k_fb_con_print("\n"); }
+        }
+        if (k_ipc_send(k_agent_pid(), "remember who=kid")) {
+            if (k_ipc_recv_str(rb, sizeof rb)) { k_fb_con_print("mem   : "); k_fb_con_print(rb); k_fb_con_print("\n"); }
+        }
+        if (k_ipc_send(k_agent_pid(), "recall who")) {
+            if (k_ipc_recv_str(rb, sizeof rb)) { k_fb_con_print("recall: "); k_fb_con_print(rb); k_fb_con_print("\n"); }
+        }
+        if (k_vfs_cat("version", rb, sizeof rb)) { k_fb_con_print("ver   : "); k_fb_con_print(rb); }
+        k_fb_con_print("time  : ");
+        k_fb_con_print(dec(k_time_uptime_ms() / 1000));
+        k_fb_con_print(" s uptime, ");
+        k_fb_con_print(dec(k_mem_pages_free()));
+        k_fb_con_print(" free frames\n");
+        k_fb_con_print("=== end demo ===\n");
     } else if (scmp(cmd, "agents") == 0) {
         int64_t n = k_proc_count();
         sh_uart("AGENTS:");
