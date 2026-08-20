@@ -73,6 +73,7 @@ int64_t k_model_dbg(void);
 /* Hardware info (kernel/kf_hw.c). */
 int64_t k_hw_cpu_vendor(char* out, int max);
 int64_t k_hw_cpu_brand(char* out, int max);
+const char* k_hw_cpu_brand_str(void);
 int64_t k_hw_cpu_flags(void);
 int64_t k_hw_rtc_str(char* out, int max);
 
@@ -119,6 +120,9 @@ int64_t k_gui_init(void);
 
 /* Kenga-written desktop chrome (kernel/ui.kenga, compiled via kmain.kenga). */
 int64_t k_ui_chrome(int64_t w, int64_t count, int64_t up, int64_t mx, int64_t my, int64_t cur);
+
+/* Kenga-written desktop (kernel/desktop.kenga, compiled via kmain.kenga). */
+int64_t k_desktop_main(void);
 
 uint64_t k_task_create(void (*entry)(void));
 uint64_t k_task_yield(void);

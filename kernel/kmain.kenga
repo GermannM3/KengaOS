@@ -1,4 +1,5 @@
 import "ui.kenga";
+import "desktop.kenga";
 
 @intrinsic fn kf_get_boot_info() -> i64;
 @intrinsic fn kf_get_framebuffer() -> i64;
@@ -34,6 +35,26 @@ import "ui.kenga";
 @intrinsic fn fb_text(x: i64, y: i64, fg: i64, bg: i64, s: str) -> i64;
 @intrinsic fn fb_xor(x: i64, y: i64, color: i64) -> i64;
 @intrinsic fn fb_cursor(x: i64, y: i64) -> i64;
+
+/* GUI bridge (desktop.kenga) */
+@intrinsic fn kbd_init() -> i64;
+@intrinsic fn kbd_pending() -> i64;
+@intrinsic fn kbd_read() -> i64;
+@intrinsic fn mouse_init() -> i64;
+@intrinsic fn mouse_x() -> i64;
+@intrinsic fn mouse_y() -> i64;
+@intrinsic fn mouse_buttons() -> i64;
+@intrinsic fn proc_init() -> i64;
+@intrinsic fn proc_count() -> i64;
+@intrinsic fn proc_pid_at(idx: i64) -> i64;
+@intrinsic fn proc_name_at(idx: i64) -> str;
+@intrinsic fn proc_parent_at(idx: i64) -> i64;
+@intrinsic fn proc_caps(pid: i64) -> i64;
+@intrinsic fn model_infer(a: i64, b: i64) -> i64;
+@intrinsic fn vfs_count() -> i64;
+@intrinsic fn vfs_name(idx: i64) -> str;
+@intrinsic fn hw_cpu_brand_str() -> str;
+
 
 /* --- UART (сохранено для CI-гейта) --- */
 
@@ -239,7 +260,10 @@ fn main() -> i64 {
 
     timer_init();
 
-    gui_init();
+    let go: i64 = gui_init();   /* hardware bridge: kbd/con/proc/mouse, sti */
+    if go == 1 {
+        desktop_main();         /* Kenga desktop: init screen + event loop */
+    }
 
     return 0;
 }

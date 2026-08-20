@@ -1,0 +1,258 @@
+/* desktop.kenga — KengaOS 0.5: the agent desktop, written in Kenga.
+ *
+ * Everything that used to live in kf_gui.c (event loop, sidebar, app/agent
+ * selection, all views) now lives here. C (kf_gui.c) is reduced to a thin
+ * bridge that inits the hardware and calls k_desktop_main().
+ */
+
+/* --- state threaded through the desktop (Kenga has no globals) --- */
+struct DesktopState { cur_app: i64, sel_pid: i64, model_a: i64, model_b: i64, model_out: i64 }
+
+/* --- cursor (XOR draw; calling fb_cursor twice erases it) --- */
+fn cur_draw(mx: i64, my: i64) -> i64 {
+    fb_cursor(mx, my);
+    return 0;
+}
+fn cur_erase(mx: i64, my: i64) -> i64 {
+    fb_cursor(mx, my);
+    return 0;
+}
+
+/* --- drawing helpers (Kenga-facing) --- */
+fn drect(x: i64, y: i64, w: i64, h: i64, c: i64) -> i64 { return fb_hrect(x, y, w, h, c); }
+fn dtext(x: i64, y: i64, fg: i64, bg: i64, s: str) -> i64 { return fb_text(x, y, fg, bg, s); }
+fn din(x: i64, y: i64, w: i64, h: i64, mx: i64, my: i64) -> i64 {
+    if mx >= x && mx < x + w && my >= y && my < y + h { return 1; }
+    return 0;
+}
+
+/* --- redraw the whole desktop --- */
+fn draw_desktop(st: DesktopState) -> i64 {
+    let C_BG: i64 = 0x12151a;
+    let W: i64 = 1280;
+    let H: i64 = 800;
+    let TOPBAR: i64 = 40;
+    let SIDEBAR: i64 = 200;
+    let STATUSB: i64 = 28;
+    fb_hrect(0, 0, W, H, C_BG);
+    ui_chrome(W, proc_count(), time_uptime_ms() / 1000, mouse_x(), mouse_y(), st.cur_app);
+    let cx: i64 = SIDEBAR;
+    let cy: i64 = TOPBAR;
+    let cw: i64 = W - SIDEBAR;
+    let ch: i64 = H - TOPBAR - STATUSB;
+    fb_hrect(cx, cy, cw, ch, C_BG);
+    draw_app(cx + 16, cy + 12, cw - 32, ch - 24, st);
+    return 0;
+}
+
+/* --- render the selected app's content --- */
+fn draw_app(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
+    if st.cur_app == 0 { return draw_agents(x, y, w, h, st); }
+    if st.cur_app == 1 { return draw_model(x, y, w, h, st); }
+    if st.cur_app == 2 { return draw_files(x, y, w, h, st); }
+    if st.cur_app == 3 { return draw_system(x, y, w, h, st); }
+    return 0;
+}
+
+fn draw_agents(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
+    let C_BG: i64 = 0x12151a;
+    let C_TEXT: i64 = 0xe6edf3;
+    let C_ACCENT: i64 = 0x3daee9;
+    let C_DIM: i64 = 0x8a94a6;
+    let C_HILITE: i64 = 0x2a3340;
+    let C_GREEN: i64 = 0x2ee6a6;
+    let C_PANEL2: i64 = 0x232a34;
+    dtext(x, y, C_TEXT, C_BG, "Agents (process tree)");
+    let n: i64 = proc_count();
+    let row: i64 = y + 28;
+    let i: i64 = 0;
+    while i < n && i < 20 {
+        let flag: i64 = 0;
+        if proc_pid_at(i) == st.sel_pid { flag = 1; }
+        let bg: i64 = C_BG;
+        if flag == 1 { bg = C_HILITE; }
+        fb_hrect(x, row, w, 20, bg);
+        dtext(x + 6, row + 4, C_ACCENT, bg, proc_pid_at(i));
+        dtext(x + 40, row + 4, C_TEXT, bg, proc_name_at(i));
+        dtext(x + 120, row + 4, C_DIM, bg, "p:");
+        dtext(x + 134, row + 4, C_DIM, bg, proc_parent_at(i));
+        row = row + 20;
+        i = i + 1;
+    }
+    /* details of selected */
+    if st.sel_pid > 0 {
+        let dy: i64 = y + 28 + 20 * n + 8;
+        if n > 20 { dy = y + 28 + 20 * 20 + 8; }
+        fb_hrect(x, dy, w, h - (dy - y), C_PANEL2);
+        dtext(x + 12, dy + 8, C_GREEN, C_PANEL2, "Selected agent");
+        dtext(x + 12, dy + 28, C_TEXT, C_PANEL2, "PID  " + st.sel_pid);
+        let j: i64 = 0;
+        while j < n {
+            if proc_pid_at(j) == st.sel_pid {
+                dtext(x + 12, dy + 48, C_TEXT, C_PANEL2, "Name " + proc_name_at(j));
+                dtext(x + 12, dy + 68, C_TEXT, C_PANEL2, "Caps " + proc_caps(st.sel_pid));
+            }
+            j = j + 1;
+        }
+    }
+    return 0;
+}
+
+fn draw_model(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
+    let C_BG: i64 = 0x12151a;
+    let C_TEXT: i64 = 0xe6edf3;
+    let C_DIM: i64 = 0x8a94a6;
+    let C_PANEL2: i64 = 0x232a34;
+    let C_HILITE: i64 = 0x2a3340;
+    let C_ACCENT: i64 = 0x3daee9;
+    let C_GREEN: i64 = 0x2ee6a6;
+    dtext(x, y, C_TEXT, C_BG, "Kenga Model (MLP, XOR)");
+    dtext(x, y + 30, C_DIM, C_BG, "in1");
+    fb_hrect(x + 40, y + 26, 60, 24, C_PANEL2);
+    dtext(x + 48, y + 32, C_TEXT, C_PANEL2, st.model_a);
+    dtext(x + 130, y + 30, C_DIM, C_BG, "in2");
+    fb_hrect(x + 170, y + 26, 60, 24, C_PANEL2);
+    dtext(x + 178, y + 32, C_TEXT, C_PANEL2, st.model_b);
+    fb_hrect(x, y + 60, 110, 30, C_ACCENT);
+    dtext(x + 16, y + 68, C_BG, C_ACCENT, "Inference");
+    fb_hrect(x + 40, y + 100, 40, 24, C_HILITE);
+    dtext(x + 52, y + 106, C_TEXT, C_HILITE, "0");
+    fb_hrect(x + 90, y + 100, 40, 24, C_HILITE);
+    dtext(x + 102, y + 106, C_TEXT, C_HILITE, "1");
+    dtext(x + 170, y + 106, C_DIM, C_BG, "in1");
+    fb_hrect(x + 40, y + 130, 40, 24, C_HILITE);
+    dtext(x + 52, y + 136, C_TEXT, C_HILITE, "0");
+    fb_hrect(x + 90, y + 130, 40, 24, C_HILITE);
+    dtext(x + 102, y + 136, C_TEXT, C_HILITE, "1");
+    dtext(x + 170, y + 136, C_DIM, C_BG, "in2");
+    dtext(x, y + 180, C_GREEN, C_BG, "output:");
+    dtext(x + 80, y + 180, C_TEXT, C_BG, st.model_out);
+    return 0;
+}
+
+fn draw_files(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
+    let C_BG: i64 = 0x12151a;
+    let C_TEXT: i64 = 0xe6edf3;
+    let C_DIM: i64 = 0x8a94a6;
+    dtext(x, y, C_TEXT, C_BG, "Files (VFS)");
+    let n: i64 = vfs_count();
+    let i: i64 = 0;
+    while i < n && i < 20 {
+        dtext(x + 8, y + 24 + i * 20, C_TEXT, C_BG, vfs_name(i));
+        dtext(x + 120, y + 24 + i * 20, C_DIM, C_BG, "cat to view");
+        i = i + 1;
+    }
+    return 0;
+}
+
+fn draw_system(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
+    let C_BG: i64 = 0x12151a;
+    let C_TEXT: i64 = 0xe6edf3;
+    let C_DIM: i64 = 0x8a94a6;
+    dtext(x, y, C_TEXT, C_BG, "System");
+    dtext(x + 8, y + 24, C_TEXT, C_BG, "CPU  " + hw_cpu_brand_str());
+    dtext(x + 8, y + 44, C_TEXT, C_BG, "RAM frames " + mem_pages_free());
+    dtext(x + 8, y + 64, C_TEXT, C_BG, "Uptime " + time_uptime_ms() / 1000);
+    dtext(x + 8, y + 84, C_DIM, C_BG, "Kernel KengaOS 0.5 x86_64 (Kenga desktop)");
+    return 0;
+}
+
+/* --- handle a mouse click; returns updated state --- */
+fn handle_click(st: DesktopState, mx: i64, my: i64) -> DesktopState {
+    let TOPBAR: i64 = 40;
+    let SIDEBAR: i64 = 200;
+    let H: i64 = 800;
+    let STATUSB: i64 = 28;
+    /* sidebar app switch */
+    if mx < SIDEBAR && my > TOPBAR && my < H - STATUSB {
+        let idx: i64 = (my - TOPBAR - 12) / 44;
+        if idx >= 0 && idx < 4 { st.cur_app = idx; }
+        return st;
+    }
+    let x: i64 = SIDEBAR + 16;
+    let y: i64 = TOPBAR + 12;
+    if st.cur_app == 0 {
+        let n: i64 = proc_count();
+        let row: i64 = y + 28;
+        let i: i64 = 0;
+        while i < n && i < 20 {
+            if mx >= x + 6 && mx < x + 180 && my >= row && my < row + 20 {
+                st.sel_pid = proc_pid_at(i);
+                return st;
+            }
+            row = row + 20;
+            i = i + 1;
+        }
+    }
+    if st.cur_app == 1 {
+        if din(x + 40, y + 100, 40, 24, mx, my) == 1 { st.model_a = 0; }
+        if din(x + 90, y + 100, 40, 24, mx, my) == 1 { st.model_a = 1; }
+        if din(x + 40, y + 130, 40, 24, mx, my) == 1 { st.model_b = 0; }
+        if din(x + 90, y + 130, 40, 24, mx, my) == 1 { st.model_b = 1; }
+        if din(x, y + 60, 110, 30, mx, my) == 1 {
+            st.model_out = model_infer(st.model_a, st.model_b);
+        }
+    }
+    return st;
+}
+
+/* --- boot / init screen: wait for ENTER (or 2s) then open desktop --- */
+fn init_screen() -> i64 {
+    let C_BG: i64 = 0x12151a;
+    let C_GREEN: i64 = 0x2ee6a6;
+    let C_DIM: i64 = 0x8a94a6;
+    let W: i64 = 1280;
+    let H: i64 = 800;
+    fb_hrect(0, 0, W, H, C_BG);
+    dtext(440, 300, C_GREEN, C_BG, "KENGAOS");
+    dtext(400, 340, C_DIM, C_BG, "initializing agents...");
+    dtext(400, 364, C_GREEN, C_BG, "kernel  memory  IPC  capabilities  model  graphics");
+    dtext(500, 420, C_DIM, C_BG, "[ ENTER ]  ->  Desktop");
+    let boot_at: i64 = time_uptime_ms();
+    let spins: i64 = 0;
+    while 1 {
+        if kbd_pending() == 1 {
+            let c: i64 = kbd_read();
+            if c == 10 { return 0; }
+        }
+        if time_uptime_ms() - boot_at > 2000 { return 0; }
+        spins = spins + 1;
+        if spins > 20000000 { return 0; }
+        asm_hlt();
+    }
+    return 0;
+}
+
+/* --- desktop event loop (Kenga) --- */
+fn desktop_main() -> i64 {
+    let st: DesktopState = DesktopState{ cur_app: 0, sel_pid: 0, model_a: 0, model_b: 1, model_out: 0 };
+    init_screen();
+    draw_desktop(st);
+    let mx: i64 = mouse_x();
+    let my: i64 = mouse_y();
+    cur_draw(mx, my);
+    let last_mx: i64 = mx;
+    let last_my: i64 = my;
+    let mprev: i64 = 0;
+    while 1 {
+        let bx: i64 = mouse_buttons();
+        let cmx: i64 = mouse_x();
+        let cmy: i64 = mouse_y();
+        let clicked: i64 = 0;
+        if bx != 0 && mprev == 0 { clicked = 1; }
+        if clicked == 1 {
+            st = handle_click(st, cmx, cmy);
+            cur_erase(last_mx, last_my);
+            draw_desktop(st);
+            cur_draw(cmx, cmy);
+        } else if cmx != last_mx || cmy != last_my {
+            cur_erase(last_mx, last_my);
+            cur_draw(cmx, cmy);
+        }
+        mprev = bx;
+        last_mx = cmx;
+        last_my = cmy;
+        asm_hlt();
+    }
+    return 0;
+}

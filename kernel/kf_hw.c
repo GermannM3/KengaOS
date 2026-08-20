@@ -32,6 +32,13 @@ int64_t k_hw_cpu_vendor(char* out, int max) {
     return n;
 }
 
+/* CPU brand as a stable string (hardware bridge for Kenga GUI). */
+static char g_cpu_brand_str[64];
+const char* k_hw_cpu_brand_str(void) {
+    k_hw_cpu_brand(g_cpu_brand_str, sizeof g_cpu_brand_str);
+    return g_cpu_brand_str;
+}
+
 /* CPU brand string (leaf 0x80000002..04). */
 int64_t k_hw_cpu_brand(char* out, int max) {
     int n = 0;
