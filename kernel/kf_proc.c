@@ -339,6 +339,11 @@ static void model_proc(void) {
         k_ipc_recv(&m);
         lg_uart("MODEL: "); lg_uart(m.data); lg_uart("\n");
         k_ui_log("model: "); k_ui_log(m.data);
+        /* only respond to requests that start with a digit ("a b").
+           Replies like "ack: ..." would otherwise echo forever. */
+        const char* p0 = m.data;
+        while (*p0 == ' ') p0++;
+        if (*p0 < '0' || *p0 > '9') { k_task_yield(); continue; }
         /* parse "a b" -> infer XOR -> reply "predict <n>" */
         int64_t a = 0, b = 0; const char* s = m.data;
         while (*s == ' ') s++;
@@ -394,6 +399,12 @@ static void researcher_proc(void) {
             k_ui_log("researcher: "); k_ui_log(m.data);
             char reply[MSG_MAX]; int k = 0;
             kf_proc_t* me = cur_proc();
+            /* "predict ..." — reply to our own ping: swallow, no ack (prevents
+               an infinite ping-pong with the model agent). */
+            if (m.data[0]=='p' && m.data[1]=='r' && m.data[2]=='e' && m.data[3]=='d') {
+                k_task_yield();
+                continue;
+            }
             /* "upd <text>" -> update this agent's window text over IPC */
             if (m.data[0]=='u' && m.data[1]=='p' && m.data[2]=='d' && me && wid > 0) {
                 const char* s = m.data + 3;

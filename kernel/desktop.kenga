@@ -121,24 +121,24 @@ fn icon_window(x: i64, y: i64, c: i64) -> i64 {
     return 0;
 }
 
-/* --- wallpaper: futuristic blue gradient + subtle tech grid --- */
+/* --- wallpaper: deep-space gradient + neon tech grid (glass neon theme) --- */
 fn draw_wallpaper(w: i64, h: i64) -> i64 {
-    /* vertical gradient: deep blue top -> darker blue bottom */
+    /* vertical gradient: dark indigo top -> darker bottom */
     let bands: i64 = 40;
     let bh: i64 = h / bands;
     if bh < 1 { bh = 1; }
     let b: i64 = 0;
     while b < bands {
         let t: i64 = b * 255 / bands;
-        let r: i64 = 0x1e - t * 10 / 255;     /* ~#1E3A8A top */
-        let g: i64 = 0x3a - t * 22 / 255;
-        let bl: i64 = 0x8a - t * 30 / 255;
+        let r: i64 = 0x14 - t * 8 / 255;      /* 0x14 -> 0x0c */
+        let g: i64 = 0x0e - t * 6 / 255;      /* 0x0e -> 0x08 */
+        let bl: i64 = 0x2a + t * 8 / 255;     /* 0x2a -> 0x32 (indigo) */
         let c: i64 = (r << 16) | (g << 8) | bl;
         fb_hrect(0, b * bh, w, bh, c);
         b = b + 1;
     }
-    /* tech grid: thin vertical + horizontal lines (low-alpha look) */
-    let GRID: i64 = 0x2a4f96;
+    /* neon tech grid: faint purple lines */
+    let GRID: i64 = 0x241d3f;
     let gx: i64 = 0;
     while gx < w {
         fb_hrect(gx, 0, 1, h, GRID);
@@ -566,10 +566,8 @@ fn desktop_main() -> i64 {
         yield_agent();
         yc = yc + 1;
     }
-    draw_desktop(st);
     let mx: i64 = mouse_x();
     let my: i64 = mouse_y();
-    cur_draw(mx, my);
     let last_mx: i64 = mx;
     let last_my: i64 = my;
     let mprev: i64 = 0;
@@ -577,6 +575,11 @@ fn desktop_main() -> i64 {
     let last_up: i64 = time_uptime_ms() / 1000;
     let last_n: i64 = proc_count();
     let s: DesktopState = st;
+    /* first frame through the back buffer */
+    fb_begin_frame();
+    draw_desktop(s);
+    cur_draw(mx, my);
+    fb_end_frame();
     while 1 {
         let bx: i64 = mouse_buttons();
         let cmx: i64 = mouse_x();
@@ -595,9 +598,10 @@ fn desktop_main() -> i64 {
         if s.drag_win >= 0 && bx != 0 { dragging = 1; }
         if clicked == 1 {
             let ns: DesktopState = handle_click(s, cmx, cmy);
-            cur_erase(last_mx, last_my);
+            fb_begin_frame();
             draw_desktop(ns);
             cur_draw(cmx, cmy);
+            fb_end_frame();
             last_up = now_up;
             last_n = now_n;
             s = ns;
@@ -606,9 +610,10 @@ fn desktop_main() -> i64 {
             let c: i64 = kbd_read();
             if c >= 49 && c <= 52 {
                 s.cur_app = c - 49;
-                cur_erase(last_mx, last_my);
+                fb_begin_frame();
                 draw_desktop(s);
                 cur_draw(cmx, cmy);
+                fb_end_frame();
                 last_up = now_up;
                 last_n = now_n;
             } else {
@@ -620,9 +625,10 @@ fn desktop_main() -> i64 {
                     chg = ui_input_putc(c);
                 }
                 if chg == 1 {
-                    cur_erase(last_mx, last_my);
+                    fb_begin_frame();
                     draw_desktop(s);
                     cur_draw(cmx, cmy);
+                    fb_end_frame();
                     last_up = now_up;
                     last_n = now_n;
                 }
@@ -630,18 +636,21 @@ fn desktop_main() -> i64 {
         } else if dragging == 1 && (cmx != last_mx || cmy != last_my) {
             /* drag the window under the cursor */
             ui_window_move(s.drag_win, cmx - s.drag_ox, cmy - s.drag_oy);
-            cur_erase(last_mx, last_my);
+            fb_begin_frame();
             draw_desktop(s);
             cur_draw(cmx, cmy);
+            fb_end_frame();
         } else if released == 1 && s.drag_win >= 0 {
             s.drag_win = -1;
-            cur_erase(last_mx, last_my);
+            fb_begin_frame();
             draw_desktop(s);
             cur_draw(cmx, cmy);
+            fb_end_frame();
         } else if live == 1 {
-            cur_erase(last_mx, last_my);
+            fb_begin_frame();
             draw_desktop(s);
             cur_draw(cmx, cmy);
+            fb_end_frame();
             last_up = now_up;
             last_n = now_n;
         } else if cmx != last_mx || cmy != last_my {

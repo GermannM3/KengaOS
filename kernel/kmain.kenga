@@ -39,6 +39,8 @@ import "desktop.kenga";
 @intrinsic fn fb_text(x: i64, y: i64, fg: i64, bg: i64, s: str) -> i64;
 @intrinsic fn fb_xor(x: i64, y: i64, color: i64) -> i64;
 @intrinsic fn fb_cursor(x: i64, y: i64) -> i64;
+@intrinsic fn fb_begin_frame() -> i64;
+@intrinsic fn fb_end_frame() -> i64;
 
 /* GUI bridge (desktop.kenga) */
 @intrinsic fn kbd_init() -> i64;

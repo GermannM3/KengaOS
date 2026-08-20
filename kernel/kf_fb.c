@@ -72,11 +72,36 @@ int64_t k_fb_ready(void)  { return fb_ok; }
 int64_t k_fb_width(void)  { return (int64_t)fb_w; }
 int64_t k_fb_height(void) { return (int64_t)fb_h; }
 
+/* --- double buffering ---------------------------------------------------
+   The desktop draws a whole frame into fb_back (BSS), then k_fb_end_frame()
+   blits it to the visible framebuffer in one pass. This removes the flicker
+   of drawing many shapes directly onto the visible screen. */
+static uint8_t fb_back[1280 * 800 * 4];
+static uintptr_t fb_target = 0;   /* 0 = draw to fb_addr */
+
+static uintptr_t fb_cur(void) { return fb_target ? fb_target : fb_addr; }
+
+int64_t k_fb_begin_frame(void) {
+    if (!fb_ok) return 0;
+    fb_target = (uintptr_t)fb_back;
+    return 1;
+}
+
+int64_t k_fb_end_frame(void) {
+    if (!fb_ok || !fb_target) return 0;
+    uint64_t n = (uint64_t)fb_pitch * fb_h / 4;
+    volatile uint32_t* d = (volatile uint32_t*)fb_addr;
+    uint32_t* s = (uint32_t*)fb_target;
+    for (uint64_t i = 0; i < n; i++) d[i] = s[i];
+    fb_target = 0;
+    return 1;
+}
+
 static void fb_put(uint32_t x, uint32_t y, uint32_t c) {
     if (!fb_ok) return;
     if (x >= fb_w || y >= fb_h) return;
     uintptr_t off = (uintptr_t)y * fb_pitch + (uintptr_t)x * (fb_bpp / 8);
-    volatile uint8_t* p = (volatile uint8_t*)(fb_addr + off);
+    volatile uint8_t* p = (volatile uint8_t*)(fb_cur() + off);
     if (fb_bpp == 32) {
         *(volatile uint32_t*)p = c;
     } else { /* 24bpp, little-endian BGRX */
@@ -97,14 +122,14 @@ int64_t k_fb_putpixel(int64_t x, int64_t y, int64_t color) {
 int64_t k_fb_getpixel(int64_t x, int64_t y) {
     if (!fb_ok || (uint64_t)x >= fb_w || (uint64_t)y >= fb_h) return 0;
     uintptr_t off = (uintptr_t)y * fb_pitch + (uintptr_t)x * (fb_bpp / 8);
-    if (fb_bpp == 32) return (int64_t)(*(volatile uint32_t*)(fb_addr + off));
+    if (fb_bpp == 32) return (int64_t)(*(volatile uint32_t*)(fb_cur() + off));
     return 0;
 }
 
 int64_t k_fb_xor(int64_t x, int64_t y, int64_t color) {
     if ((uint64_t)x >= fb_w || (uint64_t)y >= fb_h) return 0;
     uintptr_t off = (uintptr_t)y * fb_pitch + (uintptr_t)x * (fb_bpp / 8);
-    volatile uint32_t* p = (volatile uint32_t*)(fb_addr + off);
+    volatile uint32_t* p = (volatile uint32_t*)(fb_cur() + off);
     *p ^= (uint32_t)color;
     return 1;
 }
@@ -145,7 +170,7 @@ void k_fb_fill_rect(int64_t x0, int64_t y0, int64_t w, int64_t h, int64_t color)
     if (y0 + h > fb_h) h = fb_h - y0;
     if (w <= 0 || h <= 0) return;
     uint32_t c = (uint32_t)color;
-    uintptr_t base = fb_addr + (uintptr_t)y0 * fb_pitch + (uintptr_t)x0 * 4;
+    uintptr_t base = fb_cur() + (uintptr_t)y0 * fb_pitch + (uintptr_t)x0 * 4;
     for (int64_t yy = 0; yy < h; yy++) {
         volatile uint32_t* row = (volatile uint32_t*)(base + (uintptr_t)yy * fb_pitch);
         for (int64_t xx = 0; xx < w; xx++) row[xx] = c;

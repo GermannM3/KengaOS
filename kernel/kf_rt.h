@@ -212,6 +212,8 @@ int64_t k_fb_hrect(int64_t x, int64_t y, int64_t w, int64_t h, int64_t color);
 int64_t k_fb_text(int64_t x, int64_t y, int64_t fg, int64_t bg, const char* s);
 int64_t k_fb_xor(int64_t x, int64_t y, int64_t color);
 int64_t k_fb_cursor(int64_t x, int64_t y);
+int64_t k_fb_begin_frame(void);
+int64_t k_fb_end_frame(void);
 
 /* Turn a numeric address into a C string pointer (for uart_puts on MMIO/tag
    strings living at raw addresses). */
