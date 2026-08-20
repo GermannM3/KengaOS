@@ -314,6 +314,21 @@ static void model_proc(void) {
 /* --- researcher agent: an agent with CAP_UI that opens its own window. --- */
 static int64_t researcher_pid = 0;
 static void researcher_proc(void) {
+    /* IPC at startup: ask the model agent and the system agent before we
+       settle into serving IPC ourselves. This exercises agent-to-agent IPC
+       the moment the OS comes up. We read the replies here so they don't
+       loop back into our own service loop. */
+    lg_uart("RESEARCHER: starting\n");
+    /* -> model: "1 0" (XOR of 1 and 0 == 1) — model_proc expects "a b" */
+    k_ipc_send(model_pid, "1 0");
+    k_task_yield();
+    ipc_msg mr; int got_model = k_ipc_recv(&mr);
+    if (got_model) { lg_uart("RESEARCHER: model said "); lg_uart(mr.data); lg_uart("\n"); }
+    /* -> agent: "hi" (Russian greeting reply) */
+    k_ipc_send(agent_pid, "hi");
+    k_task_yield();
+    ipc_msg ar; int got_agent = k_ipc_recv(&ar);
+    if (got_agent) { lg_uart("RESEARCHER: agent said "); lg_uart(ar.data); lg_uart("\n"); }
     /* open a window on the desktop as soon as we run (CAP_UI required) */
     int64_t wid = k_ui_register_window("Research", "researcher online | model ready");
     lg_uart("RESEARCHER: window "); lg_uart(dec(wid)); lg_uart("\n");
