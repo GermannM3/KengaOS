@@ -118,8 +118,10 @@ int64_t k_shell_init(void);
 /* GUI desktop (kernel/kf_gui.c). */
 int64_t k_gui_init(void);
 
-/* Kenga-written desktop chrome (kernel/ui.kenga, compiled via kmain.kenga). */
-int64_t k_ui_chrome(int64_t w, int64_t count, int64_t up, int64_t mx, int64_t my, int64_t cur);
+/* Kenga-written desktop chrome (kernel/ui.kenga, compiled via kmain.kenga).
+   Adaptive: takes the real framebuffer w/h plus computed panel sizes. */
+int64_t k_ui_chrome(int64_t w, int64_t h, int64_t sb, int64_t tb, int64_t stb,
+                    int64_t count, int64_t up, int64_t mx, int64_t my, int64_t cur);
 
 /* Kenga-written desktop (kernel/desktop.kenga, compiled via kmain.kenga). */
 int64_t k_desktop_main(void);

@@ -26,20 +26,31 @@ fn din(x: i64, y: i64, w: i64, h: i64, mx: i64, my: i64) -> i64 {
     return 0;
 }
 
+/* --- desktop metrics, computed from the real framebuffer (adaptive layout) --- */
+fn dmetrics(w: i64, h: i64) -> DesktopMetrics {
+    let sb: i64 = w / 6;
+    if sb < 140 { sb = 140; }
+    if sb > 260 { sb = 260; }
+    let tb: i64 = 40;
+    if h < 500 { tb = 32; }
+    return DesktopMetrics{ sb: sb, tb: tb, stb: 28 };
+}
+
+struct DesktopMetrics { sb: i64, tb: i64, stb: i64 }
+
 /* --- redraw the whole desktop --- */
 fn draw_desktop(st: DesktopState) -> i64 {
     let C_BG: i64 = 0x12151a;
-    let W: i64 = 1280;
-    let H: i64 = 800;
-    let TOPBAR: i64 = 40;
-    let SIDEBAR: i64 = 200;
-    let STATUSB: i64 = 28;
+    let W: i64 = fb_width();
+    let H: i64 = fb_height();
+    let m: DesktopMetrics = dmetrics(W, H);
     fb_hrect(0, 0, W, H, C_BG);
-    ui_chrome(W, proc_count(), time_uptime_ms() / 1000, mouse_x(), mouse_y(), st.cur_app);
-    let cx: i64 = SIDEBAR;
-    let cy: i64 = TOPBAR;
-    let cw: i64 = W - SIDEBAR;
-    let ch: i64 = H - TOPBAR - STATUSB;
+    ui_chrome(W, H, m.sb, m.tb, m.stb,
+              proc_count(), time_uptime_ms() / 1000, mouse_x(), mouse_y(), st.cur_app);
+    let cx: i64 = m.sb;
+    let cy: i64 = m.tb;
+    let cw: i64 = W - m.sb;
+    let ch: i64 = H - m.tb - m.stb;
     fb_hrect(cx, cy, cw, ch, C_BG);
     draw_app(cx + 16, cy + 12, cw - 32, ch - 24, st);
     draw_windows();
@@ -213,10 +224,12 @@ fn draw_system(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
 
 /* --- handle a mouse click; returns updated state --- */
 fn handle_click(st: DesktopState, mx: i64, my: i64) -> DesktopState {
-    let TOPBAR: i64 = 40;
-    let SIDEBAR: i64 = 200;
-    let H: i64 = 800;
-    let STATUSB: i64 = 28;
+    let W: i64 = fb_width();
+    let H: i64 = fb_height();
+    let m: DesktopMetrics = dmetrics(W, H);
+    let TOPBAR: i64 = m.tb;
+    let SIDEBAR: i64 = m.sb;
+    let STATUSB: i64 = m.stb;
     /* windows take precedence: bring the clicked one to front */
     let w: i64 = win_at(mx, my);
     if w >= 0 {
@@ -302,17 +315,31 @@ fn desktop_main() -> i64 {
     let last_my: i64 = my;
     let mprev: i64 = 0;
     let tick: i64 = 0;
+    let last_up: i64 = time_uptime_ms() / 1000;
+    let last_n: i64 = proc_count();
     while 1 {
         let bx: i64 = mouse_buttons();
         let cmx: i64 = mouse_x();
         let cmy: i64 = mouse_y();
         let clicked: i64 = 0;
         if bx != 0 && mprev == 0 { clicked = 1; }
+        /* live refresh: redraw when uptime tick or agent count changes */
+        let now_up: i64 = time_uptime_ms() / 1000;
+        let now_n: i64 = proc_count();
+        let live: i64 = 0;
+        if now_up != last_up { live = 1; }
+        if now_n != last_n { live = 1; }
         if clicked == 1 {
             st = handle_click(st, cmx, cmy);
             cur_erase(last_mx, last_my);
             draw_desktop(st);
             cur_draw(cmx, cmy);
+        } else if live == 1 {
+            cur_erase(last_mx, last_my);
+            draw_desktop(st);
+            cur_draw(cmx, cmy);
+            last_up = now_up;
+            last_n = now_n;
         } else if cmx != last_mx || cmy != last_my {
             cur_erase(last_mx, last_my);
             cur_draw(cmx, cmy);

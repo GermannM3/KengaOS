@@ -1,11 +1,13 @@
-/* ui.kenga — Kenga-written desktop chrome (first self-hosting component).
+/* ui.kenga — Kenga-written desktop chrome (KengaOS 0.5).
  *
- * Draws the static desktop chrome (top bar, sidebar, status bar) using the
- * fb_* intrinsics declared in kmain.kenga. All drawing logic lives in Kenga;
- * C only supplies the numbers (proc count, uptime, mouse position).
+ * Draws the desktop chrome (top bar, sidebar, status bar) from Kenga, using
+ * the fb_* intrinsics. Layout is adaptive: dimensions come from the real
+ * framebuffer (w/h) plus computed panel sizes (sb/tb/stb), so the same UI
+ * works on desktop and small/mobile screens.
  */
 
-fn ui_chrome(w: i64, count: i64, up: i64, mx: i64, my: i64, cur: i64) -> i64 {
+fn ui_chrome(w: i64, h: i64, sb: i64, tb: i64, stb: i64,
+             count: i64, up: i64, mx: i64, my: i64, cur: i64) -> i64 {
     /* palette (KDE-ish dark) */
     let PANEL: i64 = 0x1c2129;
     let PANEL2: i64 = 0x232a34;
@@ -15,19 +17,19 @@ fn ui_chrome(w: i64, count: i64, up: i64, mx: i64, my: i64, cur: i64) -> i64 {
     let DIM: i64 = 0x8a94a6;
     let HILITE: i64 = 0x2a3340;
 
-    let TOPBAR: i64 = 40;
-    let SIDEBAR: i64 = 200;
-    let STATUSB: i64 = 28;
-    let H: i64 = 800;
+    let TOPBAR: i64 = tb;
+    let SIDEBAR: i64 = sb;
+    let STATUSB: i64 = stb;
+    let H: i64 = h;
 
     /* top bar */
     fb_hrect(0, 0, w, TOPBAR, PANEL);
-    fb_text(16, 12, GREEN, PANEL, "KengaOS");
-    fb_text(120, 12, DIM, PANEL, "0.4 Agent Desktop");
-    fb_text(w - 200, 12, ACCENT, PANEL, "Agents: ");
-    fb_text(w - 130, 12, ACCENT, PANEL, count);
-    fb_text(w - 80, 12, DIM, PANEL, up);
-    fb_text(w - 46, 12, DIM, PANEL, "s");
+    fb_text(16, tb / 2 - 6, GREEN, PANEL, "KengaOS");
+    fb_text(120, tb / 2 - 5, DIM, PANEL, "0.5 Agent Desktop");
+    fb_text(w - 200, tb / 2 - 5, ACCENT, PANEL, "Agents: ");
+    fb_text(w - 130, tb / 2 - 5, ACCENT, PANEL, count);
+    fb_text(w - 80, tb / 2 - 5, DIM, PANEL, up);
+    fb_text(w - 46, tb / 2 - 5, DIM, PANEL, "s");
 
     /* sidebar background + highlight the active app */
     fb_hrect(0, TOPBAR, SIDEBAR, H - TOPBAR - STATUSB, PANEL2);
@@ -58,7 +60,7 @@ fn ui_chrome(w: i64, count: i64, up: i64, mx: i64, my: i64, cur: i64) -> i64 {
 
     /* status bar */
     fb_hrect(0, H - STATUSB, w, STATUSB, PANEL);
-    fb_text(12, H - STATUSB + 8, DIM, PANEL, "KengaOS 0.4  |  mouse: ");
+    fb_text(12, H - STATUSB + 8, DIM, PANEL, "KengaOS 0.5  |  mouse: ");
     fb_text(190, H - STATUSB + 8, DIM, PANEL, mx);
     fb_text(224, H - STATUSB + 8, DIM, PANEL, ",");
     fb_text(240, H - STATUSB + 8, DIM, PANEL, my);
