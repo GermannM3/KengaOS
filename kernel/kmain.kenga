@@ -13,6 +13,7 @@
 @intrinsic fn mem_pfree(addr: i64) -> i64;
 @intrinsic fn kf_get_modules() -> i64;
 @intrinsic fn vfs_init_rd(addr: i64, size: i64) -> i64;
+@intrinsic fn vfs_version_addr() -> i64;
 @intrinsic fn timer_init() -> i64;
 @intrinsic fn time_uptime_ms() -> i64;
 @intrinsic fn cpu_vendor(buf: i64, max: i64) -> i64;
@@ -81,7 +82,7 @@ fn kp_msg(tag: str, msg: str) -> i64 {
 
 /* --- Фреймбуфер: цветовой экран загрузки --- */
 
-fn fb_boot_screen(bi: i64) -> i64 {
+fn fb_boot_screen(bi: i64, ver: i64) -> i64 {
     let BG: i64 = 0x0a0e14;
     let PANEL: i64 = 0x12161f;
     let BAR: i64 = 0x151b28;
@@ -104,7 +105,10 @@ fn fb_boot_screen(bi: i64) -> i64 {
     fb_hrect(0, 0, w, 42, BAR);
     fb_hrect(0, 42, w, 2, GREEN);
     fb_text(24, 14, GREEN, BAR, "KengaOS");
-    fb_text(24 + 8 * 7 + 16, 15, DIM, BAR, "x86_64  ·  v0.1  ·  boot");
+    fb_text(24 + 8 * 7 + 16, 15, DIM, BAR, "x86_64  ·  boot");
+    if ver != 0 {
+        fb_text(24 + 8 * 7 + 16 + 8 * 14, 15, GREEN, BAR, kf_str(ver));
+    }
     fb_text(w - 8 * 14 - 24, 15, BLUE, BAR, "Limine 12.6");
 
     /* Заголовок лога */
@@ -272,7 +276,26 @@ fn main() -> i64 {
         kp_msg("KengaOS", "FB NONE");
     }
 
-    fb_boot_screen(bi);
+    let ver: i64 = 0;
+    let mr: i64 = kf_get_modules();
+    if mr != 0 {
+        let mc: i64 = mmio_read64(mr + 8);
+        if mc > 0 {
+            let mods: i64 = mmio_read64(mr + 16);
+            let mod: i64 = mmio_read64(mods);
+            let maddr: i64 = mmio_read64(mod + 8);
+            let msize: i64 = mmio_read64(mod + 16);
+            let vn: i64 = vfs_init_rd(maddr, msize);
+            uart_puts("initrd files=");
+            kf_puti(vn);
+            uart_putc(10);
+            ver = vfs_version_addr();
+        } else {
+            kp_msg("KengaOS", "INITRD NONE");
+        }
+    }
+
+    fb_boot_screen(bi, ver);
 
     let mok: i64 = mem_init();
     uart_puts("mem_init=");
@@ -292,23 +315,6 @@ fn main() -> i64 {
         if pv == 0xAB { kp_msg("KengaOS", "PALLOC OK"); } else { kp_msg("KengaOS", "PALLOC FAIL"); }
     } else {
         kp_msg("KengaOS", "PALLOC NONE");
-    }
-
-    let mr: i64 = kf_get_modules();
-    if mr != 0 {
-        let mc: i64 = mmio_read64(mr + 8);
-        if mc > 0 {
-            let mods: i64 = mmio_read64(mr + 16);
-            let mod: i64 = mmio_read64(mods);
-            let maddr: i64 = mmio_read64(mod + 8);
-            let msize: i64 = mmio_read64(mod + 16);
-            let vn: i64 = vfs_init_rd(maddr, msize);
-            uart_puts("initrd files=");
-            kf_puti(vn);
-            uart_putc(10);
-        } else {
-            kp_msg("KengaOS", "INITRD NONE");
-        }
     }
 
     let w: i64 = fb_width();

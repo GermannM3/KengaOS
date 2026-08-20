@@ -37,6 +37,16 @@ int64_t k_vfs_init_rd(int64_t addr, int64_t size) {
 
 int64_t k_vfs_count(void) { return vfs_count; }
 
+/* Address of the "version" file content (for the boot screen). */
+int64_t k_vfs_version_addr(void) {
+    for (int i = 0; i < vfs_count; i++) {
+        const char* n = vfs_files[i].name;
+        if (n && n[0]=='v' && n[1]=='e' && n[2]=='r' && n[3]=='s' && n[4]=='i' && n[5]=='o' && n[6]=='n' && n[7]==0)
+            return (int64_t)(uintptr_t)vfs_files[i].content;
+    }
+    return 0;
+}
+
 const char* k_vfs_name(int64_t idx) {
     if (idx < 0 || idx >= vfs_count) return "";
     return vfs_files[idx].name;
