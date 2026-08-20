@@ -100,7 +100,10 @@ int64_t k_mem_init(void) {
         if (base >= start && base + len <= heap_end) continue;
         uint64_t r0 = base, r1 = base + len;
         if (r0 < start) frame_add_range(r0, start - r0);
-        if (r1 > heap_end) frame_add_range(heap_end, r1 - heap_end);
+        if (r1 > heap_end) {
+            uint64_t s2 = (r0 > heap_end) ? r0 : heap_end;   /* only the region's own tail */
+            if (r1 > s2) frame_add_range(s2, r1 - s2);
+        }
     }
     return 1;
 }

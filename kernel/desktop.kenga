@@ -235,12 +235,46 @@ fn draw_system(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
     let C_BG: i64 = 0x12151a;
     let C_TEXT: i64 = 0xe6edf3;
     let C_DIM: i64 = 0x8a94a6;
+    let C_PANEL2: i64 = 0x232a34;
+    let C_GREEN: i64 = 0x2ee6a6;
     dtext(x, y, C_TEXT, C_BG, "System");
     dtext(x + 8, y + 24, C_TEXT, C_BG, "CPU  " + hw_cpu_brand_str());
-    dtext(x + 8, y + 44, C_TEXT, C_BG, "RAM frames " + mem_pages_free());
+    dtext(x + 8, y + 44, C_TEXT, C_BG, "RAM free " + mem_pages_free());
     dtext(x + 8, y + 64, C_TEXT, C_BG, "Uptime " + time_uptime_ms() / 1000);
-    dtext(x + 8, y + 84, C_DIM, C_BG, "Kernel KengaOS 0.5 x86_64 (Kenga desktop)");
+    /* live RAM bar, computed in Kenga: total = sum of usable memmap regions
+       (type 0), used = total - free. Nothing here touches C logic. */
+    let total: i64 = mem_total_kb();
+    let used: i64 = 0;
+    if total > 0 { used = total - mem_pages_free() * 4; }
+    let barw: i64 = 300;
+    let barx: i64 = x + 8;
+    let bary: i64 = y + 88;
+    fb_hrect(barx, bary, barw, 14, C_PANEL2);
+    if total > 0 {
+        let fill: i64 = used * barw / total;
+        if fill > barw { fill = barw; }
+        if fill > 0 { fb_hrect(barx, bary, fill, 14, C_GREEN); }
+    }
+    let pct: i64 = 0;
+    if total > 0 { pct = used * 100 / total; }
+    dtext(barx + barw + 8, bary + 3, C_DIM, C_BG, pct);
+    dtext(barx + barw + 30, bary + 3, C_DIM, C_BG, "%");
+    dtext(x + 8, y + 110, C_DIM, C_BG, "Kernel KengaOS 0.5 x86_64 (Kenga desktop)");
     return 0;
+}
+
+/* total usable RAM in KiB, summed from the memmap in Kenga */
+fn mem_total_kb() -> i64 {
+    let n: i64 = mem_region_count();
+    let sum: i64 = 0;
+    let i: i64 = 0;
+    while i < n {
+        if mem_region_type(i) == 0 {
+            sum = sum + mem_region_len(i) / 1024;
+        }
+        i = i + 1;
+    }
+    return sum;
 }
 
 /* --- handle a mouse click; returns updated state --- */
