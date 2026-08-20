@@ -64,6 +64,8 @@ import "desktop.kenga";
 @intrinsic fn ui_window_text(idx: i64) -> str;
 @intrinsic fn ui_window_front(idx: i64) -> i64;
 @intrinsic fn ui_system_window(title: str, text: str) -> i64;
+@intrinsic fn yield_agent() -> i64;
+@intrinsic fn researcher_pid() -> i64;
 
 
 /* --- UART (сохранено для CI-гейта) --- */

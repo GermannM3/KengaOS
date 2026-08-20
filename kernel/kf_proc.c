@@ -311,12 +311,74 @@ static void model_proc(void) {
     }
 }
 
+/* --- researcher agent: an agent with CAP_UI that opens its own window. --- */
+static int64_t researcher_pid = 0;
+static void researcher_proc(void) {
+    /* open a window on the desktop as soon as we run (CAP_UI required) */
+    int64_t wid = k_ui_register_window("Research", "researcher online | model ready");
+    lg_uart("RESEARCHER: window "); lg_uart(dec(wid)); lg_uart("\n");
+    for (;;) {
+        ipc_msg m;
+        k_ipc_recv(&m);
+        lg_uart("RESEARCHER: "); lg_uart(m.data); lg_uart("\n");
+        char reply[MSG_MAX]; int k = 0;
+        kf_proc_t* me = cur_proc();
+        /* "infer a b" -> run the MLP and report */
+        if (m.data[0]=='i' && m.data[1]=='n' && m.data[2]=='f' && m.data[3]=='e' && m.data[4]=='r' && me) {
+            if (!(me->caps & CAP_MODEL_INFER)) {
+                const char* pre = "denied: no model capability";
+                for (; *pre && k < MSG_MAX-1; k++) reply[k] = *pre++;
+            } else {
+                int64_t a=0, b=0; const char* s = m.data + 5;
+                while (*s==' ') s++;
+                while (*s>='0'&&*s<='9'){ a=a*10+(*s-'0'); s++; }
+                while (*s==' ') s++;
+                while (*s>='0'&&*s<='9'){ b=b*10+(*s-'0'); s++; }
+                int64_t r = k_model_infer(a, b);
+                const char* pre = "xor ";
+                for (; *pre && k < MSG_MAX-1; k++) reply[k] = *pre++;
+                const char* dv = dec(r);
+                for (; *dv && k < MSG_MAX-1; k++) reply[k] = *dv++;
+            }
+        } else if (m.data[0]=='w' && m.data[1]=='i' && m.data[2]=='n' && me) {
+            /* "win <title>|<text>" -> open another window (CAP_UI) */
+            if (!(me->caps & CAP_UI)) {
+                const char* pre = "denied: no ui capability";
+                for (; *pre && k < MSG_MAX-1; k++) reply[k] = *pre++;
+            } else {
+                const char* s = m.data + 3;
+                while (*s==' ') s++;
+                char title[24]; int ti=0;
+                while (*s && *s!='|' && ti<23) title[ti++]=*s++;
+                title[ti]=0;
+                const char* text = "";
+                if (*s=='|'){ s++; while(*s==' ') s++; text = s; }
+                int64_t w = k_ui_register_window(title, text);
+                const char* pre = "window ";
+                for (; *pre && k < MSG_MAX-1; k++) reply[k] = *pre++;
+                const char* dv = dec(w);
+                for (; *dv && k < MSG_MAX-1; k++) reply[k] = *dv++;
+            }
+        } else {
+            const char* pre = "ack: ";
+            for (; *pre && k < MSG_MAX-1; k++) reply[k] = *pre++;
+            const char* d = m.data;
+            for (; *d && k < MSG_MAX-1; k++) reply[k] = *d++;
+        }
+        reply[k] = 0;
+        k_ipc_send(m.from, reply);
+        k_task_yield();
+    }
+}
+
 /* "init": spawns the session processes (logger + kenga-agent + model-agent). */
 int64_t k_proc_init(void) {
     logger_pid = k_proc_spawn("logger", logger_proc, CAP_IPC);
     agent_pid  = k_proc_spawn("agent", agent_proc, CAP_ALL);   /* system agent */
     k_model_init();
     model_pid = k_proc_spawn("model", model_proc, CAP_IPC|CAP_MODEL_INFER|CAP_MODEL_LOAD);
+    researcher_pid = k_proc_spawn("researcher", researcher_proc,
+                                  CAP_IPC|CAP_UI|CAP_MODEL_INFER);
     {   /* DIAG: verify XOR predictions + raw weights */
         lg_uart("XOR:00="); lg_uart(dec(k_model_infer(0,0)));
         lg_uart(" 01="); lg_uart(dec(k_model_infer(0,1)));
@@ -329,6 +391,7 @@ int64_t k_proc_init(void) {
 int64_t k_logger_pid(void) { return logger_pid; }
 int64_t k_agent_pid(void) { return agent_pid; }
 int64_t k_model_pid(void) { return model_pid; }
+int64_t k_researcher_pid(void) { return researcher_pid; }
 
 /* --- UI: agent-created windows (CAP_UI). -----------------------------
    The desktop (desktop.kenga) polls these via intrinsics and draws them.
@@ -348,11 +411,21 @@ typedef struct {
 static kf_win_t wins[MAX_WINDOWS];
 static int64_t  next_z = 1;
 
+static int64_t k_ui_open_window(const char* title, const char* text);
+
 int64_t k_ui_register_window(const char* title, const char* text) {
     kf_proc_t* me = cur_proc();
     if (!me || !(me->caps & CAP_UI)) return -1;   /* capability check */
+    return k_ui_open_window(title, text);
+}
+
+/* shared open helper: cascade position by number of open windows */
+static int64_t k_ui_open_window(const char* title, const char* text) {
+    int open = 0;
+    for (int i = 0; i < MAX_WINDOWS; i++) if (wins[i].active) open++;
     for (int i = 0; i < MAX_WINDOWS; i++) if (!wins[i].active) {
-        wins[i].x = 460; wins[i].y = 120;
+        wins[i].x = 440 + open * 26;
+        wins[i].y = 90 + open * 26;
         wins[i].w = 320; wins[i].h = 200;
         wins[i].z = next_z++;
         wins[i].active = 1;
@@ -370,20 +443,7 @@ int64_t k_ui_register_window(const char* title, const char* text) {
 /* System window: the graphics server itself may open windows (no CAP_UI
    required — it IS the UI authority). Returns window index (0-based). */
 int64_t k_ui_system_window(const char* title, const char* text) {
-    for (int i = 0; i < MAX_WINDOWS; i++) if (!wins[i].active) {
-        wins[i].x = 460; wins[i].y = 120;
-        wins[i].w = 320; wins[i].h = 200;
-        wins[i].z = next_z++;
-        wins[i].active = 1;
-        int k = 0;
-        for (; title && title[k] && k < WIN_TITLE-1; k++) wins[i].title[k] = title[k];
-        wins[i].title[k] = 0;
-        k = 0;
-        for (; text && text[k] && k < WIN_TEXT-1; k++) wins[i].text[k] = text[k];
-        wins[i].text[k] = 0;
-        return (int64_t)i;
-    }
-    return -1;   /* full */
+    return k_ui_open_window(title, text);
 }
 
 int64_t k_ui_window_count(void) {

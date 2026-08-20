@@ -127,6 +127,7 @@ int64_t k_desktop_main(void);
 uint64_t k_task_create(void (*entry)(void));
 uint64_t k_task_yield(void);
 uint64_t k_sched_current(void);
+int64_t k_yield_agent(void);
 
 /* Processes + IPC (kernel/kf_proc.c). */
 #define CAP_IPC          (1ull << 0)
@@ -153,6 +154,7 @@ const char* k_proc_name_at(int64_t idx);
 int64_t k_logger_pid(void);
 int64_t k_agent_pid(void);
 int64_t k_model_pid(void);
+int64_t k_researcher_pid(void);
 
 /* Agent-created windows (CAP_UI). */
 int64_t k_ui_register_window(const char* title, const char* text);

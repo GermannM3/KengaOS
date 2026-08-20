@@ -288,6 +288,12 @@ fn desktop_main() -> i64 {
     let st: DesktopState = DesktopState{ cur_app: 0, sel_pid: 0, model_a: 0, model_b: 1, model_out: 0 };
     init_screen();
     ui_system_window("welcome", "KengaOS 0.5 | agent-native desktop");
+    /* let agents run once so a CAP_UI agent can open its window before first draw */
+    let yc: i64 = 0;
+    while yc < 8 {
+        yield_agent();
+        yc = yc + 1;
+    }
     draw_desktop(st);
     let mx: i64 = mouse_x();
     let my: i64 = mouse_y();
@@ -295,6 +301,7 @@ fn desktop_main() -> i64 {
     let last_mx: i64 = mx;
     let last_my: i64 = my;
     let mprev: i64 = 0;
+    let tick: i64 = 0;
     while 1 {
         let bx: i64 = mouse_buttons();
         let cmx: i64 = mouse_x();
@@ -313,6 +320,12 @@ fn desktop_main() -> i64 {
         mprev = bx;
         last_mx = cmx;
         last_my = cmy;
+        /* give agents (logger/model/researcher) time to run */
+        let t: i64 = tick;
+        if t % 32 == 0 {
+            yield_agent();
+        }
+        tick = tick + 1;
         asm_hlt();
     }
     return 0;
