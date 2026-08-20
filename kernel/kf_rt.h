@@ -56,6 +56,16 @@ int64_t k_mem_total_bytes(void);
 int64_t k_mem_palloc(void);
 int64_t k_mem_pfree(int64_t addr);
 int64_t k_mem_pages_free(void);
+int64_t k_mem_region_count(void);
+int64_t k_mem_region_base(int64_t i);
+int64_t k_mem_region_len(int64_t i);
+int64_t k_mem_region_type(int64_t i);
+
+/* Hardware info (kernel/kf_hw.c). */
+int64_t k_hw_cpu_vendor(char* out, int max);
+int64_t k_hw_cpu_brand(char* out, int max);
+int64_t k_hw_cpu_flags(void);
+int64_t k_hw_rtc_str(char* out, int max);
 
 /* Print an int64 to the UART (COM1, port 0x3F8) as decimal. */
 int64_t k_kf_puti(int64_t n);

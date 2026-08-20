@@ -37,6 +37,10 @@ static void run_cmd(const char* cmd) {
         k_fb_con_print("  ask x  - IPC round-trip to agent\n");
         k_fb_con_print("  ls     - list vfs files\n");
         k_fb_con_print("  cat x  - print vfs file\n");
+        k_fb_con_print("  cpuinfo- CPU vendor/brand\n");
+        k_fb_con_print("  date   - RTC date/time\n");
+        k_fb_con_print("  time   - uptime\n");
+        k_fb_con_print("  mmap   - memory map\n");
         k_fb_con_print("  tasks  - scheduler status\n");
     } else if (scmp(cmd, "clear") == 0) {
         k_fb_con_clear();
@@ -69,6 +73,35 @@ static void run_cmd(const char* cmd) {
                 k_fb_con_print(reply);
                 k_fb_con_print("\n");
             }
+        }
+    } else if (scmp(cmd, "cpuinfo") == 0) {
+        char buf[128];
+        k_hw_cpu_vendor(buf, sizeof buf);
+        k_fb_con_print("vendor: ");
+        k_fb_con_print(buf);
+        k_fb_con_print("\n");
+        k_hw_cpu_brand(buf, sizeof buf);
+        k_fb_con_print("brand : ");
+        k_fb_con_print(buf);
+        k_fb_con_print("\n");
+    } else if (scmp(cmd, "date") == 0) {
+        char buf[32];
+        k_hw_rtc_str(buf, sizeof buf);
+        k_fb_con_print(buf);
+        k_fb_con_print("\n");
+    } else if (scmp(cmd, "mmap") == 0) {
+        int64_t n = k_mem_region_count();
+        k_fb_con_print("mem regions: ");
+        k_fb_con_print(dec(n));
+        k_fb_con_print("\n");
+        for (int64_t i = 0; i < n; i++) {
+            k_fb_con_print("  ");
+            k_fb_con_print(dec(k_mem_region_type(i)));
+            k_fb_con_print(" @");
+            k_fb_con_print(dec(k_mem_region_base(i)));
+            k_fb_con_print(" +");
+            k_fb_con_print(dec(k_mem_region_len(i)));
+            k_fb_con_print("\n");
         }
     } else if (scmp(cmd, "time") == 0) {
         k_fb_con_print("uptime: ");
@@ -136,9 +169,18 @@ static void shell_task(void) {
     }
 }
 
+static void sh_uart(const char* s) { for (; *s; s++) __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)*s), "Nd"((uint16_t)0x3F8)); }
+
 int64_t k_shell_init(void) {
     k_kbd_init();           /* PIC remap + IRQ1 -> vector 33 */
     k_fb_con_init();        /* clear console */
+    {   /* DIAG: cpu + rtc to UART */
+        char b[128];
+        k_hw_cpu_vendor(b, sizeof b); sh_uart("CPUV:"); sh_uart(b); sh_uart("\n");
+        k_hw_cpu_brand(b, sizeof b); sh_uart("CPUB:"); sh_uart(b); sh_uart("\n");
+        k_hw_rtc_str(b, sizeof b); sh_uart("RTC:"); sh_uart(b); sh_uart("\n");
+        sh_uart("NREG:"); sh_uart(dec(k_mem_region_count())); sh_uart("\n");
+    }
     k_proc_init();          /* spawn logger + agent (IPC) */
     k_proc_spawn("shell", shell_task);   /* register shell so it can recv IPC */
     __asm__ __volatile__("sti");

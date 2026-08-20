@@ -15,6 +15,9 @@
 @intrinsic fn vfs_init_rd(addr: i64, size: i64) -> i64;
 @intrinsic fn timer_init() -> i64;
 @intrinsic fn time_uptime_ms() -> i64;
+@intrinsic fn cpu_vendor(buf: i64, max: i64) -> i64;
+@intrinsic fn cpu_brand(buf: i64, max: i64) -> i64;
+@intrinsic fn rtc_str(buf: i64, max: i64) -> i64;
 
 /* Framebuffer FFI (kf_fb.c) */
 @intrinsic fn fb_init(fb: i64) -> i64;

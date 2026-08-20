@@ -1,10 +1,9 @@
-/* kf_mem.c — physical memory + kernel heap (M2.4).
+/* kf_mem.c — physical memory, kernel heap and memory map info.
  *
- * Parses the Limine memory map, picks the largest USABLE region (skipping the
- * kernel image), maps it into the higher half via the HHDM offset, and uses it
- * as the kernel heap arena. kf_alloc() (the runtime's weak hook) now allocates
- * from this arena instead of a tiny static buffer, so the Kenga runtime gets a
- * real heap. Allocation is a page-aligned bump for now; buddy comes later.
+ * Parses the Limine memory map: picks the largest USABLE region (capped to
+ * 16 MiB) as the kernel heap arena, and gives every other usable frame to a
+ * bitmap-based 4 KiB frame allocator. The memory map itself is recorded for
+ * the `mmap` shell command.
  */
 #include "kf_rt.h"
 
@@ -15,13 +14,31 @@ static uint64_t hhdm = 0;
 static uint64_t heap_base = 0;   /* HHDM-mapped virtual base */
 static uint64_t heap_size = 0;
 static uint64_t heap_used = 0;
-static uint64_t heap_phys_base = 0;
 
 static uint64_t kf_mem_total = 0;
 
-/* --- physical frame allocator (4 KiB bitmap, safe) ---
-   One bit per frame in a static array (no writes into the frames themselves).
-   Range capped at FRAME_MAX; built from usable regions except the heap arena. */
+/* --- memory map regions (for `mmap` command) --- */
+#define MEM_REGIONS_MAX 64
+static uint64_t mm_base[MEM_REGIONS_MAX];
+static uint64_t mm_len[MEM_REGIONS_MAX];
+static uint64_t mm_type[MEM_REGIONS_MAX];
+static int      mm_count = 0;
+
+static void record_region(uint64_t base, uint64_t len, uint64_t type) {
+    if (mm_count < MEM_REGIONS_MAX) {
+        mm_base[mm_count] = base;
+        mm_len[mm_count] = len;
+        mm_type[mm_count] = type;
+        mm_count++;
+    }
+}
+
+int64_t k_mem_region_count(void) { return mm_count; }
+int64_t k_mem_region_base(int64_t i) { return (i >= 0 && i < mm_count) ? (int64_t)mm_base[i] : 0; }
+int64_t k_mem_region_len(int64_t i) { return (i >= 0 && i < mm_count) ? (int64_t)mm_len[i] : 0; }
+int64_t k_mem_region_type(int64_t i) { return (i >= 0 && i < mm_count) ? (int64_t)mm_type[i] : -1; }
+
+/* --- physical frame allocator (4 KiB bitmap, safe) --- */
 #define FRAME_MAX    (512u * 1024 * 1024)
 #define FRAME_BITS   (FRAME_MAX / PAGE_SIZE)
 #define FRAME_BYTES  ((FRAME_BITS + 7) / 8)
@@ -50,46 +67,40 @@ int64_t k_mem_init(void) {
     uint64_t count = *(uint64_t*)(resp + 8);
     uint64_t** entries = *(uint64_t***)(resp + 16);   /* array of pointers */
 
-
-    /* Pick the largest USABLE region. Limine marks the kernel image as
-       reserved, so usable regions don't overlap it. We start the heap above
-       1 MiB to stay clear of low memory / the null page. */
     uint64_t best_base = 0, best_len = 0;
     for (uint64_t i = 0; i < count; i++) {
         uint64_t* e = entries[i];          /* base@0, length@8, type@16 */
         uint64_t base = e[0], len = e[1], type = e[2];
+        record_region(base, len, type);
         if (type != 0) continue;           /* usable only */
         kf_mem_total += len;
-        if (base < 0x100000ULL) continue;  /* skip low memory */
+        if (base < 0x100000ULL) continue;
         if (len > best_len) { best_len = len; best_base = base; }
     }
-
     if (best_len == 0) return 0;
-    /* page-align base up, length down */
+
     uint64_t start = (best_base + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
     uint64_t end = (best_base + best_len) & ~(PAGE_SIZE - 1);
     if (start >= end) return 0;
 
-    /* Heap arena: capped to a modest contiguous chunk; the rest of the largest
-       region plus every other usable region goes to the frame free-list. */
+    /* Heap arena: capped to 16 MiB; the rest goes to the frame free-list. */
     const uint64_t HEAP_MAX = 16u * 1024 * 1024;
     uint64_t heap_end = start + (end - start > HEAP_MAX ? HEAP_MAX : (end - start));
     heap_end &= ~(PAGE_SIZE - 1);
 
-    heap_base = start + hhdm;              /* HHDM-mapped virtual address */
+    heap_base = start + hhdm;
     heap_size = heap_end - start;
     heap_used = 0;
-    heap_phys_base = start;
 
     for (uint64_t i = 0; i < count; i++) {
         uint64_t* e = entries[i];
         uint64_t base = e[0], len = e[1], type = e[2];
         if (type != 0) continue;
         if (base < 0x100000ULL) continue;
-        if (base >= heap_phys_base && base + len <= heap_end) continue;
+        if (base >= start && base + len <= heap_end) continue;
         uint64_t r0 = base, r1 = base + len;
-        if (r0 < heap_phys_base) { frame_add_range(r0, heap_phys_base - r0); }
-        if (r1 > heap_end) { frame_add_range(heap_end, r1 - heap_end); }
+        if (r0 < start) frame_add_range(r0, start - r0);
+        if (r1 > heap_end) frame_add_range(heap_end, r1 - heap_end);
     }
     return 1;
 }
@@ -111,7 +122,7 @@ int64_t k_mem_palloc(void) {
 int64_t k_mem_pfree(int64_t addr) {
     uint64_t phys = (uint64_t)addr - hhdm;
     if (phys % PAGE_SIZE || phys >= FRAME_MAX) return 0;
-    if (bmap_get(phys / PAGE_SIZE)) return 0;   /* already free */
+    if (bmap_get(phys / PAGE_SIZE)) return 0;
     bmap_set(phys / PAGE_SIZE);
     free_frames++;
     return 1;
@@ -124,11 +135,11 @@ int64_t k_mem_pages_free(void) { return (int64_t)free_frames; }
 static uint8_t  fallback_arena[8192];
 static uint64_t fallback_used = 0;
 
-/* Runtime allocator hook (strong symbol, replaces the old static-buffer one). */
+/* Runtime allocator hook (strong symbol). Page-aligned bump over the arena. */
 void* kf_alloc(size_t n) {
     if (n == 0) n = 1;
     n = (n + 15u) & ~(size_t)15u;
-    if (heap_size > 0) {                          /* real heap ready */
+    if (heap_size > 0) {
         if (heap_used + n > heap_size) return 0;  /* OOM */
         void* p = (void*)(heap_base + heap_used);
         heap_used += n;
