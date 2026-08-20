@@ -61,6 +61,10 @@ int64_t k_mem_region_base(int64_t i);
 int64_t k_mem_region_len(int64_t i);
 int64_t k_mem_region_type(int64_t i);
 
+/* Power (kernel/kf_power.c). */
+int64_t k_power_reboot(void);
+int64_t k_power_shutdown(void);
+
 /* Hardware info (kernel/kf_hw.c). */
 int64_t k_hw_cpu_vendor(char* out, int max);
 int64_t k_hw_cpu_brand(char* out, int max);

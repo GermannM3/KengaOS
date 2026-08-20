@@ -41,6 +41,8 @@ static void run_cmd(const char* cmd) {
         k_fb_con_print("  date   - RTC date/time\n");
         k_fb_con_print("  time   - uptime\n");
         k_fb_con_print("  mmap   - memory map\n");
+        k_fb_con_print("  reboot - restart\n");
+        k_fb_con_print("  poweroff - shutdown\n");
         k_fb_con_print("  tasks  - scheduler status\n");
     } else if (scmp(cmd, "clear") == 0) {
         k_fb_con_clear();
@@ -74,6 +76,12 @@ static void run_cmd(const char* cmd) {
                 k_fb_con_print("\n");
             }
         }
+    } else if (scmp(cmd, "reboot") == 0) {
+        k_fb_con_print("rebooting...\n");
+        k_power_reboot();
+    } else if (scmp(cmd, "poweroff") == 0) {
+        k_fb_con_print("shutting down...\n");
+        k_power_shutdown();
     } else if (scmp(cmd, "cpuinfo") == 0) {
         char buf[128];
         k_hw_cpu_vendor(buf, sizeof buf);

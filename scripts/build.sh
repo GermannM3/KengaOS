@@ -154,6 +154,11 @@ if [[ -f "$KERNEL_DIR/kf_hw.c" ]]; then
     eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_hw.c\" -o \"$BUILD_DIR/kf_hw.o\""
 fi
 
+log "4k/7" "Compiling kf_power.c (reboot/shutdown) ($CC)"
+if [[ -f "$KERNEL_DIR/kf_power.c" ]]; then
+    eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_power.c\" -o \"$BUILD_DIR/kf_power.o\""
+fi
+
 log "5/7" "Linking kengaos.elf ($LD)"
 OBJS=("$BUILD_DIR/start.o" "$BUILD_DIR/kmain.o")
 if [[ -f "$BUILD_DIR/kf_mem.o" ]]; then OBJS+=("$BUILD_DIR/kf_mem.o"); fi
@@ -167,6 +172,7 @@ if [[ -f "$BUILD_DIR/kf_proc.o" ]]; then OBJS+=("$BUILD_DIR/kf_proc.o"); fi
 if [[ -f "$BUILD_DIR/kf_vfs.o" ]]; then OBJS+=("$BUILD_DIR/kf_vfs.o"); fi
 if [[ -f "$BUILD_DIR/kf_time.o" ]]; then OBJS+=("$BUILD_DIR/kf_time.o"); fi
 if [[ -f "$BUILD_DIR/kf_hw.o" ]]; then OBJS+=("$BUILD_DIR/kf_hw.o"); fi
+if [[ -f "$BUILD_DIR/kf_power.o" ]]; then OBJS+=("$BUILD_DIR/kf_power.o"); fi
 $LD -n -nostdlib -T "$KERNEL_DIR/linker.ld" "${OBJS[@]}" -o "$BUILD_DIR/kengaos.elf"
 ls -la "$BUILD_DIR/kengaos.elf"
 
