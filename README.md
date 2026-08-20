@@ -88,7 +88,8 @@ qemu-system-x86_64 -M q35 -cdrom build/kengaos.iso -serial stdio
 | Кириллица | есть | UTF-8 консоль + русский шрифт, русское приветствие |
 | Память | есть | Kernel heap + frame-аллокатор (bitmap, ~94 МБ фреймов) |
 | Процессы + IPC | есть | `k_proc_spawn`, `k_ipc_send`/`k_ipc_recv`, очереди сообщений |
-| Kenga-agent | есть | Агент создаёт агентов (`spawn`), живая память (`remember`/`recall`), русский ответ |
+| Kenga-agent | есть | Агент — системная сущность: `spawn` (создаёт агентов, рекурсивно), живая память (`remember`/`recall`), capability-права, русский ответ |
+| Agent-native модель | есть | Дерево процессов: `init` → системные агенты → пользовательские агенты (parent tracking) |
 | VFS + initrd | есть | Виртуальная ФС + initrd через Limine (git-лог, инфо хоста) |
 | Таймер / uptime | есть | PIT 100 Гц, команда `time` |
 | Аппаратура | есть | CPUID (`cpuinfo`), RTC (`date`), память (`mmap`) |
