@@ -275,6 +275,45 @@ int64_t k_fb_blend_rect(int64_t x0, int64_t y0, int64_t w, int64_t h,
 }
 
 /* Rounded rectangle fill (radius r on all four corners). */
+/* --- Anti-aliased rounded rects (SDF, 2x2 supersampled) ---
+   The pixel-perfect 'blocky corner' killer. Coverage from a signed
+   distance field evaluated at 4 subsample points per pixel. */
+
+static int rrect_cov4(int64_t px, int64_t py,     /* pixel coords */
+                      int64_t cx4, int64_t cy4,   /* center, quarter-px */
+                      int64_t hw4, int64_t hh4, int64_t r4) {
+    /* returns summed coverage 0..16 over 4 subsamples */
+    static const int off[4][2] = { {1,1},{3,1},{1,3},{3,3} };
+    int cov = 0;
+    for (int s = 0; s < 4; s++) {
+        int64_t sx4 = px * 4 + off[s][0];
+        int64_t sy4 = py * 4 + off[s][1];
+        int64_t dx = sx4 - cx4; if (dx < 0) dx = -dx;
+        int64_t dy = sy4 - cy4; if (dy < 0) dy = -dy;
+        int64_t qx = dx - (hw4 - r4);
+        int64_t qy = dy - (hh4 - r4);
+        int64_t ox = qx > 0 ? qx : 0;
+        int64_t oy = qy > 0 ? qy : 0;
+        int64_t outer = dsqrti(ox * ox + oy * oy);
+        int64_t inner = (qx > qy ? qx : qy); if (inner > 0) inner = 0;
+        int64_t sd = outer + inner - r4;
+        int64_t c = 2 - sd;          /* 2 quarter-px = half pixel soft edge */
+        if (c < 0) c = 0; if (c > 4) c = 4;
+        cov += (int)c;
+    }
+    return cov;
+}
+
+static void fb_blend_px(uint32_t* row, int64_t xx, uint32_t fr, uint32_t fg, uint32_t fb,
+                        uint32_t a) {
+    uint32_t bg = row[xx];
+    uint32_t ia = 255 - a;
+    uint32_t r2 = (fr * a + ((bg >> 16) & 0xff) * ia) >> 8;
+    uint32_t g2 = (fg * a + ((bg >> 8) & 0xff) * ia) >> 8;
+    uint32_t b2 = (fb * a + (bg & 0xff) * ia) >> 8;
+    row[xx] = (r2 << 16) | (g2 << 8) | b2;
+}
+
 int64_t k_fb_rrect(int64_t x0, int64_t y0, int64_t w, int64_t h,
                    int64_t r, int64_t color) {
     if (w < 1 || h < 1 || r < 0) return 0;
@@ -284,19 +323,21 @@ int64_t k_fb_rrect(int64_t x0, int64_t y0, int64_t w, int64_t h,
     if (y0 + h > (int64_t)fb_h) h = fb_h - y0;
     if (w <= 0 || h <= 0) return 0;
     uint32_t c = (uint32_t)color;
-    int64_t rr = r;
-    if (rr > w / 2) rr = w / 2;
-    if (rr > h / 2) rr = h / 2;
+    uint32_t fr = (c >> 16) & 0xff, fgc = (c >> 8) & 0xff, fbc = c & 0xff;
+    int64_t rr = r; if (rr > w / 2) rr = w / 2; if (rr > h / 2) rr = h / 2;
+    int64_t cx4 = (x0 * 2 + w) * 2, cy4 = (y0 * 2 + h) * 2;
+    int64_t hw4 = w * 2, hh4 = h * 2, r4 = rr * 4;
     uintptr_t base = fb_cur();
     for (int64_t yy = 0; yy < h; yy++) {
-        volatile uint32_t* row = (volatile uint32_t*)(base + (uintptr_t)(y0 + yy) * fb_pitch + (uintptr_t)x0 * 4);
-        int64_t cy = yy;
-        int64_t xskip = 0, xend = w;
-        if (cy < rr) { int64_t d = rr - cy; xskip = rr - dsqrti(rr * rr - d * d); }
-        if (cy >= h - rr) { int64_t d = rr - (h - 1 - cy); xend = w - rr + dsqrti(rr * rr - d * d); }
-        if (xskip < 0) xskip = 0;
-        if (xend > w) xend = w;
-        for (int64_t xx = xskip; xx < xend; xx++) row[xx] = c;
+        uint32_t* row = (uint32_t*)(base + (uintptr_t)(y0 + yy) * fb_pitch + (uintptr_t)x0 * 4);
+        int64_t yedge = (yy < rr + 1 || yy >= h - rr - 1);
+        for (int64_t xx = 0; xx < w; xx++) {
+            if (!yedge && xx >= rr + 1 && xx < w - rr - 1) { row[xx] = c; continue; }
+            int cov = rrect_cov4(x0 + xx, y0 + yy, cx4, cy4, hw4, hh4, r4);
+            if (cov >= 16) { row[xx] = c; continue; }
+            if (cov == 0) continue;
+            fb_blend_px(row, xx, fr, fgc, fbc, (uint32_t)(cov >= 16 ? 255 : cov << 4));
+        }
     }
     return 1;
 }
@@ -313,33 +354,109 @@ int64_t k_fb_blend_rrect(int64_t x0, int64_t y0, int64_t w, int64_t h,
     if (y0 + h > (int64_t)fb_h) h = fb_h - y0;
     if (w <= 0 || h <= 0) return 0;
     uint32_t a = (uint32_t)alpha;
-    uint32_t ia = 255 - a;
     uint32_t fg = (uint32_t)color;
     uint32_t fr = (fg >> 16) & 0xff, fgc = (fg >> 8) & 0xff, fbc = fg & 0xff;
-    int64_t rr = r;
-    if (rr > w / 2) rr = w / 2;
-    if (rr > h / 2) rr = h / 2;
+    int64_t rr = r; if (rr > w / 2) rr = w / 2; if (rr > h / 2) rr = h / 2;
+    int64_t cx4 = (x0 * 2 + w) * 2, cy4 = (y0 * 2 + h) * 2;
+    int64_t hw4 = w * 2, hh4 = h * 2, r4 = rr * 4;
     uintptr_t base = fb_cur();
     for (int64_t yy = 0; yy < h; yy++) {
-        volatile uint32_t* row = (volatile uint32_t*)(base + (uintptr_t)(y0 + yy) * fb_pitch + (uintptr_t)x0 * 4);
-        int64_t cy = yy;
-        int64_t xskip = 0, xend = w;
-        if (rr > 0) {
-            if (cy < rr) { int64_t d = rr - cy; xskip = rr - dsqrti(rr * rr - d * d); }
-            if (cy >= h - rr) { int64_t d = rr - (h - 1 - cy); xend = w - rr + dsqrti(rr * rr - d * d); }
-        }
-        if (xskip < 0) xskip = 0;
-        if (xend > w) xend = w;
-        for (int64_t xx = xskip; xx < xend; xx++) {
-            uint32_t bg = row[xx];
-            uint32_t r2 = (fr * a + ((bg >> 16) & 0xff) * ia) >> 8;
-            uint32_t g2 = (fgc * a + ((bg >> 8) & 0xff) * ia) >> 8;
-            uint32_t b2 = (fbc * a + (bg & 0xff) * ia) >> 8;
-            row[xx] = (r2 << 16) | (g2 << 8) | b2;
+        uint32_t* row = (uint32_t*)(base + (uintptr_t)(y0 + yy) * fb_pitch + (uintptr_t)x0 * 4);
+        int64_t yedge = (yy < rr + 1 || yy >= h - rr - 1);
+        for (int64_t xx = 0; xx < w; xx++) {
+            if (!yedge && xx >= rr + 1 && xx < w - rr - 1) {
+                fb_blend_px(row, xx, fr, fgc, fbc, a);
+                continue;
+            }
+            int cov = rrect_cov4(x0 + xx, y0 + yy, cx4, cy4, hw4, hh4, r4);
+            if (cov == 0) continue;
+            uint32_t ae = (a * (uint32_t)cov) >> 4;   /* 0..255 */
+            fb_blend_px(row, xx, fr, fgc, fbc, ae);
         }
     }
     return 1;
 }
+
+/* --- Vector icons (SDF union, anti-aliased, 20x20 box) ---
+   type 0=agents 1=model 2=files 3=system. All geometry in quarter-px. */
+static int64_t sd_circle(int64_t px4, int64_t py4, int64_t cx4, int64_t cy4, int64_t r4) {
+    int64_t dx = px4 - cx4, dy = py4 - cy4;
+    return dsqrti(dx * dx + dy * dy) - r4;
+}
+static int64_t sd_rrect(int64_t px4, int64_t py4, int64_t cx4, int64_t cy4,
+                        int64_t hw4, int64_t hh4, int64_t r4) {
+    int64_t dx = px4 - cx4; if (dx < 0) dx = -dx;
+    int64_t dy = py4 - cy4; if (dy < 0) dy = -dy;
+    int64_t qx = dx - (hw4 - r4), qy = dy - (hh4 - r4);
+    int64_t ox = qx > 0 ? qx : 0, oy = qy > 0 ? qy : 0;
+    int64_t outer = dsqrti(ox * ox + oy * oy);
+    int64_t inner = (qx > qy ? qx : qy); if (inner > 0) inner = 0;
+    return outer + inner - r4;
+}
+static int64_t sd_capsule(int64_t px4, int64_t py4,
+                          int64_t ax4, int64_t ay4, int64_t bx4, int64_t by4, int64_t r4) {
+    int64_t abx = bx4 - ax4, aby = by4 - ay4;
+    int64_t apx = px4 - ax4, apy = py4 - ay4;
+    int64_t ab2 = abx * abx + aby * aby;
+    int64_t t = 0;
+    if (ab2 > 0) { t = (apx * abx + apy * aby); if (t < 0) t = 0; if (t > ab2) t = ab2; t = t / ab2; }
+    int64_t cx = ax4 + abx * t, cy = ay4 + aby * t;
+    int64_t dx = px4 - cx, dy = py4 - cy;
+    return dsqrti(dx * dx + dy * dy) - r4;
+}
+
+static int64_t icon_sd(int type, int64_t px4, int64_t py4) {
+    int64_t sd = 0x7fffffff;
+    if (type == 0) {          /* agents: person */
+        sd = sd_circle(px4, py4, 40, 26, 13);            /* head */
+        int64_t b = sd_rrect(px4, py4, 40, 60, 22, 14, 12); /* shoulders */
+        if (b < sd) sd = b;
+    } else if (type == 1) {   /* model: graph */
+        int64_t n0 = sd_circle(px4, py4, 40, 18, 10);
+        int64_t n1 = sd_circle(px4, py4, 16, 62, 10);
+        int64_t n2 = sd_circle(px4, py4, 64, 62, 10);
+        int64_t e0 = sd_capsule(px4, py4, 40, 18, 16, 62, 4);
+        int64_t e1 = sd_capsule(px4, py4, 40, 18, 64, 62, 4);
+        if (n0 < sd) sd = n0; if (n1 < sd) sd = n1; if (n2 < sd) sd = n2;
+        if (e0 < sd) sd = e0; if (e1 < sd) sd = e1;
+    } else if (type == 2) {   /* files: folder */
+        int64_t body = sd_rrect(px4, py4, 40, 46, 28, 22, 10);
+        int64_t tab  = sd_rrect(px4, py4, 24, 26, 14, 7, 6);
+        if (body < sd) sd = body; if (tab < sd) sd = tab;
+    } else {                  /* system: chip (ring + dot) */
+        int64_t ring = sd_circle(px4, py4, 40, 40, 24);
+        if (ring < 0) ring = -ring;
+        ring -= 6;
+        int64_t dot = sd_circle(px4, py4, 40, 40, 9);
+        if (ring < sd) sd = ring; if (dot < sd) sd = dot;
+    }
+    return sd;
+}
+
+int64_t k_fb_icon(int64_t x, int64_t y, int64_t type, int64_t color) {
+    if (type < 0 || type > 3) return 0;
+    if (x < 0 || y < 0 || x + 20 > (int64_t)fb_w || y + 20 > (int64_t)fb_h) return 0;
+    uint32_t fg = (uint32_t)color;
+    uint32_t fr = (fg >> 16) & 0xff, fgc = (fg >> 8) & 0xff, fbc = fg & 0xff;
+    static const int off[4][2] = { {1,1},{3,1},{1,3},{3,3} };
+    uintptr_t base = fb_cur();
+    for (int64_t yy = 0; yy < 20; yy++) {
+        uint32_t* row = (uint32_t*)(base + (uintptr_t)(y + yy) * fb_pitch + (uintptr_t)x * 4);
+        for (int64_t xx = 0; xx < 20; xx++) {
+            int cov = 0;
+            for (int s = 0; s < 4; s++) {
+                int64_t sd = icon_sd((int)type, xx * 4 + off[s][0], yy * 4 + off[s][1]);
+                int64_t c = 2 - sd;
+                if (c < 0) c = 0; if (c > 4) c = 4;
+                cov += (int)c;
+            }
+            if (cov == 0) continue;
+            fb_blend_px(row, xx, fr, fgc, fbc, (uint32_t)(cov >= 16 ? 255 : cov << 4));
+        }
+    }
+    return 1;
+}
+
 
 /* Vertical linear gradient fill from c0 (top) to c1 (bottom). */
 int64_t k_fb_grad_rect(int64_t x0, int64_t y0, int64_t w, int64_t h,

@@ -122,13 +122,10 @@ fn draw_dock(w: i64, h: i64, cur: i64) -> i64 {
         } else {
             fb_blend_rrect(dx + 10, iy, 44, 44, 12, 0xffffff, 18);
         }
-        /* icons (pixel art): agents/model/files/system */
+        /* icons: vector SDF, anti-aliased (agents/model/files/system) */
         let ic_col: i64 = NEON;
         if active == 1 { ic_col = 0x0b0f1a; }
-        if i == 0 { icon_agents(dx + 21, iy + 15, ic_col); }
-        if i == 1 { icon_model(dx + 21, iy + 15, ic_col); }
-        if i == 2 { icon_files(dx + 21, iy + 15, ic_col); }
-        if i == 3 { icon_system(dx + 21, iy + 15, ic_col); }
+        fb_icon(dx + 22, iy + 12, i, ic_col);
         /* running indicator dot */
         if n > 0 {
             fb_glow(dx + dw / 2, iy + 48, 3, NEON, 140);
