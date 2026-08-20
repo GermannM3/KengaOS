@@ -138,10 +138,22 @@ static void agent_proc(void) {
             d = dec(child);
             for (; *d && k < MSG_MAX - 1; k++) reply[k] = *d++;
         } else {
-            pre = "ack: ";
-            for (; *pre && k < MSG_MAX - 1; k++) reply[k] = *pre++;
-            d = m.data;
-            for (; *d && k < MSG_MAX - 1; k++) reply[k] = *d++;
+            /* Russian-friendly agent: greet back, else ack.
+               "п"/"П" in UTF-8 are 0xD0 0xBF / 0xD0 0x9F. */
+            int is_hi =
+                ((unsigned char)m.data[0]==0xD0 && (unsigned char)m.data[1]==0xBF) || /* п */
+                ((unsigned char)m.data[0]==0xD0 && (unsigned char)m.data[1]==0x9F) || /* П */
+                (m.data[0]=='p' && m.data[1]=='r' && m.data[2]=='i') ||
+                (m.data[0]=='h' && m.data[1]=='i');
+            if (is_hi) {
+                d = "привет! я живой агент KengaOS";
+                for (; *d && k < MSG_MAX - 1; k++) reply[k] = *d++;
+            } else {
+                pre = "ack: ";
+                for (; *pre && k < MSG_MAX - 1; k++) reply[k] = *pre++;
+                d = m.data;
+                for (; *d && k < MSG_MAX - 1; k++) reply[k] = *d++;
+            }
         }
         reply[k] = 0;
         k_ipc_send(m.from, reply);

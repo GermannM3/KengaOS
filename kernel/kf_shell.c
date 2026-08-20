@@ -215,6 +215,7 @@ static void run_cmd(const char* cmd) {
 
 static void shell_task(void) {
     k_fb_con_print("KengaOS shell v0.1\n");
+    k_fb_con_print("Привет! Это KengaOS — ОС нового поколения\n");
     k_fb_con_print("type 'help'\n");
     k_fb_con_print("kenga> ");
     for (;;) {
