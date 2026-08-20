@@ -65,6 +65,11 @@ int64_t k_mem_region_type(int64_t i);
 int64_t k_power_reboot(void);
 int64_t k_power_shutdown(void);
 
+/* Model (kernel/kf_model.c): tiny in-kernel MLP. */
+int64_t k_model_init(void);
+int64_t k_model_infer(int64_t a, int64_t b);
+int64_t k_model_dbg(void);
+
 /* Hardware info (kernel/kf_hw.c). */
 int64_t k_hw_cpu_vendor(char* out, int max);
 int64_t k_hw_cpu_brand(char* out, int max);
@@ -106,12 +111,14 @@ uint64_t k_task_yield(void);
 uint64_t k_sched_current(void);
 
 /* Processes + IPC (kernel/kf_proc.c). */
-#define CAP_IPC    (1ull << 0)
-#define CAP_SPAWN  (1ull << 1)
-#define CAP_POWER  (1ull << 2)
-#define CAP_MEM    (1ull << 3)
-#define CAP_MODEL  (1ull << 4)
-#define CAP_ALL    (CAP_IPC|CAP_SPAWN|CAP_POWER|CAP_MEM|CAP_MODEL)
+#define CAP_IPC          (1ull << 0)
+#define CAP_SPAWN        (1ull << 1)
+#define CAP_POWER        (1ull << 2)
+#define CAP_MEM          (1ull << 3)
+#define CAP_MODEL_INFER  (1ull << 4)
+#define CAP_MODEL_LOAD   (1ull << 5)
+#define CAP_MODEL_TRAIN  (1ull << 6)
+#define CAP_ALL    (CAP_IPC|CAP_SPAWN|CAP_POWER|CAP_MEM|CAP_MODEL_INFER|CAP_MODEL_LOAD|CAP_MODEL_TRAIN)
 #define CAP_AGENT  (CAP_IPC|CAP_SPAWN)
 
 int64_t k_proc_init(void);
@@ -126,6 +133,7 @@ int64_t k_proc_parent_at(int64_t idx);
 const char* k_proc_name_at(int64_t idx);
 int64_t k_logger_pid(void);
 int64_t k_agent_pid(void);
+int64_t k_model_pid(void);
 const char* dec(int64_t n);
 
 /* Timer / uptime (kernel/kf_time.c). */

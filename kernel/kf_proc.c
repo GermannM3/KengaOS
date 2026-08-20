@@ -262,15 +262,49 @@ static void agent_proc(void) {
     }
 }
 
-/* "init": spawns the session processes (logger + kenga-agent). */
+/* --- model-agent: runs the in-kernel MLP via IPC (CAP_MODEL_INFER). --- */
+static int64_t model_pid = 0;
+static void model_proc(void) {
+    for (;;) {
+        ipc_msg m;
+        k_ipc_recv(&m);
+        lg_uart("MODEL: "); lg_uart(m.data); lg_uart("\n");
+        /* parse "a b" -> infer XOR -> reply "predict <n>" */
+        int64_t a = 0, b = 0; const char* s = m.data;
+        while (*s == ' ') s++;
+        while (*s >= '0' && *s <= '9') { a = a * 10 + (*s - '0'); s++; }
+        while (*s == ' ') s++;
+        while (*s >= '0' && *s <= '9') { b = b * 10 + (*s - '0'); s++; }
+        int64_t r = k_model_infer(a, b);
+        char reply[MSG_MAX]; int k = 0;
+        const char* pre = "predict ";
+        for (; *pre && k < MSG_MAX - 1; k++) reply[k] = *pre++;
+        const char* dv = dec(r);
+        for (; *dv && k < MSG_MAX - 1; k++) reply[k] = *dv++;
+        reply[k] = 0;
+        k_ipc_send(m.from, reply);
+        k_task_yield();
+    }
+}
+
+/* "init": spawns the session processes (logger + kenga-agent + model-agent). */
 int64_t k_proc_init(void) {
     logger_pid = k_proc_spawn("logger", logger_proc, CAP_IPC);
     agent_pid  = k_proc_spawn("agent", agent_proc, CAP_ALL);   /* system agent */
+    k_model_init();
+    model_pid = k_proc_spawn("model", model_proc, CAP_IPC|CAP_MODEL_INFER|CAP_MODEL_LOAD);
+    {   /* DIAG: verify XOR predictions + raw weights */
+        lg_uart("XOR:00="); lg_uart(dec(k_model_infer(0,0)));
+        lg_uart(" 01="); lg_uart(dec(k_model_infer(0,1)));
+        lg_uart(" 10="); lg_uart(dec(k_model_infer(1,0)));
+        lg_uart(" 11="); lg_uart(dec(k_model_infer(1,1))); lg_uart("\n");
+    }
     return logger_pid;
 }
 
 int64_t k_logger_pid(void) { return logger_pid; }
 int64_t k_agent_pid(void) { return agent_pid; }
+int64_t k_model_pid(void) { return model_pid; }
 
 /* helper for printing numbers to the console (used above) */
 const char* dec(int64_t n) {

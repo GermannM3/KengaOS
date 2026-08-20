@@ -41,6 +41,7 @@ static void run_cmd(const char* cmd) {
         k_fb_con_print("  demo   - living-OS showcase\n");
         k_fb_con_print("  agents - list agents\n");
         k_fb_con_print("  caps id [v] - show/set capabilities\n");
+        k_fb_con_print("  model a b - neural agent predicts XOR\n");
         k_fb_con_print("  ls     - list vfs files\n");
         k_fb_con_print("  cat x  - print vfs file\n");
         k_fb_con_print("  ver    - git version\n");
@@ -137,6 +138,14 @@ static void run_cmd(const char* cmd) {
         k_fb_con_print(dec(k_mem_pages_free()));
         k_fb_con_print(" free frames\n");
         k_fb_con_print("=== end demo ===\n");
+    } else if (sncmp(cmd, "model ", 6) == 0) {
+        /* model <a> <b> -> neural agent infers XOR, replies predict <n> */
+        int64_t r = k_ipc_send(k_model_pid(), cmd + 6);
+        if (!r) { k_fb_con_print("ipc queue full\n"); }
+        else {
+            char reply[64];
+            if (k_ipc_recv_str(reply, sizeof reply)) { k_fb_con_print(reply); k_fb_con_print("\n"); }
+        }
     } else if (sncmp(cmd, "caps ", 5) == 0) {
         /* caps <pid> [value]: show or set an agent's capabilities (privileged). */
         int64_t pid = 0, val = -1; const char* s = cmd + 5;
