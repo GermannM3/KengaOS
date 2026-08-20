@@ -37,6 +37,7 @@ static void run_cmd(const char* cmd) {
         k_fb_con_print("  ask x  - IPC round-trip to agent\n");
         k_fb_con_print("  ls     - list vfs files\n");
         k_fb_con_print("  cat x  - print vfs file\n");
+        k_fb_con_print("  ver    - git version\n");
         k_fb_con_print("  cpuinfo- CPU vendor/brand\n");
         k_fb_con_print("  date   - RTC date/time\n");
         k_fb_con_print("  time   - uptime\n");
@@ -47,8 +48,20 @@ static void run_cmd(const char* cmd) {
     } else if (scmp(cmd, "clear") == 0) {
         k_fb_con_clear();
     } else if (scmp(cmd, "info") == 0) {
-        k_fb_con_print("KengaOS v0.1 x86_64\n");
-        k_fb_con_print("Kenga kernel over Limine, framebuffer console\n");
+        char b[128];
+        k_fb_con_print("KengaOS x86_64\n");
+        k_hw_cpu_brand(b, sizeof b);
+        k_fb_con_print("cpu: ");
+        k_fb_con_print(b);
+        k_fb_con_print("\n");
+        k_fb_con_print("heap free: ");
+        k_fb_con_print(dec(k_mem_free_bytes() / 1024));
+        k_fb_con_print(" KiB, frames: ");
+        k_fb_con_print(dec(k_mem_pages_free()));
+        k_fb_con_print("\n");
+        k_fb_con_print("uptime: ");
+        k_fb_con_print(dec(k_time_uptime_ms() / 1000));
+        k_fb_con_print(" s\n");
         k_fb_con_redraw();
     } else if (scmp(cmd, "tasks") == 0) {
         k_fb_con_print("cooperative round-robin scheduler active\n");
@@ -76,6 +89,10 @@ static void run_cmd(const char* cmd) {
                 k_fb_con_print("\n");
             }
         }
+    } else if (scmp(cmd, "ver") == 0) {
+        char b[128];
+        if (k_vfs_cat("version", b, sizeof b)) { k_fb_con_print(b); }
+        else { k_fb_con_print("KengaOS-dev\n"); }
     } else if (scmp(cmd, "reboot") == 0) {
         k_fb_con_print("rebooting...\n");
         k_power_reboot();
