@@ -198,6 +198,95 @@ int64_t k_fb_hrect(int64_t x0, int64_t y0, int64_t w, int64_t h, int64_t color) 
     return 1;
 }
 
+/* --- glassmorphism primitives (design port) ---------------------------- */
+
+/* integer square root (Newton) for rounded-corner geometry */
+static int64_t dsqrti(int64_t n) {
+    if (n <= 0) return 0;
+    int64_t x = n, y = (x + 1) / 2;
+    while (y < x) { x = y; y = (x + n / x) / 2; }
+    return x;
+}
+
+/* Alpha-blend a solid color over the current framebuffer content.
+   alpha: 0..255 (255 = fully opaque). Reads back the pixel, so it works
+   on the back buffer too. */
+int64_t k_fb_blend_rect(int64_t x0, int64_t y0, int64_t w, int64_t h,
+                        int64_t color, int64_t alpha) {
+    if (!fb_ok || w < 1 || h < 1) return 0;
+    if (x0 < 0) { w += x0; x0 = 0; }
+    if (y0 < 0) { h += y0; y0 = 0; }
+    if (x0 + w > (int64_t)fb_w) w = fb_w - x0;
+    if (y0 + h > (int64_t)fb_h) h = fb_h - y0;
+    if (w <= 0 || h <= 0) return 0;
+    uint32_t a = (uint32_t)alpha; if (a > 255) a = 255;
+    uint32_t ia = 255 - a;
+    uint32_t fg = (uint32_t)color;
+    uint32_t fr = (fg >> 16) & 0xff, fg_ = (fg >> 8) & 0xff, fb_ = fg & 0xff;
+    uintptr_t base = fb_cur();
+    for (int64_t yy = 0; yy < h; yy++) {
+        volatile uint32_t* row = (volatile uint32_t*)(base + (uintptr_t)(y0 + yy) * fb_pitch + (uintptr_t)x0 * 4);
+        for (int64_t xx = 0; xx < w; xx++) {
+            uint32_t bg = row[xx];
+            uint32_t r = ((fr * a + ((bg >> 16) & 0xff) * ia) >> 8);
+            uint32_t g = ((fg_ * a + ((bg >> 8) & 0xff) * ia) >> 8);
+            uint32_t b = ((fb_ * a + (bg & 0xff) * ia) >> 8);
+            row[xx] = (r << 16) | (g << 8) | b;
+        }
+    }
+    return 1;
+}
+
+/* Rounded rectangle fill (radius r on all four corners). */
+int64_t k_fb_rrect(int64_t x0, int64_t y0, int64_t w, int64_t h,
+                   int64_t r, int64_t color) {
+    if (w < 1 || h < 1 || r < 0) return 0;
+    if (x0 < 0) { w += x0; x0 = 0; }
+    if (y0 < 0) { h += y0; y0 = 0; }
+    if (x0 + w > (int64_t)fb_w) w = fb_w - x0;
+    if (y0 + h > (int64_t)fb_h) h = fb_h - y0;
+    if (w <= 0 || h <= 0) return 0;
+    uint32_t c = (uint32_t)color;
+    int64_t rr = r;
+    if (rr > w / 2) rr = w / 2;
+    if (rr > h / 2) rr = h / 2;
+    uintptr_t base = fb_cur();
+    for (int64_t yy = 0; yy < h; yy++) {
+        volatile uint32_t* row = (volatile uint32_t*)(base + (uintptr_t)(y0 + yy) * fb_pitch + (uintptr_t)x0 * 4);
+        int64_t cy = yy;
+        int64_t xskip = 0, xend = w;
+        if (cy < rr) { int64_t d = rr - cy; xskip = rr - (int64_t)(dsqrti((int64_t)rr * rr - d * d)); }
+        if (cy >= h - rr) { int64_t d = rr - (h - 1 - cy); xend = w - rr + (int64_t)(dsqrti((int64_t)rr * rr - d * d)); }
+        if (xskip < 0) xskip = 0;
+        if (xend > w) xend = w;
+        for (int64_t xx = xskip; xx < xend; xx++) row[xx] = c;
+    }
+    return 1;
+}
+
+/* Vertical linear gradient fill from c0 (top) to c1 (bottom). */
+int64_t k_fb_grad_rect(int64_t x0, int64_t y0, int64_t w, int64_t h,
+                       int64_t c0, int64_t c1) {
+    if (w < 1 || h < 1) return 0;
+    if (x0 < 0) { w += x0; x0 = 0; }
+    if (y0 < 0) { h += y0; y0 = 0; }
+    if (x0 + w > (int64_t)fb_w) w = fb_w - x0;
+    if (y0 + h > (int64_t)fb_h) h = fb_h - y0;
+    if (w <= 0 || h <= 0) return 0;
+    uint32_t a = (uint32_t)c0, b = (uint32_t)c1;
+    uintptr_t base = fb_cur();
+    for (int64_t yy = 0; yy < h; yy++) {
+        uint32_t t = (uint32_t)(yy * 255 / (h > 1 ? h - 1 : 1));
+        uint32_t it = 255 - t;
+        uint32_t c = ((((a >> 16) & 0xff) * it + ((b >> 16) & 0xff) * t) >> 8) << 16 |
+                     ((((a >> 8) & 0xff) * it + ((b >> 8) & 0xff) * t) >> 8) << 8 |
+                     (((a & 0xff) * it + (b & 0xff) * t) >> 8);
+        volatile uint32_t* row = (volatile uint32_t*)(base + (uintptr_t)(y0 + yy) * fb_pitch + (uintptr_t)x0 * 4);
+        for (int64_t xx = 0; xx < w; xx++) row[xx] = c;
+    }
+    return 1;
+}
+
 /* --- 8x8 bitmap font (ASCII 32..126) --------------------------------------
    Public domain (Daniel Hepper, font8x8_basic). MSB = leftmost pixel.      */
 static const uint8_t FONT8X8[95][8] = {

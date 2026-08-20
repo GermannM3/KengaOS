@@ -210,17 +210,21 @@ fn draw_windows() -> i64 {
             let wy: i64 = ui_window_y(found);
             let ww: i64 = ui_window_w(found);
             let wh: i64 = ui_window_h(found);
-            /* glass window body + titlebar with accent top edge */
-            fb_hrect(wx, wy, ww, wh, C_PANEL);
-            fb_hrect(wx, wy, ww, 18, C_PANEL2);
-            fb_hrect(wx, wy, ww, 2, C_ACCENT);
-            /* traffic-light close button (red, left) */
-            fb_hrect(wx + 6, wy + 6, 7, 7, C_RED);
-            /* yellow + green indicators (decorative for now) */
-            fb_hrect(wx + 16, wy + 6, 7, 7, C_YEL);
-            fb_hrect(wx + 26, wy + 6, 7, 7, C_GRN);
-            dtext(wx + 38, wy + 5, C_ACCENT, C_PANEL2, ui_window_title(found));
-            dtext(wx + 6, wy + 26, C_TEXT, C_PANEL, ui_window_text(found));
+            /* glass window: translucent tint over the wallpaper */
+            fb_blend_rect(wx, wy, ww, wh, 0x0a0e1a, 200);
+            /* 1px light border (stroke illusion) */
+            fb_blend_rect(wx, wy, ww, 1, 0xffffff, 24);
+            fb_blend_rect(wx, wy + wh - 1, ww, 1, 0xffffff, 24);
+            fb_blend_rect(wx, wy, 1, wh, 0xffffff, 24);
+            fb_blend_rect(wx + ww - 1, wy, 1, wh, 0xffffff, 24);
+            /* titlebar glass */
+            fb_blend_rect(wx, wy, ww, 40, 0x1c2438, 150);
+            /* traffic lights */
+            fb_hrect(wx + 12, wy + 14, 12, 12, C_RED);
+            fb_hrect(wx + 31, wy + 14, 12, 12, C_YEL);
+            fb_hrect(wx + 50, wy + 14, 12, 12, C_GRN);
+            dtext(wx + 72, wy + 12, C_TEXT, C_PANEL2, ui_window_title(found));
+            dtext(wx + 10, wy + 50, C_TEXT, C_PANEL, ui_window_text(found));
             drawn = drawn + 1;
         }
         z = z + 1;
@@ -418,14 +422,14 @@ fn handle_click(st: DesktopState, mx: i64, my: i64) -> DesktopState {
     if w >= 0 {
         ui_window_front(w);
         /* traffic-light close button (red dot, top-left) */
-        let cwx: i64 = ui_window_x(w) + 6;
-        let cwy: i64 = ui_window_y(w) + 6;
-        if mx >= cwx && mx < cwx + 7 && my >= cwy && my < cwy + 7 {
+        let cwx: i64 = ui_window_x(w) + 12;
+        let cwy: i64 = ui_window_y(w) + 14;
+        if mx >= cwx && mx < cwx + 12 && my >= cwy && my < cwy + 12 {
             ui_window_close(w);
             return st;
         }
-        /* if clicked on the title bar (top 18px), start dragging it */
-        if my < ui_window_y(w) + 18 {
+        /* if clicked on the title bar (top 40px), start dragging it */
+        if my < ui_window_y(w) + 40 {
             st.drag_win = w;
             st.drag_ox = mx - ui_window_x(w);
             st.drag_oy = my - ui_window_y(w);

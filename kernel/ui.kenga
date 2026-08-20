@@ -20,47 +20,48 @@ fn ui_chrome(w: i64, h: i64, sb: i64, tb: i64, stb: i64,
     let STATUSB: i64 = stb;
     let H: i64 = h;
 
-    /* top bar (glass) */
-    fb_hrect(0, 0, w, TOPBAR, GLASS);
-    fb_text(16, tb / 2 - 6, NEON, GLASS, "KengaOS");
-    fb_text(120, tb / 2 - 5, DIM, GLASS, "0.6 Agent Desktop");
-    fb_text(w - 230, tb / 2 - 5, DIM, GLASS, hw_rtc_time_str());
-    fb_text(w - 200, tb / 2 - 5, HILITE, GLASS, "Agents: ");
-    fb_text(w - 130, tb / 2 - 5, HILITE, GLASS, count);
-    fb_text(w - 80, tb / 2 - 5, DIM, GLASS, up);
-    fb_text(w - 46, tb / 2 - 5, DIM, GLASS, "s");
+    /* top bar (glass: translucent blend over wallpaper) */
+    fb_blend_rect(0, 0, w, TOPBAR, 0x070a13, 140);
+    fb_blend_rect(0, TOPBAR - 1, w, 1, 0xffffff, 18);   /* hairline border */
+    fb_text(16, tb / 2 - 6, NEON, 0x0d0c1d, "KengaOS");
+    fb_text(120, tb / 2 - 5, DIM, 0x0d0c1d, "0.6 Agent Desktop");
+    fb_text(w - 230, tb / 2 - 5, DIM, 0x0a0e1a, hw_rtc_time_str());
+    fb_text(w - 200, tb / 2 - 5, HILITE, 0x0d0c1d, "Agents: ");
+    fb_text(w - 130, tb / 2 - 5, HILITE, 0x0a0e1a, count);
+    fb_text(w - 80, tb / 2 - 5, DIM, 0x0a0e1a, up);
+    fb_text(w - 46, tb / 2 - 5, DIM, 0x0d0c1d, "s");
 
     /* sidebar (glass) + highlight active app */
-    fb_hrect(0, TOPBAR, SIDEBAR, H - TOPBAR - STATUSB, GLASS2);
+    fb_blend_rect(0, TOPBAR, SIDEBAR, H - TOPBAR - STATUSB, 0x070a13, 110);
     if cur == 0 {
         fb_hrect(8, TOPBAR + 12, SIDEBAR - 16, 36, HILITE);
         fb_text(20, TOPBAR + 24, 0x0b0f1a, HILITE, "Agents");
     } else {
-        fb_text(20, TOPBAR + 24, TEXT, GLASS2, "Agents");
+        fb_text(20, TOPBAR + 24, TEXT, 0x0d0c1d, "Agents");
     }
     if cur == 1 {
         fb_hrect(8, TOPBAR + 56, SIDEBAR - 16, 36, HILITE);
         fb_text(20, TOPBAR + 68, 0x0b0f1a, HILITE, "Model");
     } else {
-        fb_text(20, TOPBAR + 68, TEXT, GLASS2, "Model");
+        fb_text(20, TOPBAR + 68, TEXT, 0x0d0c1d, "Model");
     }
     if cur == 2 {
         fb_hrect(8, TOPBAR + 100, SIDEBAR - 16, 36, HILITE);
         fb_text(20, TOPBAR + 112, 0x0b0f1a, HILITE, "Files");
     } else {
-        fb_text(20, TOPBAR + 112, TEXT, GLASS2, "Files");
+        fb_text(20, TOPBAR + 112, TEXT, 0x0d0c1d, "Files");
     }
     if cur == 3 {
         fb_hrect(8, TOPBAR + 144, SIDEBAR - 16, 36, HILITE);
         fb_text(20, TOPBAR + 156, 0x0b0f1a, HILITE, "System");
     } else {
-        fb_text(20, TOPBAR + 156, TEXT, GLASS2, "System");
+        fb_text(20, TOPBAR + 156, TEXT, 0x0d0c1d, "System");
     }
 
     /* widgets under the menu: live RAM + agents */
     let wtop: i64 = TOPBAR + 4 * 44 + 12;
     fb_hrect(8, wtop, SIDEBAR - 16, 2, HILITE);
-    fb_text(12, wtop + 8, DIM, GLASS2, "RAM");
+    fb_text(12, wtop + 8, DIM, 0x0d0c1d, "RAM");
     let total_kb: i64 = mem_total_kb();
     let used_kb: i64 = total_kb - mem_pages_free() * 4;
     let rw: i64 = SIDEBAR - 28;
@@ -69,15 +70,16 @@ fn ui_chrome(w: i64, h: i64, sb: i64, tb: i64, stb: i64,
         let fill: i64 = used_kb * rw / total_kb;
         if fill > 0 { fb_hrect(12, wtop + 20, fill, 8, HILITE); }
     }
-    fb_text(12, wtop + 32, DIM, GLASS2, "agents ");
-    fb_text(12 + 8 * 7, wtop + 32, HILITE, GLASS2, count);
+    fb_text(12, wtop + 32, DIM, 0x0d0c1d, "agents ");
+    fb_text(12 + 8 * 7, wtop + 32, HILITE, 0x0a0e1a, count);
 
     /* status bar (glass) */
-    fb_hrect(0, H - STATUSB, w, STATUSB, GLASS);
-    fb_text(12, H - STATUSB + 8, DIM, GLASS, "KengaOS 0.6  |  mouse: ");
-    fb_text(190, H - STATUSB + 8, DIM, GLASS, mx);
-    fb_text(224, H - STATUSB + 8, DIM, GLASS, ",");
-    fb_text(240, H - STATUSB + 8, DIM, GLASS, my);
+    fb_blend_rect(0, H - STATUSB, w, STATUSB, 0x070a13, 140);
+    fb_blend_rect(0, H - STATUSB, w, 1, 0xffffff, 18);
+    fb_text(12, H - STATUSB + 8, DIM, 0x0d0c1d, "KengaOS 0.6  |  mouse: ");
+    fb_text(190, H - STATUSB + 8, DIM, 0x0a0e1a, mx);
+    fb_text(224, H - STATUSB + 8, DIM, 0x0d0c1d, ",");
+    fb_text(240, H - STATUSB + 8, DIM, 0x0a0e1a, my);
 
     return 1;
 }
