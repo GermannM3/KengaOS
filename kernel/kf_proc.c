@@ -21,6 +21,12 @@ typedef struct {
     char    data[MSG_MAX];
 } ipc_msg;
 
+#define MEM_SLOTS 8
+typedef struct {
+    char key[16];
+    char val[32];
+} mem_slot;
+
 typedef struct {
     int64_t      pid;
     const char*  name;
@@ -28,6 +34,7 @@ typedef struct {
     int          active;
     ipc_msg      q[IPC_QLEN];
     int          qh, qt;
+    mem_slot     mem[MEM_SLOTS];   /* per-agent living memory */
 } kf_proc_t;
 
 static kf_proc_t procs[MAX_PROC];
@@ -44,6 +51,7 @@ int64_t k_proc_spawn(const char* name, void (*entry)(void)) {
         procs[i].task = k_task_create(entry);
         procs[i].active = 1;
         procs[i].qh = procs[i].qt = 0;
+        procs[i].mem[0].key[0] = 0;
         return procs[i].pid;
     }
     return 0;
@@ -118,6 +126,41 @@ static void logger_proc(void) {
    On "spawn <name>" it spawns a child agent process (which can spawn its own),
    on anything else it echoes "ack: <text>". This is the "agent creates agents"
    foundation. */
+/* find this process's slot (by current task index) */
+static kf_proc_t* cur_proc(void) {
+    uint64_t me = k_sched_current();
+    for (int i = 0; i < MAX_PROC; i++)
+        if (procs[i].active && procs[i].task == me) return &procs[i];
+    return 0;
+}
+
+static void agent_remember(kf_proc_t* p, const char* key, const char* val) {
+    for (int i = 0; i < MEM_SLOTS; i++) {
+        int same = 1;
+        for (int j = 0; key[j] && p->mem[i].key[j] && j < 15; j++) if (key[j] != p->mem[i].key[j]) { same = 0; break; }
+        if (same && p->mem[i].key[0]) { /* overwrite existing */
+            int x = 0; for (; val[x] && x < 31; x++) p->mem[i].val[x] = val[x]; p->mem[i].val[x] = 0;
+            return;
+        }
+    }
+    for (int i = 0; i < MEM_SLOTS; i++) {
+        if (!p->mem[i].key[0]) {
+            int x = 0; for (; key[x] && x < 15; x++) p->mem[i].key[x] = key[x]; p->mem[i].key[x] = 0;
+            x = 0; for (; val[x] && x < 31; x++) p->mem[i].val[x] = val[x]; p->mem[i].val[x] = 0;
+            return;
+        }
+    }
+}
+
+static const char* agent_recall(kf_proc_t* p, const char* key) {
+    for (int i = 0; i < MEM_SLOTS; i++) {
+        int same = 1, j;
+        for (j = 0; key[j] && p->mem[i].key[j] && j < 15; j++) if (key[j] != p->mem[i].key[j]) { same = 0; break; }
+        if (same && key[j] == p->mem[i].key[j] && p->mem[i].key[0]) return p->mem[i].val;
+    }
+    return "?";
+}
+
 static void agent_proc(void) {
     for (;;) {
         ipc_msg m;
@@ -127,6 +170,7 @@ static void agent_proc(void) {
         int k = 0;
         const char* pre;
         const char* d;
+        kf_proc_t* me = cur_proc();
         if (m.data[0] == 's' && m.data[1] == 'p' && m.data[2] == 'a' && m.data[3] == 'w' && m.data[4] == 'n') {
             /* spawn a child agent; optional name after "spawn " */
             const char* name = m.data + 5;
@@ -137,6 +181,27 @@ static void agent_proc(void) {
             for (; *pre && k < MSG_MAX - 1; k++) reply[k] = *pre++;
             d = dec(child);
             for (; *d && k < MSG_MAX - 1; k++) reply[k] = *d++;
+        } else if (m.data[0]=='r' && m.data[1]=='e' && m.data[2]=='m' && me) {
+            /* remember <key>=<val> */
+            const char* s = m.data + 7;
+            while (*s == ' ') s++;
+            char key[16]; int ki = 0;
+            while (*s && *s != '=' && ki < 15) key[ki++] = *s++;
+            key[ki] = 0;
+            if (*s == '=') s++;
+            while (*s == ' ') s++;
+            agent_remember(me, key, s);
+            pre = "ok: remembered ";
+            for (; *pre && k < MSG_MAX - 1; k++) reply[k] = *pre++;
+            for (int ki2 = 0; key[ki2] && k < MSG_MAX - 1; ki2++) reply[k++] = key[ki2];
+        } else if (m.data[0]=='r' && m.data[1]=='e' && m.data[2]=='c' && m.data[3]=='a' && m.data[4]=='l' && me) {
+            /* recall <key> */
+            const char* s = m.data + 6;
+            while (*s == ' ') s++;
+            const char* v = agent_recall(me, s);
+            pre = "recall: ";
+            for (; *pre && k < MSG_MAX - 1; k++) reply[k] = *pre++;
+            for (; *v && k < MSG_MAX - 1; k++) reply[k] = *v++;
         } else {
             /* Russian-friendly agent: greet back, else ack.
                "п"/"П" in UTF-8 are 0xD0 0xBF / 0xD0 0x9F. */
