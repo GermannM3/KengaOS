@@ -94,6 +94,13 @@ int64_t k_fb_putpixel(int64_t x, int64_t y, int64_t color) {
 
 /* XOR a pixel: framebuffer[x,y] ^= color. Drawing the same shape twice with
    XOR erases it, which is how the cursor is moved without a backbuffer. */
+int64_t k_fb_getpixel(int64_t x, int64_t y) {
+    if (!fb_ok || (uint64_t)x >= fb_w || (uint64_t)y >= fb_h) return 0;
+    uintptr_t off = (uintptr_t)y * fb_pitch + (uintptr_t)x * (fb_bpp / 8);
+    if (fb_bpp == 32) return (int64_t)(*(volatile uint32_t*)(fb_addr + off));
+    return 0;
+}
+
 int64_t k_fb_xor(int64_t x, int64_t y, int64_t color) {
     if ((uint64_t)x >= fb_w || (uint64_t)y >= fb_h) return 0;
     uintptr_t off = (uintptr_t)y * fb_pitch + (uintptr_t)x * (fb_bpp / 8);

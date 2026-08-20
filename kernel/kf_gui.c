@@ -85,9 +85,33 @@ static void draw_desktop(void){
     txt(224,H-STATUSB+8, C_DIM, C_PANEL, ",");
     i=0; d=dec(k_mouse_y()); for(;*d&&i<7;i++) mxb[i]=*d; mxb[i]=0;
     txt(240,H-STATUSB+8, C_DIM, C_PANEL, mxb);
-    /* cursor */
-    for(int yy=0;yy<10;yy++) for(int xx=0;xx<7;xx++)
-        k_fb_putpixel(k_mouse_x()+xx, k_mouse_y()+yy, 0xffffff);
+}
+
+/* --- cursor: saved snapshot so moves don't need a full redraw --- */
+#define CUR_W 7
+#define CUR_H 10
+static uint32_t cur_save[CUR_W*CUR_H];
+static int cur_sx = -1, cur_sy = -1;
+
+static void cursor_save(int mx, int my) {
+    for (int j = 0; j < CUR_H; j++)
+        for (int i = 0; i < CUR_W; i++)
+            cur_save[j*CUR_W+i] = (uint32_t)k_fb_getpixel(mx + i, my + j);
+}
+
+static void cursor_restore(void) {
+    if (cur_sx < 0) return;
+    for (int j = 0; j < CUR_H; j++)
+        for (int i = 0; i < CUR_W; i++)
+            k_fb_putpixel(cur_sx + i, cur_sy + j, cur_save[j*CUR_W+i]);
+}
+
+static void cursor_draw(int mx, int my) {
+    cursor_save(mx, my);
+    for (int j = 0; j < CUR_H; j++)
+        for (int i = 0; i < CUR_W; i++)
+            if (i == 0 || j == CUR_H-1 || i == j) k_fb_putpixel(mx + i, my + j, 0xffffff);
+    cur_sx = mx; cur_sy = my;
 }
 
 /* render the selected app's content */
@@ -191,7 +215,7 @@ static void handle_click(int mx,int my){
         if(idx>=0 && idx<4) cur_app=idx;
         return;
     }
-    int x=SIDEBAR, y=TOPBAR;
+    int x=SIDEBAR+16, y=TOPBAR+12;
     switch(cur_app){
     case 0: {
         /* agents rows */
@@ -212,6 +236,9 @@ static void handle_click(int mx,int my){
             model_out=(int)k_model_infer(model_a, model_b);
             model_out_s = model_out?dec(1):dec(0);
         }
+        break; }
+    case 2: {
+        /* files: clicking a file cats it to the console (append) - just ignore for now */
         break; }
     }
 }
@@ -240,21 +267,27 @@ int64_t k_gui_init(void) {
         if(++spins > 20000000ULL) break;                 /* safety fallback */
         __asm__ __volatile__("hlt");                     /* sleep until an IRQ */
     }
-    /* desktop loop: event-driven, redraw only on change (mouse move / click /
-       app switch), otherwise idle on hlt so the system stays responsive. */
-    int last_mx = -1, last_my = -1, last_app = -1, last_btn = 0;
+    /* desktop: draw static layout + first content + cursor */
+    draw_desktop();
+    cursor_draw((int)k_mouse_x(), (int)k_mouse_y());
+    int last_mx = (int)k_mouse_x(), last_my = (int)k_mouse_y();
+    int last_app = cur_app, last_btn = 0;
     for(;;){
         int bx = (int)k_mouse_buttons();
         int mx = (int)k_mouse_x(), my = (int)k_mouse_y();
-        int changed = (mx != last_mx || my != last_my || bx != last_btn || cur_app != last_app);
-        if(bx && !mprev_buttons){ handle_click(mx, my); changed = 1; }
-        mprev_buttons = bx;
-        if(changed){
-            __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)'B'), "Nd"((uint16_t)0x3F8)); /* DIAG */
-            draw_desktop();
-            __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)'E'), "Nd"((uint16_t)0x3F8)); /* DIAG */
-            last_mx = mx; last_my = my; last_app = cur_app; last_btn = bx;
+        int clicked = (bx && !mprev_buttons);
+        if(clicked || cur_app != last_app){
+            handle_click(mx, my);
+            cursor_restore();
+            draw_desktop();              /* content / app switch */
+            cursor_draw(mx, my);
+            last_app = cur_app;
+        } else if(mx != last_mx || my != last_my){
+            cursor_restore();            /* just move the cursor */
+            cursor_draw(mx, my);
         }
+        mprev_buttons = bx;
+        last_mx = mx; last_my = my; last_btn = bx;
         __asm__ __volatile__("hlt");
     }
     return 1;
