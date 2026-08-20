@@ -53,7 +53,26 @@ fn draw_desktop(st: DesktopState) -> i64 {
     let ch: i64 = H - m.tb - m.stb;
     fb_hrect(cx, cy, cw, ch, C_BG);
     draw_app(cx + 16, cy + 12, cw - 32, ch - 24, st);
+    /* agent chat input bar at the bottom of the content area */
+    draw_input_bar(W, H, m.sb, m.tb, m.stb);
     draw_windows();
+    return 0;
+}
+
+/* --- agent chat input bar: "> <typed text>" --- */
+fn draw_input_bar(w: i64, h: i64, sb: i64, tb: i64, stb: i64) -> i64 {
+    let C_PANEL: i64 = 0x1c2129;
+    let C_ACCENT: i64 = 0x3daee9;
+    let C_TEXT: i64 = 0xe6edf3;
+    let C_DIM: i64 = 0x8a94a6;
+    let C_GREEN: i64 = 0x2ee6a6;
+    let y: i64 = h - stb - 26;
+    fb_hrect(sb, y, w - sb, 26, C_PANEL);
+    fb_text(sb + 10, y + 9, C_GREEN, C_PANEL, "> ");
+    fb_text(sb + 26, y + 9, C_TEXT, C_PANEL, ui_input_str());
+    let il: i64 = ui_input_len();
+    fb_text(sb + 26 + il * 8, y + 9, C_ACCENT, C_PANEL, "_");
+    fb_text(w - 60, y + 9, C_DIM, C_PANEL, "Enter");
     return 0;
 }
 
@@ -349,7 +368,7 @@ fn desktop_main() -> i64 {
             last_n = now_n;
             s = ns;
         } else if kbd_pending() == 1 {
-            /* keyboard control: 1..4 switch apps, updates state + redraw */
+            /* keyboard: 1..4 switch apps; otherwise type into the agent bar */
             let c: i64 = kbd_read();
             if c >= 49 && c <= 52 {
                 s.cur_app = c - 49;
@@ -358,6 +377,21 @@ fn desktop_main() -> i64 {
                 cur_draw(cmx, cmy);
                 last_up = now_up;
                 last_n = now_n;
+            } else {
+                let chg: i64 = 0;
+                if c == 10 || c == 13 {
+                    ui_input_submit();
+                    chg = 1;
+                } else {
+                    chg = ui_input_putc(c);
+                }
+                if chg == 1 {
+                    cur_erase(last_mx, last_my);
+                    draw_desktop(s);
+                    cur_draw(cmx, cmy);
+                    last_up = now_up;
+                    last_n = now_n;
+                }
             }
         } else if dragging == 1 && (cmx != last_mx || cmy != last_my) {
             /* drag the window under the cursor */

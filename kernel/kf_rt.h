@@ -174,6 +174,11 @@ const char* k_ui_window_text(int64_t idx);
 int64_t k_ui_window_front(int64_t idx);
 int64_t k_ui_window_move(int64_t idx, int64_t x, int64_t y);
 int64_t k_ui_window_set_text(int64_t idx, const char* text);
+int64_t k_ui_input_putc(int64_t c);
+int64_t k_ui_input_clear(void);
+const char* k_ui_input_str(void);
+int64_t k_ui_input_len(void);
+int64_t k_ui_input_submit(void);
 const char* dec(int64_t n);
 
 /* Timer / uptime (kernel/kf_time.c). */

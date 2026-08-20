@@ -67,6 +67,11 @@ import "desktop.kenga";
 @intrinsic fn ui_window_set_text(idx: i64, text: str) -> i64;
 @intrinsic fn ui_system_window(title: str, text: str) -> i64;
 @intrinsic fn hw_rtc_time_str() -> str;
+@intrinsic fn ui_input_putc(c: i64) -> i64;
+@intrinsic fn ui_input_clear() -> i64;
+@intrinsic fn ui_input_str() -> str;
+@intrinsic fn ui_input_len() -> i64;
+@intrinsic fn ui_input_submit() -> i64;
 @intrinsic fn yield_agent() -> i64;
 @intrinsic fn researcher_pid() -> i64;
 

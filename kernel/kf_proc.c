@@ -21,6 +21,10 @@ extern uint64_t k_sched_current(void);
 #define WIN_TITLE 24
 #define WIN_TEXT  48
 
+/* forward decls (window API is defined later in this file) */
+int64_t k_ui_register_window(const char* title, const char* text);
+int64_t k_ui_window_set_text(int64_t idx, const char* text);
+
 typedef struct {
     int64_t from;
     char    data[MSG_MAX];
@@ -197,6 +201,7 @@ static const char* agent_recall(kf_proc_t* p, const char* key) {
 }
 
 static void agent_proc(void) {
+    static int64_t chat_win = 0;
     for (;;) {
         ipc_msg m;
         k_ipc_recv(&m);
@@ -206,7 +211,22 @@ static void agent_proc(void) {
         const char* pre;
         const char* d;
         kf_proc_t* me = cur_proc();
-        if (m.data[0] == 's' && m.data[1] == 'p' && m.data[2] == 'a' && m.data[3] == 'w' && m.data[4] == 'n') {
+        if (m.data[0] == 'c' && m.data[1] == 'h' && m.data[2] == 'a' && m.data[3] == 't') {
+            /* desktop chat line -> agent. Reply and show the answer in the
+               agent's own window (agent-native UI). */
+            const char* q = m.data + 4;
+            while (*q == ' ') q++;
+            if (chat_win == 0) chat_win = k_ui_register_window("Agent", "chat");
+            /* compose the answer */
+            char ans[WIN_TEXT]; int ak = 0;
+            pre = "ack: ";
+            for (; *pre && ak < WIN_TEXT-1; ak++) ans[ak] = *pre++;
+            for (; *q && ak < WIN_TEXT-1; ak++) ans[ak] = *q++;
+            ans[ak] = 0;
+            if (chat_win > 0) k_ui_window_set_text(chat_win - 1, ans);
+            k = 0; pre = "chat ok";
+            for (; *pre && k < MSG_MAX - 1; k++) reply[k] = *pre++;
+        } else if (m.data[0] == 's' && m.data[1] == 'p' && m.data[2] == 'a' && m.data[3] == 'w' && m.data[4] == 'n') {
             /* spawn a child agent; optional name after "spawn ", and
                optional "caps=<hex>" to grant capabilities. Requires CAP_SPAWN. */
             if (!me || !(me->caps & CAP_SPAWN)) {
@@ -548,6 +568,41 @@ int64_t k_ui_window_set_text(int64_t idx, const char* text) {
     for (; text && text[k] && k < WIN_TEXT-1; k++) wins[idx].text[k] = text[k];
     wins[idx].text[k] = 0;
     return 1;
+}
+
+/* --- desktop text input (agent chat bar). -----------------------------
+   The Kenga desktop accumulates typed characters here, draws them, and on
+   Enter submits the line to the system agent as an IPC "chat" message.
+   The agent replies and shows the answer in its own window (agent-native). */
+static char  g_input[64];
+static int   g_input_len = 0;
+
+int64_t k_ui_input_putc(int64_t c) {
+    if (c == '\b') {                    /* backspace */
+        if (g_input_len > 0) g_input[--g_input_len] = 0;
+        return 1;
+    }
+    if ((c >= 32 && c <= 126) && g_input_len < 63) {
+        g_input[g_input_len++] = (char)c;
+        g_input[g_input_len] = 0;
+        return 1;
+    }
+    return 0;
+}
+int64_t k_ui_input_clear(void) { g_input_len = 0; g_input[0] = 0; return 1; }
+const char* k_ui_input_str(void) { return g_input; }
+int64_t k_ui_input_len(void) { return (int64_t)g_input_len; }
+
+/* Send the typed line to the system agent as a "chat" message, clear input. */
+int64_t k_ui_input_submit(void) {
+    if (g_input_len == 0) return 0;
+    char msg[80]; int k = 0;
+    const char* pre = "chat ";
+    for (; *pre && k < 79; k++) msg[k] = *pre++;
+    for (int i = 0; i < g_input_len && k < 79; i++) msg[k++] = g_input[i];
+    msg[k] = 0;
+    g_input_len = 0; g_input[0] = 0;
+    return k_ipc_send(agent_pid, msg);
 }
 
 /* helper for printing numbers to the console (used above) */
