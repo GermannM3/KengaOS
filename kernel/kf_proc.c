@@ -22,6 +22,7 @@ typedef struct {
 } ipc_msg;
 
 #define MEM_SLOTS 8
+
 typedef struct {
     char key[16];
     char val[32];
@@ -32,6 +33,7 @@ typedef struct {
     const char*  name;
     uint64_t     task;
     int          active;
+    uint64_t     caps;           /* capability bitmask               */
     ipc_msg      q[IPC_QLEN];
     int          qh, qt;
     mem_slot     mem[MEM_SLOTS];   /* per-agent living memory */
@@ -44,16 +46,29 @@ static int64_t   agent_pid = 0;
 
 static void lg_uart(const char* s) { for (; *s; s++) __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)*s), "Nd"((uint16_t)0x3F8)); }
 
-int64_t k_proc_spawn(const char* name, void (*entry)(void)) {
+int64_t k_proc_spawn(const char* name, void (*entry)(void), uint64_t caps) {
     for (int i = 0; i < MAX_PROC; i++) if (!procs[i].active) {
         procs[i].pid = next_pid++;
         procs[i].name = name;
         procs[i].task = k_task_create(entry);
         procs[i].active = 1;
+        procs[i].caps = caps;
         procs[i].qh = procs[i].qt = 0;
         procs[i].mem[0].key[0] = 0;
         return procs[i].pid;
     }
+    return 0;
+}
+
+/* Capability helpers. */
+int64_t k_proc_caps(int64_t pid) {
+    for (int i = 0; i < MAX_PROC; i++)
+        if (procs[i].active && procs[i].pid == pid) return (int64_t)procs[i].caps;
+    return 0;
+}
+int64_t k_proc_set_caps(int64_t pid, int64_t caps) {
+    for (int i = 0; i < MAX_PROC; i++)
+        if (procs[i].active && procs[i].pid == pid) { procs[i].caps = (uint64_t)caps; return 1; }
     return 0;
 }
 
@@ -172,15 +187,29 @@ static void agent_proc(void) {
         const char* d;
         kf_proc_t* me = cur_proc();
         if (m.data[0] == 's' && m.data[1] == 'p' && m.data[2] == 'a' && m.data[3] == 'w' && m.data[4] == 'n') {
-            /* spawn a child agent; optional name after "spawn " */
-            const char* name = m.data + 5;
-            while (*name == ' ') name++;
-            if (!*name) name = "agent";
-            int64_t child = k_proc_spawn(name, agent_proc);
-            pre = "spawned pid ";
-            for (; *pre && k < MSG_MAX - 1; k++) reply[k] = *pre++;
-            d = dec(child);
-            for (; *d && k < MSG_MAX - 1; k++) reply[k] = *d++;
+            /* spawn a child agent; optional name after "spawn ", and
+               optional "caps=<hex>" to grant capabilities. Requires CAP_SPAWN. */
+            if (!me || !(me->caps & CAP_SPAWN)) {
+                pre = "denied: no spawn capability";
+                for (; *pre && k < MSG_MAX - 1; k++) reply[k] = *pre++;
+            } else {
+                const char* name = m.data + 5;
+                while (*name == ' ') name++;
+                uint64_t child_caps = CAP_AGENT;
+                if (name[0]=='c' && name[1]=='a' && name[2]=='p' && name[3]=='s' && name[4]=='=') {
+                    /* caps=0xN only (name defaults to 'agent') */
+                    const char* hx = name + 5; uint64_t v = 0;
+                    while ((*hx>='0'&&*hx<='9')||(*hx>='a'&&*hx<='f')) { v <<= 4; v |= (*hx<='9')?(*hx-'0'):(*hx-'a'+10); hx++; }
+                    child_caps = v;
+                    name = "agent";
+                }
+                if (!*name) name = "agent";
+                int64_t child = k_proc_spawn(name, agent_proc, child_caps);
+                pre = "spawned pid ";
+                for (; *pre && k < MSG_MAX - 1; k++) reply[k] = *pre++;
+                d = dec(child);
+                for (; *d && k < MSG_MAX - 1; k++) reply[k] = *d++;
+            }
         } else if (m.data[0]=='r' && m.data[1]=='e' && m.data[2]=='m' && me) {
             /* remember <key>=<val> */
             const char* s = m.data + 7;
@@ -228,8 +257,8 @@ static void agent_proc(void) {
 
 /* "init": spawns the session processes (logger + kenga-agent). */
 int64_t k_proc_init(void) {
-    logger_pid = k_proc_spawn("logger", logger_proc);
-    agent_pid  = k_proc_spawn("agent", agent_proc);
+    logger_pid = k_proc_spawn("logger", logger_proc, CAP_IPC);
+    agent_pid  = k_proc_spawn("agent", agent_proc, CAP_ALL);   /* system agent */
     return logger_pid;
 }
 

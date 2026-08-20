@@ -40,6 +40,7 @@ static void run_cmd(const char* cmd) {
         k_fb_con_print("  spawn x- agent creates an agent\n");
         k_fb_con_print("  demo   - living-OS showcase\n");
         k_fb_con_print("  agents - list agents\n");
+        k_fb_con_print("  caps id [v] - show/set capabilities\n");
         k_fb_con_print("  ls     - list vfs files\n");
         k_fb_con_print("  cat x  - print vfs file\n");
         k_fb_con_print("  ver    - git version\n");
@@ -136,6 +137,23 @@ static void run_cmd(const char* cmd) {
         k_fb_con_print(dec(k_mem_pages_free()));
         k_fb_con_print(" free frames\n");
         k_fb_con_print("=== end demo ===\n");
+    } else if (sncmp(cmd, "caps ", 5) == 0) {
+        /* caps <pid> [value]: show or set an agent's capabilities (privileged). */
+        int64_t pid = 0, val = -1; const char* s = cmd + 5;
+        while (*s >= '0' && *s <= '9') { pid = pid * 10 + (*s - '0'); s++; }
+        if (*s == ' ') {
+            s++; int64_t v = 0;
+            while (*s >= '0' && *s <= '9') { v = v * 10 + (*s - '0'); s++; }
+            val = v;
+        }
+        if (val >= 0) {
+            if (k_proc_set_caps(pid, val)) { k_fb_con_print("caps set\n"); }
+            else k_fb_con_print("no such pid\n");
+        } else {
+            k_fb_con_print("caps: ");
+            k_fb_con_print(dec(k_proc_caps(pid)));
+            k_fb_con_print("\n");
+        }
     } else if (scmp(cmd, "agents") == 0) {
         int64_t n = k_proc_count();
         sh_uart("AGENTS:");
@@ -147,10 +165,14 @@ static void run_cmd(const char* cmd) {
             sh_uart(dec(k_proc_pid_at(i)));
             sh_uart("=");
             sh_uart(k_proc_name_at(i));
+            sh_uart(" caps=");
+            sh_uart(dec(k_proc_caps(k_proc_pid_at(i))));
             k_fb_con_print("  pid ");
             k_fb_con_print(dec(k_proc_pid_at(i)));
             k_fb_con_print("  ");
             k_fb_con_print(k_proc_name_at(i));
+            k_fb_con_print("  caps=");
+            k_fb_con_print(dec(k_proc_caps(k_proc_pid_at(i))));
             k_fb_con_print("\n");
         }
         sh_uart("\n");
@@ -271,7 +293,7 @@ int64_t k_shell_init(void) {
         sh_uart("NREG:"); sh_uart(dec(k_mem_region_count())); sh_uart("\n");
     }
     k_proc_init();          /* spawn logger + agent (IPC) */
-    k_proc_spawn("shell", shell_task);   /* register shell so it can recv IPC */
+    k_proc_spawn("shell", shell_task, CAP_ALL);   /* system agent: full caps */
     __asm__ __volatile__("sti");
     for (;;) k_task_yield();   /* main becomes the idle task */
     return 1;

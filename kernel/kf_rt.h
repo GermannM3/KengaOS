@@ -106,8 +106,18 @@ uint64_t k_task_yield(void);
 uint64_t k_sched_current(void);
 
 /* Processes + IPC (kernel/kf_proc.c). */
+#define CAP_IPC    (1ull << 0)
+#define CAP_SPAWN  (1ull << 1)
+#define CAP_POWER  (1ull << 2)
+#define CAP_MEM    (1ull << 3)
+#define CAP_MODEL  (1ull << 4)
+#define CAP_ALL    (CAP_IPC|CAP_SPAWN|CAP_POWER|CAP_MEM|CAP_MODEL)
+#define CAP_AGENT  (CAP_IPC|CAP_SPAWN)
+
 int64_t k_proc_init(void);
-int64_t k_proc_spawn(const char* name, void (*entry)(void));
+int64_t k_proc_spawn(const char* name, void (*entry)(void), uint64_t caps);
+int64_t k_proc_caps(int64_t pid);
+int64_t k_proc_set_caps(int64_t pid, int64_t caps);
 int64_t k_ipc_send(int64_t pid, const char* data);
 int64_t k_ipc_recv_str(char* buf, int max);
 int64_t k_proc_count(void);
