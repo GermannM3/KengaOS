@@ -60,12 +60,13 @@ fn draw_desktop(st: DesktopState) -> i64 {
     return 0;
 }
 
-/* --- dock: futuristic glass bar with app icons (bottom center) --- */
+/* --- dock: futuristic glass bar with pixel app icons (bottom center) --- */
 fn draw_taskbar(w: i64, h: i64, sb: i64, tb: i64, stb: i64) -> i64 {
-    let GLASS: i64 = 0x16264f;
-    let HILITE: i64 = 0x10b981;
+    let GLASS: i64 = 0x141822;
+    let HILITE: i64 = 0x8b7bff;
+    let NEON: i64 = 0x22d3ee;
     let TEXT: i64 = 0xe6edf3;
-    let DIM: i64 = 0x8fb3d9;
+    let DIM: i64 = 0x4a5578;
     let n: i64 = ui_window_count();
     let dw: i64 = 420;
     let dx: i64 = (w - dw) / 2;
@@ -73,25 +74,50 @@ fn draw_taskbar(w: i64, h: i64, sb: i64, tb: i64, stb: i64) -> i64 {
     /* glass dock bar */
     fb_hrect(dx, dy, dw, 44, GLASS);
     fb_hrect(dx, dy, dw, 2, HILITE);      /* accent top edge */
-    /* dock app icons (drawn pixels): Agents / Model / Files / System / Desktop */
-    let ix: i64 = dx + 16;
-    fb_hrect(ix, dy + 10, 28, 24, 0x0f172a);
-    dtext(ix + 10, dy + 16, TEXT, 0x0f172a, "A");
+    /* pixel app icons (12x12 in 24x28 pads) */
+    let ix: i64 = dx + 10;
+    icon_agents(ix, dy + 14, NEON);
     ix = ix + 44;
-    fb_hrect(ix, dy + 10, 28, 24, 0x0f172a);
-    dtext(ix + 10, dy + 16, TEXT, 0x0f172a, "M");
+    icon_model(ix, dy + 14, HILITE);
     ix = ix + 44;
-    fb_hrect(ix, dy + 10, 28, 24, 0x0f172a);
-    dtext(ix + 10, dy + 16, TEXT, 0x0f172a, "F");
+    icon_files(ix, dy + 14, NEON);
     ix = ix + 44;
-    fb_hrect(ix, dy + 10, 28, 24, 0x0f172a);
-    dtext(ix + 10, dy + 16, TEXT, 0x0f172a, "S");
+    icon_system(ix, dy + 14, HILITE);
     ix = ix + 44;
-    fb_hrect(ix, dy + 10, 28, 24, 0x0f172a);
-    dtext(ix + 10, dy + 16, TEXT, 0x0f172a, "W");
+    icon_window(ix, dy + 14, NEON);
     /* live window indicator: count */
     dtext(dx + dw - 40, dy + 16, DIM, GLASS, "win ");
     dtext(dx + dw - 20, dy + 16, HILITE, GLASS, n);
+    return 0;
+}
+
+/* 12x12 pixel icons drawn from row bitmaps (MSB left). Each row is two
+   chars: bits 0..7, then bits 8..11 (4 bits in the low nibble). */
+fn icon_agents(x: i64, y: i64, c: i64) -> i64 {
+    fb_hrect(x + 2, y + 2, 3, 3, c);            /* head */
+    fb_hrect(x + 2, y + 8, 8, 3, c);            /* shoulders */
+    return 0;
+}
+fn icon_model(x: i64, y: i64, c: i64) -> i64 {
+    fb_hrect(x + 5, y + 1, 3, 3, c);            /* top node */
+    fb_hrect(x + 0, y + 8, 3, 3, c);            /* left node */
+    fb_hrect(x + 10, y + 8, 3, 3, c);           /* right node */
+    fb_hrect(x + 5, y + 4, 3, 3, c);            /* middle node */
+    return 0;
+}
+fn icon_files(x: i64, y: i64, c: i64) -> i64 {
+    fb_hrect(x + 1, y + 2, 7, 3, c);            /* folder tab */
+    fb_hrect(x + 1, y + 5, 10, 6, c);           /* folder body */
+    return 0;
+}
+fn icon_system(x: i64, y: i64, c: i64) -> i64 {
+    fb_hrect(x + 4, y + 2, 4, 9, c);            /* vertical slider */
+    fb_hrect(x + 2, y + 4, 8, 2, c);            /* horizontal bar */
+    return 0;
+}
+fn icon_window(x: i64, y: i64, c: i64) -> i64 {
+    fb_hrect(x + 1, y + 1, 10, 2, c);           /* title bar */
+    fb_hrect(x + 1, y + 4, 10, 7, c);           /* body */
     return 0;
 }
 
@@ -128,9 +154,9 @@ fn draw_wallpaper(w: i64, h: i64) -> i64 {
 
 /* --- live agent event log (notifications above the input bar) --- */
 fn draw_log(w: i64, h: i64, sb: i64, tb: i64, stb: i64) -> i64 {
-    let C_PANEL: i64 = 0x16264f;
+    let C_PANEL: i64 = 0x141822;
     let C_DIM: i64 = 0x8fb3d9;
-    let C_GREEN: i64 = 0x10b981;
+    let C_GREEN: i64 = 0x22d3ee;
     let C_TEXT: i64 = 0xe6edf3;
     let ly: i64 = h - stb - 26 - 24;
     fb_hrect(sb, ly, w - sb, 24, C_PANEL);
@@ -141,11 +167,11 @@ fn draw_log(w: i64, h: i64, sb: i64, tb: i64, stb: i64) -> i64 {
 
 /* --- agent chat input bar: "> <typed text>" --- */
 fn draw_input_bar(w: i64, h: i64, sb: i64, tb: i64, stb: i64) -> i64 {
-    let C_PANEL: i64 = 0x16264f;
-    let C_ACCENT: i64 = 0x10b981;
+    let C_PANEL: i64 = 0x141822;
+    let C_ACCENT: i64 = 0x8b7bff;
     let C_TEXT: i64 = 0xe6edf3;
     let C_DIM: i64 = 0x8fb3d9;
-    let C_GREEN: i64 = 0x10b981;
+    let C_GREEN: i64 = 0x22d3ee;
     let y: i64 = h - stb - 26;
     fb_hrect(sb, y, w - sb, 26, C_PANEL);
     fb_text(sb + 10, y + 9, C_GREEN, C_PANEL, "> ");
@@ -232,13 +258,13 @@ fn draw_app(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
 }
 
 fn draw_agents(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
-    let C_BG: i64 = 0x0f172a;
+    let C_BG: i64 = 0x10131c;
     let C_TEXT: i64 = 0xe6edf3;
-    let C_ACCENT: i64 = 0x10b981;
+    let C_ACCENT: i64 = 0x8b7bff;
     let C_DIM: i64 = 0x8fb3d9;
-    let C_HILITE: i64 = 0x10b981;
-    let C_GREEN: i64 = 0x10b981;
-    let C_PANEL2: i64 = 0x1b2f5e;
+    let C_HILITE: i64 = 0x8b7bff;
+    let C_GREEN: i64 = 0x22d3ee;
+    let C_PANEL2: i64 = 0x1a2030;
     dtext(x, y, C_TEXT, C_BG, "Agents (process tree)");
     let n: i64 = proc_count();
     let row: i64 = y + 28;
@@ -278,13 +304,13 @@ fn draw_agents(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
 }
 
 fn draw_model(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
-    let C_BG: i64 = 0x0f172a;
+    let C_BG: i64 = 0x10131c;
     let C_TEXT: i64 = 0xe6edf3;
     let C_DIM: i64 = 0x8fb3d9;
-    let C_PANEL2: i64 = 0x1b2f5e;
-    let C_HILITE: i64 = 0x10b981;
-    let C_ACCENT: i64 = 0x10b981;
-    let C_GREEN: i64 = 0x10b981;
+    let C_PANEL2: i64 = 0x1a2030;
+    let C_HILITE: i64 = 0x8b7bff;
+    let C_ACCENT: i64 = 0x8b7bff;
+    let C_GREEN: i64 = 0x22d3ee;
     dtext(x, y, C_TEXT, C_BG, "Kenga Model (MLP, XOR)");
     dtext(x, y + 30, C_DIM, C_BG, "in1");
     fb_hrect(x + 40, y + 26, 60, 24, C_PANEL2);
@@ -319,7 +345,7 @@ fn draw_model(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
 }
 
 fn draw_files(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
-    let C_BG: i64 = 0x0f172a;
+    let C_BG: i64 = 0x10131c;
     let C_TEXT: i64 = 0xe6edf3;
     let C_DIM: i64 = 0x8fb3d9;
     dtext(x, y, C_TEXT, C_BG, "Files (VFS)");
@@ -334,11 +360,11 @@ fn draw_files(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
 }
 
 fn draw_system(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
-    let C_BG: i64 = 0x0f172a;
+    let C_BG: i64 = 0x10131c;
     let C_TEXT: i64 = 0xe6edf3;
     let C_DIM: i64 = 0x8fb3d9;
-    let C_PANEL2: i64 = 0x1b2f5e;
-    let C_GREEN: i64 = 0x10b981;
+    let C_PANEL2: i64 = 0x1a2030;
+    let C_GREEN: i64 = 0x22d3ee;
     dtext(x, y, C_TEXT, C_BG, "System");
     dtext(x + 8, y + 24, C_TEXT, C_BG, "CPU  " + hw_cpu_brand_str());
     dtext(x + 8, y + 44, C_TEXT, C_BG, "RAM free " + mem_pages_free());
@@ -500,10 +526,39 @@ fn init_screen() -> i64 {
     return 0;
 }
 
+/* --- lock screen: big clock, click/Enter to enter --- */
+fn lock_screen() -> i64 {
+    let C_BG: i64 = 0x04060b;
+    let C_NEON: i64 = 0x22d3ee;
+    let C_DIM: i64 = 0x4a5578;
+    let C_ACC: i64 = 0x8b7bff;
+    let W: i64 = 1280;
+    let H: i64 = 800;
+    fb_hrect(0, 0, W, H, C_BG);
+    dtext(540, 300, C_NEON, C_BG, hw_rtc_time_str());
+    dtext(520, 330, C_DIM, C_BG, "KengaOS 0.6 · GermannM3");
+    dtext(470, 420, C_ACC, C_BG, "click or Enter to enter");
+    let boot_at: i64 = time_uptime_ms();
+    let spins: i64 = 0;
+    while 1 {
+        if kbd_pending() == 1 {
+            let c: i64 = kbd_read();
+            if c == 10 { return 0; }
+        }
+        let el: i64 = time_uptime_ms() - boot_at;
+        if el > 2500 { return 0; }
+        spins = spins + 1;
+        if spins > 20000000 { return 0; }
+        asm_hlt();
+    }
+    return 0;
+}
+
 /* --- desktop event loop (Kenga) --- */
 fn desktop_main() -> i64 {
     let st: DesktopState = DesktopState{ cur_app: 0, sel_pid: 0, model_a: 0, model_b: 1, model_out: 0, drag_win: -1, drag_ox: 0, drag_oy: 0, hist: [] };
     init_screen();
+    lock_screen();
     ui_system_window("welcome", "KengaOS 0.5 | agent-native desktop");
     /* let agents run once so a CAP_UI agent can open its window before first draw */
     let yc: i64 = 0;
