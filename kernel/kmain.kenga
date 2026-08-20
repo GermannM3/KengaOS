@@ -50,6 +50,7 @@ import "desktop.kenga";
 @intrinsic fn fb_text2x(x: i64, y: i64, fg: i64, bg: i64, s: str) -> i64;
 @intrinsic fn fb_text_aa(x: i64, y: i64, fg: i64, bg: i64, s: str) -> i64;
 @intrinsic fn fb_icon(x: i64, y: i64, type: i64, color: i64) -> i64;
+@intrinsic fn fb_disc(x: i64, y: i64, r: i64, color: i64) -> i64;
 
 /* GUI bridge (desktop.kenga) */
 @intrinsic fn kbd_init() -> i64;

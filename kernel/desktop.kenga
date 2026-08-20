@@ -56,9 +56,10 @@ fn draw_desktop(st: DesktopState) -> i64 {
     draw_input_bar(W, H, m.sb, m.tb, m.stb);
     /* live log floating bottom-right */
     draw_log(W, H, m.sb, m.tb, m.stb);
-    /* floating left dock */
-    draw_dock(W, H, st.cur_app);
+    /* agent windows (CAP_UI) */
     draw_windows();
+    /* dock LAST: it floats above everything and always eats its clicks */
+    draw_dock(W, H, st.cur_app);
     return 0;
 }
 
@@ -74,26 +75,27 @@ fn draw_view_window(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
     fb_blend_rect(x + 6, y + 14, w, h, 0x000000, 30);
     /* glass body: translucent LIGHT panel over the wallpaper (reference:
        rgba(22,28,48,.78) -> brighter than the bg, so it reads as glass) */
-    fb_blend_rrect(x, y, w, h, 14, 0x161c30, 190);
+    fb_blend_rrect(x, y, w, h, 22, 0x161c30, 190);
     /* titlebar: slightly lighter glass */
-    fb_blend_rrect(x, y, w, 40, 14, 0x2a3450, 90);
-    fb_blend_rect(x, y + 39, w, 1, 0xffffff, 20);
+    fb_blend_rrect(x, y, w, 44, 22, 0x2a3450, 90);
+    fb_blend_rect(x, y + 43, w, 1, 0xffffff, 20);
     /* 1px light border (stroke) */
     fb_blend_rect(x, y, w, 1, 0xffffff, 30);
     fb_blend_rect(x, y + h - 1, w, 1, 0xffffff, 30);
     fb_blend_rect(x, y, 1, h, 0xffffff, 30);
     fb_blend_rect(x + w - 1, y, 1, h, 0xffffff, 30);
-    /* traffic lights */
-    fb_hrect(x + 12, y + 14, 12, 12, C_RED);
-    fb_hrect(x + 31, y + 14, 12, 12, C_YEL);
-    fb_hrect(x + 50, y + 14, 12, 12, C_GRN);
+    /* traffic lights: AA discs (macOS style) */
+    fb_disc(x + 18, y + 22, 5, C_RED);
+    fb_disc(x + 38, y + 22, 5, C_YEL);
+    fb_disc(x + 58, y + 22, 5, C_GRN);
     /* window title by app */
-    if st.cur_app == 0 { dtext(x + 72, y + 12, C_TEXT, C_PANEL2, "Agents"); }
-    if st.cur_app == 1 { dtext(x + 72, y + 12, C_TEXT, C_PANEL2, "Model"); }
-    if st.cur_app == 2 { dtext(x + 72, y + 12, C_TEXT, C_PANEL2, "Files"); }
-    if st.cur_app == 3 { dtext(x + 72, y + 12, C_TEXT, C_PANEL2, "System"); }
+    if st.cur_app == 0 { dtext(x + 80, y + 14, C_TEXT, C_PANEL2, "Agents"); }
+    if st.cur_app == 1 { dtext(x + 80, y + 14, C_TEXT, C_PANEL2, "Model"); }
+    if st.cur_app == 2 { dtext(x + 80, y + 14, C_TEXT, C_PANEL2, "Files"); }
+    if st.cur_app == 3 { dtext(x + 80, y + 14, C_TEXT, C_PANEL2, "System"); }
+    if st.cur_app == 4 { dtext(x + 80, y + 14, C_TEXT, C_PANEL2, "Terminal"); }
     /* content */
-    draw_app(x + 16, y + 52, w - 32, h - 64, st);
+    draw_app(x + 16, y + 56, w - 32, h - 68, st);
     return 0;
 }
 
@@ -105,15 +107,15 @@ fn draw_dock(w: i64, h: i64, cur: i64) -> i64 {
     let DIM: i64 = 0x4a5578;
     let n: i64 = ui_window_count();
     let dw: i64 = 64;
-    let dh: i64 = 4 * 52 + 20;
+    let dh: i64 = 5 * 52 + 20;
     let dx: i64 = 12;
     let dy: i64 = (h - dh) / 2;
-    /* glass dock bar with rounded corners (reference: r18, glass) */
-    fb_blend_rrect(dx, dy, dw, dh, 18, 0x161c30, 170);
+    /* glass dock bar with rounded corners (reference: r22, glass) */
+    fb_blend_rrect(dx, dy, dw, dh, 22, 0x161c30, 170);
     fb_blend_rect(dx, dy, dw, 1, 0xffffff, 26);
-    /* dock icons: pixel-drawn, active highlighted */
+    /* dock icons: vector SDF, active highlighted */
     let i: i64 = 0;
-    while i < 4 {
+    while i < 5 {
         let iy: i64 = dy + 10 + i * 52;
         let active: i64 = 0;
         if cur == i { active = 1; }
@@ -128,7 +130,7 @@ fn draw_dock(w: i64, h: i64, cur: i64) -> i64 {
         fb_icon(dx + 22, iy + 12, i, ic_col);
         /* running indicator dot */
         if n > 0 {
-            fb_glow(dx + dw / 2, iy + 48, 3, NEON, 140);
+            fb_disc(dx + dw / 2, iy + 47, 2, NEON);
         }
         i = i + 1;
     }
@@ -191,7 +193,7 @@ fn draw_log(w: i64, h: i64, sb: i64, tb: i64, stb: i64) -> i64 {
     let ly: i64 = h - lh - 12;
     /* glass panel */
     fb_blend_rect(lx + 3, ly + 6, lw, lh, 0x000000, 40);
-    fb_blend_rrect(lx, ly, lw, lh, 14, 0x161c30, 180);
+    fb_blend_rrect(lx, ly, lw, lh, 22, 0x161c30, 180);
     fb_blend_rect(lx, ly, lw, 1, 0xffffff, 26);
     /* header: blinking dot + title */
     fb_glow(lx + 14, ly + 14, 4, C_GREEN, 160);
@@ -219,15 +221,14 @@ fn draw_input_bar(w: i64, h: i64, sb: i64, tb: i64, stb: i64) -> i64 {
     let bx: i64 = 108;
     let by: i64 = h - 52;
     fb_blend_rect(bx + 2, by + 5, bw, 36, 0x000000, 36);
-    fb_blend_rrect(bx, by, bw, 36, 14, 0x161c30, 180);
+    fb_blend_rrect(bx, by, bw, 36, 18, 0x161c30, 180);
     fb_blend_rect(bx, by, bw, 1, 0xffffff, 26);
-    fb_text(bx + 14, by + 12, C_GREEN, 0x1a2030, "> ");
-    fb_text(bx + 30, by + 12, C_TEXT, 0x1a2030, ui_input_str());
-    let il: i64 = ui_input_len();
-    fb_text(bx + 30 + il * 8, by + 12, C_ACCENT, 0x1a2030, "_");
+    fb_text_aa(bx + 14, by + 10, C_GREEN, 0x1a2030, "> ");
+    let il: i64 = fb_text_aa(bx + 30, by + 10, C_TEXT, 0x1a2030, ui_input_str());
+    fb_text_aa(bx + 30 + il, by + 10, C_ACCENT, 0x1a2030, "_");
     /* send button */
-    fb_blend_rrect(bx + bw - 100, by + 6, 92, 24, 10, C_ACCENT, 220);
-    fb_text(bx + bw - 78, by + 12, 0x0b0f1a, C_ACCENT, "send");
+    fb_blend_rrect(bx + bw - 100, by + 5, 92, 26, 13, C_ACCENT, 220);
+    fb_text_aa(bx + bw - 76, by + 10, 0x0b0f1a, C_ACCENT, "send");
     return 0;
 }
 
@@ -272,10 +273,10 @@ fn draw_windows() -> i64 {
             fb_blend_rect(wx + 3, wy + 8, ww, wh, 0x000000, 46);
             fb_blend_rect(wx + 6, wy + 14, ww, wh, 0x000000, 30);
             /* glass body: translucent LIGHT panel (reference glass) */
-            fb_blend_rrect(wx, wy, ww, wh, 14, 0x161c30, 190);
+            fb_blend_rrect(wx, wy, ww, wh, 22, 0x161c30, 190);
             /* titlebar: slightly lighter glass */
-            fb_blend_rrect(wx, wy, ww, 40, 14, 0x2a3450, 90);
-            fb_blend_rect(wx, wy + 39, ww, 1, 0xffffff, 20);
+            fb_blend_rrect(wx, wy, ww, 44, 22, 0x2a3450, 90);
+            fb_blend_rect(wx, wy + 43, ww, 1, 0xffffff, 20);
             /* 1px light border (stroke) */
             fb_blend_rect(wx, wy, ww, 1, 0xffffff, 30);
             fb_blend_rect(wx, wy + wh - 1, ww, 1, 0xffffff, 30);
@@ -288,15 +289,12 @@ fn draw_windows() -> i64 {
                 fb_blend_rect(wx - 1, wy - 1, 1, wh + 2, C_ACCENT, 96);
                 fb_blend_rect(wx + ww, wy - 1, 1, wh + 2, C_ACCENT, 96);
             }
-            /* traffic lights: round dots 12px */
-            fb_glow(wx + 18, wy + 20, 8, C_RED, 120);
-            fb_hrect(wx + 12, wy + 14, 12, 12, C_RED);
-            fb_glow(wx + 37, wy + 20, 8, C_YEL, 110);
-            fb_hrect(wx + 31, wy + 14, 12, 12, C_YEL);
-            fb_glow(wx + 56, wy + 20, 8, C_GRN, 110);
-            fb_hrect(wx + 50, wy + 14, 12, 12, C_GRN);
-            dtext(wx + 72, wy + 12, C_TEXT, C_PANEL2, ui_window_title(found));
-            dtext(wx + 10, wy + 50, C_TEXT, C_PANEL, ui_window_text(found));
+            /* traffic lights: AA discs (macOS style) */
+            fb_disc(wx + 18, wy + 22, 5, C_RED);
+            fb_disc(wx + 38, wy + 22, 5, C_YEL);
+            fb_disc(wx + 58, wy + 22, 5, C_GRN);
+            dtext(wx + 80, wy + 14, C_TEXT, C_PANEL2, ui_window_title(found));
+            dtext(wx + 12, wy + 54, C_TEXT, C_PANEL, ui_window_text(found));
             drawn = drawn + 1;
         }
         z = z + 1;
@@ -330,6 +328,37 @@ fn draw_app(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
     if st.cur_app == 1 { return draw_model(x, y, w, h, st); }
     if st.cur_app == 2 { return draw_files(x, y, w, h, st); }
     if st.cur_app == 3 { return draw_system(x, y, w, h, st); }
+    if st.cur_app == 4 { return draw_terminal(x, y, w, h, st); }
+    return 0;
+}
+
+/* --- Terminal: live agent event stream (the shell's stdout) --- */
+fn draw_terminal(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
+    let C_BG: i64 = 0x10131c;
+    let C_TEXT: i64 = 0xe6edf3;
+    let C_DIM: i64 = 0x8fb3d9;
+    let C_GREEN: i64 = 0x22d3ee;
+    fb_blend_rrect(x, y, w, h, 14, C_BG, 235);
+    /* prompt line */
+    dtext(x + 12, y + 10, C_GREEN, C_BG, "kenga@os");
+    dtext(x + 96, y + 10, C_DIM, C_BG, "~");
+    dtext(x + 110, y + 10, C_TEXT, C_BG, "live agent stream");
+    fb_blend_rect(x, y + 32, w, 1, 0xffffff, 14);
+    /* log lines, newest at the bottom of the view */
+    let rows: i64 = (h - 52) / 22;
+    if rows > 14 { rows = 14; }
+    if rows < 1 { rows = 1; }
+    let i: i64 = rows;
+    while i >= 1 {
+        let s: str = ui_log_at(rows - i);
+        if len(s) > 0 {
+            dtext(x + 12, y + 40 + (i - 1) * 22, C_TEXT, C_BG, s);
+        }
+        i = i - 1;
+    }
+    /* live prompt with the input bar content */
+    dtext(x + 12, y + 44 + rows * 22, C_GREEN, C_BG, ">");
+    dtext(x + 26, y + 44 + rows * 22, C_TEXT, C_BG, ui_input_str());
     return 0;
 }
 
@@ -489,33 +518,34 @@ fn handle_click(st: DesktopState, mx: i64, my: i64) -> DesktopState {
     let TOPBAR: i64 = m.tb;
     let SIDEBAR: i64 = m.sb;
     let STATUSB: i64 = m.stb;
-    /* windows take precedence: bring the clicked one to front */
-    let w: i64 = win_at(mx, my);
-    if w >= 0 {
-        ui_window_front(w);
-        /* traffic-light close button (red dot, top-left) */
-        let cwx: i64 = ui_window_x(w) + 12;
-        let cwy: i64 = ui_window_y(w) + 14;
-        if mx >= cwx && mx < cwx + 12 && my >= cwy && my < cwy + 12 {
-            ui_window_close(w);
-            return st;
-        }
-        /* if clicked on the title bar (top 40px), start dragging it */
-        if my < ui_window_y(w) + 40 {
-            st.drag_win = w;
-            st.drag_ox = mx - ui_window_x(w);
-            st.drag_oy = my - ui_window_y(w);
-        }
-        return st;
-    }
-    /* floating left dock: click an icon to switch the app */
+    /* dock FIRST: it is drawn on top of the windows and must eat its clicks
+       even when an agent window overlaps the dock area */
     let dw: i64 = 64;
-    let dh: i64 = 4 * 52 + 20;
+    let dh: i64 = 5 * 52 + 20;
     let dx: i64 = 12;
     let dy: i64 = (H - dh) / 2;
     if mx >= dx && mx < dx + dw && my >= dy && my < dy + dh {
         let idx: i64 = (my - dy - 10) / 52;
-        if idx >= 0 && idx < 4 { st.cur_app = idx; }
+        if idx >= 0 && idx < 5 { st.cur_app = idx; }
+        return st;
+    }
+    /* windows take precedence: bring the clicked one to front */
+    let w: i64 = win_at(mx, my);
+    if w >= 0 {
+        ui_window_front(w);
+        /* traffic-light close button (red disc, top-left) */
+        let cwx: i64 = ui_window_x(w) + 18;
+        let cwy: i64 = ui_window_y(w) + 22;
+        if mx >= cwx - 6 && mx < cwx + 6 && my >= cwy - 6 && my < cwy + 6 {
+            ui_window_close(w);
+            return st;
+        }
+        /* if clicked on the title bar (top 44px), start dragging it */
+        if my < ui_window_y(w) + 44 {
+            st.drag_win = w;
+            st.drag_ox = mx - ui_window_x(w);
+            st.drag_oy = my - ui_window_y(w);
+        }
         return st;
     }
     /* main view window: app content coordinates */
@@ -675,7 +705,7 @@ fn desktop_main() -> i64 {
         } else if kbd_pending() == 1 {
             /* keyboard: 1..4 switch apps; otherwise type into the agent bar */
             let c: i64 = kbd_read();
-            if c >= 49 && c <= 52 {
+            if c >= 49 && c <= 53 {
                 s.cur_app = c - 49;
                 fb_begin_frame();
                 draw_desktop(s);

@@ -537,8 +537,11 @@ static int64_t k_ui_open_window(const char* title, const char* text) {
     int open = 0;
     for (int i = 0; i < MAX_WINDOWS; i++) if (wins[i].active) open++;
     for (int i = 0; i < MAX_WINDOWS; i++) if (!wins[i].active) {
-        wins[i].x = 440 + open * 26;
-        wins[i].y = 90 + open * 26;
+        int step = open % 4;
+        wins[i].x = 460 + step * 90;
+        wins[i].y = 110 + step * 80;
+        if (wins[i].x + 320 > 1180) wins[i].x = 1180 - 320;   /* keep off the log */
+        if (wins[i].y + 200 > 640) wins[i].y = 640 - 200;     /* keep off the input bar */
         wins[i].w = 320; wins[i].h = 200;
         wins[i].z = next_z++;
         wins[i].active = 1;

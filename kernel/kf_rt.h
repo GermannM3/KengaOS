@@ -218,6 +218,7 @@ int64_t k_wp_draw(int64_t x, int64_t y, int64_t w, int64_t h);
 int64_t k_fb_text2x(int64_t x, int64_t y, int64_t fg, int64_t bg, const char* s);
 int64_t k_fb_text_aa(int64_t x, int64_t y, int64_t fg, int64_t bg, const char* s);
 int64_t k_fb_icon(int64_t x, int64_t y, int64_t type, int64_t color);
+int64_t k_fb_disc(int64_t x, int64_t y, int64_t r, int64_t color);
 int64_t k_fb_getpixel(int64_t x, int64_t y);
 int64_t k_fb_fill(int64_t color);
 void k_fb_fill_rect(int64_t x0, int64_t y0, int64_t w, int64_t h, int64_t color);

@@ -275,6 +275,48 @@ int64_t k_fb_blend_rect(int64_t x0, int64_t y0, int64_t w, int64_t h,
 }
 
 /* Rounded rectangle fill (radius r on all four corners). */
+
+/* accessors for other translation units (wallpaper cache blit) */
+uintptr_t k_fb_base_cur(void) { return fb_cur(); }
+int64_t   k_fb_pitch_get(void) { return (int64_t)fb_pitch; }
+
+static void fb_blend_px(uint32_t* row, int64_t xx, uint32_t fr, uint32_t fg, uint32_t fb,
+                        uint32_t a) {
+    uint32_t bg = row[xx];
+    uint32_t ia = 255 - a;
+    uint32_t r2 = (fr * a + ((bg >> 16) & 0xff) * ia) >> 8;
+    uint32_t g2 = (fg * a + ((bg >> 8) & 0xff) * ia) >> 8;
+    uint32_t b2 = (fb * a + (bg & 0xff) * ia) >> 8;
+    row[xx] = (r2 << 16) | (g2 << 8) | b2;
+}
+
+/* AA filled disc (traffic lights, dock indicators) */
+int64_t k_fb_disc(int64_t x, int64_t y, int64_t r, int64_t color) {
+    if (r < 0 || x - r < 0 || y - r < 0 ||
+        x + r > (int64_t)fb_w || y + r > (int64_t)fb_h) return 0;
+    uint32_t fg = (uint32_t)color;
+    uint32_t fr = (fg >> 16) & 0xff, fgc = (fg >> 8) & 0xff, fbc = fg & 0xff;
+    static const int off[4][2] = { {1,1},{3,1},{1,3},{3,3} };
+    uintptr_t base = fb_cur();
+    for (int64_t yy = -r - 1; yy <= r; yy++) {
+        uint32_t* row = (uint32_t*)(base + (uintptr_t)(y + yy) * fb_pitch + (uintptr_t)(x - r - 1) * 4);
+        for (int64_t xx = -r - 1; xx <= r; xx++) {
+            int cov = 0;
+            for (int s = 0; s < 4; s++) {
+                int64_t sx = xx * 4 + off[s][0], sy = yy * 4 + off[s][1];
+                int64_t d = dsqrti(sx * sx + sy * sy) - r * 4;
+                int64_t c = 2 - d;
+                if (c < 0) c = 0; if (c > 4) c = 4;
+                cov += (int)c;
+            }
+            if (cov == 0) continue;
+            fb_blend_px(row, xx + r + 1, fr, fgc, fbc,
+                        (uint32_t)(cov >= 16 ? 255 : cov << 4));
+        }
+    }
+    return 1;
+}
+
 /* --- Anti-aliased rounded rects (SDF, 2x2 supersampled) ---
    The pixel-perfect 'blocky corner' killer. Coverage from a signed
    distance field evaluated at 4 subsample points per pixel. */
@@ -304,15 +346,6 @@ static int rrect_cov4(int64_t px, int64_t py,     /* pixel coords */
     return cov;
 }
 
-static void fb_blend_px(uint32_t* row, int64_t xx, uint32_t fr, uint32_t fg, uint32_t fb,
-                        uint32_t a) {
-    uint32_t bg = row[xx];
-    uint32_t ia = 255 - a;
-    uint32_t r2 = (fr * a + ((bg >> 16) & 0xff) * ia) >> 8;
-    uint32_t g2 = (fg * a + ((bg >> 8) & 0xff) * ia) >> 8;
-    uint32_t b2 = (fb * a + (bg & 0xff) * ia) >> 8;
-    row[xx] = (r2 << 16) | (g2 << 8) | b2;
-}
 
 int64_t k_fb_rrect(int64_t x0, int64_t y0, int64_t w, int64_t h,
                    int64_t r, int64_t color) {
@@ -406,35 +439,42 @@ static int64_t sd_capsule(int64_t px4, int64_t py4,
 }
 
 static int64_t icon_sd(int type, int64_t px4, int64_t py4) {
+    /* line-style icons: stroke helper |sd| - thickness (quarter-px).
+       Strokes are ~9-11 quarter-px (2.2-2.8px) — visible at 20px. */
     int64_t sd = 0x7fffffff;
+    int64_t t;
     if (type == 0) {          /* agents: person */
-        sd = sd_circle(px4, py4, 40, 26, 13);            /* head */
-        int64_t b = sd_rrect(px4, py4, 40, 60, 22, 14, 12); /* shoulders */
-        if (b < sd) sd = b;
-    } else if (type == 1) {   /* model: graph */
-        int64_t n0 = sd_circle(px4, py4, 40, 18, 10);
-        int64_t n1 = sd_circle(px4, py4, 16, 62, 10);
-        int64_t n2 = sd_circle(px4, py4, 64, 62, 10);
-        int64_t e0 = sd_capsule(px4, py4, 40, 18, 16, 62, 4);
-        int64_t e1 = sd_capsule(px4, py4, 40, 18, 64, 62, 4);
-        if (n0 < sd) sd = n0; if (n1 < sd) sd = n1; if (n2 < sd) sd = n2;
-        if (e0 < sd) sd = e0; if (e1 < sd) sd = e1;
-    } else if (type == 2) {   /* files: folder */
-        int64_t body = sd_rrect(px4, py4, 40, 46, 28, 22, 10);
-        int64_t tab  = sd_rrect(px4, py4, 24, 26, 14, 7, 6);
-        if (body < sd) sd = body; if (tab < sd) sd = tab;
-    } else {                  /* system: chip (ring + dot) */
-        int64_t ring = sd_circle(px4, py4, 40, 40, 24);
-        if (ring < 0) ring = -ring;
-        ring -= 6;
-        int64_t dot = sd_circle(px4, py4, 40, 40, 9);
-        if (ring < sd) sd = ring; if (dot < sd) sd = dot;
+        t = sd_circle(px4, py4, 40, 25, 11); if (t < 0) t = -t; t -= 9;   /* head ring */
+        if (t < sd) sd = t;
+        t = sd_circle(px4, py4, 40, 62, 20); if (t < 0) t = -t; t -= 9;   /* shoulders arc */
+        if (t < sd) sd = t;
+    } else if (type == 1) {   /* model: neural graph */
+        t = sd_circle(px4, py4, 40, 16, 10); if (t < 0) t = -t; t -= 8;
+        if (t < sd) sd = t;
+        t = sd_circle(px4, py4, 14, 63, 10); if (t < 0) t = -t; t -= 8;
+        if (t < sd) sd = t;
+        t = sd_circle(px4, py4, 66, 63, 10); if (t < 0) t = -t; t -= 8;
+        if (t < sd) sd = t;
+        t = sd_capsule(px4, py4, 33, 24, 18, 54, 6); if (t < sd) sd = t;
+        t = sd_capsule(px4, py4, 47, 24, 62, 54, 6); if (t < sd) sd = t;
+    } else if (type == 2) {   /* files: folder outline */
+        t = sd_rrect(px4, py4, 40, 48, 27, 18, 8); if (t < 0) t = -t; t -= 8;
+        if (t < sd) sd = t;
+        t = sd_capsule(px4, py4, 20, 30, 40, 30, 7); if (t < sd) sd = t;
+    } else if (type == 3) {   /* system: orbit + core */
+        t = sd_circle(px4, py4, 40, 40, 26); if (t < 0) t = -t; t -= 8;
+        if (t < sd) sd = t;
+        t = sd_circle(px4, py4, 40, 40, 8); if (t < sd) sd = t;
+    } else {                  /* terminal: chevron > + underscore */
+        t = sd_capsule(px4, py4, 24, 20, 38, 36, 8); if (t < sd) sd = t;
+        t = sd_capsule(px4, py4, 24, 52, 38, 36, 8); if (t < sd) sd = t;
+        t = sd_capsule(px4, py4, 42, 55, 60, 55, 8); if (t < sd) sd = t;
     }
     return sd;
 }
 
 int64_t k_fb_icon(int64_t x, int64_t y, int64_t type, int64_t color) {
-    if (type < 0 || type > 3) return 0;
+    if (type < 0 || type > 4) return 0;
     if (x < 0 || y < 0 || x + 20 > (int64_t)fb_w || y + 20 > (int64_t)fb_h) return 0;
     uint32_t fg = (uint32_t)color;
     uint32_t fr = (fg >> 16) & 0xff, fgc = (fg >> 8) & 0xff, fbc = fg & 0xff;
