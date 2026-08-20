@@ -165,12 +165,16 @@ static void run_cmd(const char* cmd) {
             sh_uart(dec(k_proc_pid_at(i)));
             sh_uart("=");
             sh_uart(k_proc_name_at(i));
-            sh_uart(" caps=");
+            sh_uart(" p=");
+            sh_uart(dec(k_proc_parent_at(i)));
+            sh_uart(" c=");
             sh_uart(dec(k_proc_caps(k_proc_pid_at(i))));
             k_fb_con_print("  pid ");
             k_fb_con_print(dec(k_proc_pid_at(i)));
             k_fb_con_print("  ");
             k_fb_con_print(k_proc_name_at(i));
+            k_fb_con_print("  parent=");
+            k_fb_con_print(dec(k_proc_parent_at(i)));
             k_fb_con_print("  caps=");
             k_fb_con_print(dec(k_proc_caps(k_proc_pid_at(i))));
             k_fb_con_print("\n");

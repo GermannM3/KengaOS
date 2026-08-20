@@ -30,6 +30,7 @@ typedef struct {
 
 typedef struct {
     int64_t      pid;
+    int64_t      parent;         /* who spawned this process          */
     const char*  name;
     uint64_t     task;
     int          active;
@@ -47,8 +48,13 @@ static int64_t   agent_pid = 0;
 static void lg_uart(const char* s) { for (; *s; s++) __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)*s), "Nd"((uint16_t)0x3F8)); }
 
 int64_t k_proc_spawn(const char* name, void (*entry)(void), uint64_t caps) {
+    int64_t parent = 0;
+    uint64_t me = k_sched_current();
+    for (int j = 0; j < MAX_PROC; j++)
+        if (procs[j].active && procs[j].task == me) { parent = procs[j].pid; break; }
     for (int i = 0; i < MAX_PROC; i++) if (!procs[i].active) {
         procs[i].pid = next_pid++;
+        procs[i].parent = parent;
         procs[i].name = name;
         procs[i].task = k_task_create(entry);
         procs[i].active = 1;
@@ -120,6 +126,7 @@ int64_t k_proc_count(void) {
 }
 
 int64_t k_proc_pid_at(int64_t idx) { return procs[idx].pid; }
+int64_t k_proc_parent_at(int64_t idx) { return procs[idx].parent; }
 const char* k_proc_name_at(int64_t idx) { return procs[idx].active ? procs[idx].name : ""; }
 
 /* --- logger process: prints received messages to console + UART --- */
