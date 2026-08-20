@@ -55,7 +55,21 @@ fn draw_desktop(st: DesktopState) -> i64 {
     draw_app(cx + 16, cy + 12, cw - 32, ch - 24, st);
     /* agent chat input bar at the bottom of the content area */
     draw_input_bar(W, H, m.sb, m.tb, m.stb);
+    draw_log(W, H, m.sb, m.tb, m.stb);
     draw_windows();
+    return 0;
+}
+
+/* --- live agent event log (notifications above the input bar) --- */
+fn draw_log(w: i64, h: i64, sb: i64, tb: i64, stb: i64) -> i64 {
+    let C_PANEL: i64 = 0x1c2129;
+    let C_DIM: i64 = 0x8a94a6;
+    let C_GREEN: i64 = 0x2ee6a6;
+    let C_TEXT: i64 = 0xe6edf3;
+    let ly: i64 = h - stb - 26 - 24;
+    fb_hrect(sb, ly, w - sb, 24, C_PANEL);
+    dtext(sb + 10, ly + 8, C_GREEN, C_PANEL, "log:");
+    dtext(sb + 44, ly + 8, C_TEXT, C_PANEL, ui_log_at(0));
     return 0;
 }
 

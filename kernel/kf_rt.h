@@ -181,6 +181,8 @@ int64_t k_ui_input_clear(void);
 const char* k_ui_input_str(void);
 int64_t k_ui_input_len(void);
 int64_t k_ui_input_submit(void);
+int64_t k_ui_log(const char* s);
+const char* k_ui_log_at(int64_t i);
 const char* dec(int64_t n);
 
 /* Timer / uptime (kernel/kf_time.c). */

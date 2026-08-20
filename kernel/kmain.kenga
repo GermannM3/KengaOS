@@ -78,6 +78,8 @@ import "desktop.kenga";
 @intrinsic fn ui_input_str() -> str;
 @intrinsic fn ui_input_len() -> i64;
 @intrinsic fn ui_input_submit() -> i64;
+@intrinsic fn ui_log(s: str) -> i64;
+@intrinsic fn ui_log_at(i: i64) -> str;
 @intrinsic fn yield_agent() -> i64;
 @intrinsic fn researcher_pid() -> i64;
 

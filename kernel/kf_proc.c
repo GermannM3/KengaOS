@@ -217,6 +217,7 @@ static void agent_proc(void) {
         ipc_msg m;
         k_ipc_recv(&m);
         lg_uart("AGENT: "); lg_uart(m.data); lg_uart("\n");
+        k_ui_log("agent: "); k_ui_log(m.data);
         char reply[MSG_MAX];
         int k = 0;
         const char* pre;
@@ -337,6 +338,7 @@ static void model_proc(void) {
         ipc_msg m;
         k_ipc_recv(&m);
         lg_uart("MODEL: "); lg_uart(m.data); lg_uart("\n");
+        k_ui_log("model: "); k_ui_log(m.data);
         /* parse "a b" -> infer XOR -> reply "predict <n>" */
         int64_t a = 0, b = 0; const char* s = m.data;
         while (*s == ' ') s++;
@@ -389,6 +391,7 @@ static void researcher_proc(void) {
             k_ipc_recv(&m);
             reqs++;
             lg_uart("RESEARCHER: "); lg_uart(m.data); lg_uart("\n");
+            k_ui_log("researcher: "); k_ui_log(m.data);
             char reply[MSG_MAX]; int k = 0;
             kf_proc_t* me = cur_proc();
             /* "upd <text>" -> update this agent's window text over IPC */
@@ -630,6 +633,26 @@ int64_t k_ui_input_submit(void) {
     msg[k] = 0;
     g_input_len = 0; g_input[0] = 0;
     return k_ipc_send(agent_pid, msg);
+}
+
+/* --- live agent event log (notifications). ---------------------------
+   A small ring buffer of the last N agent IPC events. Agents write here as
+   they run; the Kenga desktop renders it (data in C, rendering in Kenga). */
+#define AGENT_LOG_N 6
+#define AGENT_LOG_LEN 40
+static char g_agent_log[AGENT_LOG_N][AGENT_LOG_LEN];
+static int  g_agent_log_idx = 0;
+
+int64_t k_ui_log(const char* s) {
+    int k = 0;
+    for (; s && s[k] && k < AGENT_LOG_LEN-1; k++) g_agent_log[g_agent_log_idx][k] = s[k];
+    g_agent_log[g_agent_log_idx][k] = 0;
+    g_agent_log_idx = (g_agent_log_idx + 1) % AGENT_LOG_N;
+    return 1;
+}
+const char* k_ui_log_at(int64_t i) {
+    if (i < 0 || i >= AGENT_LOG_N) return "";
+    return g_agent_log[(g_agent_log_idx + i) % AGENT_LOG_N];
 }
 
 /* helper for printing numbers to the console (used above) */
