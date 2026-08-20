@@ -84,10 +84,11 @@ qemu-system-x86_64 -M q35 -cdrom build/kengaos.iso -serial stdio
 | GDT + IDT | есть | Исключения + panic (UART + framebuffer) |
 | Планировщик | есть | Round-robin multitasking, собственные стеки |
 | Клавиатура (PS/2) | есть | IRQ1, ring buffer, framebuffer-консоль |
-| Shell | есть | `help`, `info`, `clear`, `echo`, `mem`, `ps`, `log`, `ask`, `tasks`, `ls`, `cat`, `time`, `cpuinfo`, `date`, `mmap`, `reboot`, `poweroff` |
+| Shell | есть | `help`, `info`, `ver`, `clear`, `echo`, `mem`, `ps`, `agents`, `log`, `ask`, `spawn`, `tasks`, `ls`, `cat`, `time`, `cpuinfo`, `date`, `mmap`, `demo`, `reboot`, `poweroff` |
+| Кириллица | есть | UTF-8 консоль + русский шрифт, русское приветствие |
 | Память | есть | Kernel heap + frame-аллокатор (bitmap, ~94 МБ фреймов) |
 | Процессы + IPC | есть | `k_proc_spawn`, `k_ipc_send`/`k_ipc_recv`, очереди сообщений |
-| Kenga-agent | есть | Двусторонний IPC round-trip (`ask` → `ack`) |
+| Kenga-agent | есть | Агент создаёт агентов (`spawn`), живая память (`remember`/`recall`), русский ответ |
 | VFS + initrd | есть | Виртуальная ФС + initrd через Limine (git-лог, инфо хоста) |
 | Таймер / uptime | есть | PIT 100 Гц, команда `time` |
 | Аппаратура | есть | CPUID (`cpuinfo`), RTC (`date`), память (`mmap`) |
