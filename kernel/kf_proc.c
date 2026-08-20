@@ -238,6 +238,30 @@ static void agent_proc(void) {
             pre = "recall: ";
             for (; *pre && k < MSG_MAX - 1; k++) reply[k] = *pre++;
             for (; *v && k < MSG_MAX - 1; k++) reply[k] = *v++;
+        } else if (m.data[0]=='u' && m.data[1]=='i' && me) {
+            /* ui <title>: agent with CAP_UI creates a window on the desktop */
+            if (!(me->caps & CAP_UI)) {
+                pre = "denied: no ui capability";
+                for (; *pre && k < MSG_MAX - 1; k++) reply[k] = *pre++;
+            } else {
+                const char* s = m.data + 2;
+                while (*s == ' ') s++;
+                char title[24]; int ti = 0;
+                while (*s && *s != '|' && ti < 23) title[ti++] = *s++;
+                title[ti] = 0;
+                const char* text = "";
+                if (*s == '|') { s++; while (*s == ' ') s++; text = s; }
+                int64_t wid = k_ui_register_window(title, text);
+                if (wid > 0) {
+                    pre = "window id ";
+                    for (; *pre && k < MSG_MAX - 1; k++) reply[k] = *pre++;
+                    d = dec(wid);
+                    for (; *d && k < MSG_MAX - 1; k++) reply[k] = *d++;
+                } else {
+                    pre = "denied: window table full or no ui";
+                    for (; *pre && k < MSG_MAX - 1; k++) reply[k] = *pre++;
+                }
+            }
         } else {
             /* Russian-friendly agent: greet back, else ack.
                "п"/"П" in UTF-8 are 0xD0 0xBF / 0xD0 0x9F. */
@@ -305,6 +329,82 @@ int64_t k_proc_init(void) {
 int64_t k_logger_pid(void) { return logger_pid; }
 int64_t k_agent_pid(void) { return agent_pid; }
 int64_t k_model_pid(void) { return model_pid; }
+
+/* --- UI: agent-created windows (CAP_UI). -----------------------------
+   The desktop (desktop.kenga) polls these via intrinsics and draws them.
+   Registering requires the calling process to hold CAP_UI. */
+#define MAX_WINDOWS 8
+#define WIN_TITLE 24
+#define WIN_TEXT  48
+
+typedef struct {
+    int64_t    x, y, w, h;
+    int64_t    z;                 /* topmost = highest z */
+    char       title[WIN_TITLE];
+    char       text[WIN_TEXT];
+    int        active;
+} kf_win_t;
+
+static kf_win_t wins[MAX_WINDOWS];
+static int64_t  next_z = 1;
+
+int64_t k_ui_register_window(const char* title, const char* text) {
+    kf_proc_t* me = cur_proc();
+    if (!me || !(me->caps & CAP_UI)) return -1;   /* capability check */
+    for (int i = 0; i < MAX_WINDOWS; i++) if (!wins[i].active) {
+        wins[i].x = 460; wins[i].y = 120;
+        wins[i].w = 320; wins[i].h = 200;
+        wins[i].z = next_z++;
+        wins[i].active = 1;
+        int k = 0;
+        for (; title && title[k] && k < WIN_TITLE-1; k++) wins[i].title[k] = title[k];
+        wins[i].title[k] = 0;
+        k = 0;
+        for (; text && text[k] && k < WIN_TEXT-1; k++) wins[i].text[k] = text[k];
+        wins[i].text[k] = 0;
+        return (int64_t)(i + 1);
+    }
+    return 0;   /* full */
+}
+
+/* System window: the graphics server itself may open windows (no CAP_UI
+   required — it IS the UI authority). Returns window index (0-based). */
+int64_t k_ui_system_window(const char* title, const char* text) {
+    for (int i = 0; i < MAX_WINDOWS; i++) if (!wins[i].active) {
+        wins[i].x = 460; wins[i].y = 120;
+        wins[i].w = 320; wins[i].h = 200;
+        wins[i].z = next_z++;
+        wins[i].active = 1;
+        int k = 0;
+        for (; title && title[k] && k < WIN_TITLE-1; k++) wins[i].title[k] = title[k];
+        wins[i].title[k] = 0;
+        k = 0;
+        for (; text && text[k] && k < WIN_TEXT-1; k++) wins[i].text[k] = text[k];
+        wins[i].text[k] = 0;
+        return (int64_t)i;
+    }
+    return -1;   /* full */
+}
+
+int64_t k_ui_window_count(void) {
+    int n = 0;
+    for (int i = 0; i < MAX_WINDOWS; i++) if (wins[i].active) n++;
+    return n;
+}
+
+int64_t k_ui_window_x(int64_t idx)  { return wins[idx].x; }
+int64_t k_ui_window_y(int64_t idx)  { return wins[idx].y; }
+int64_t k_ui_window_w(int64_t idx)  { return wins[idx].w; }
+int64_t k_ui_window_h(int64_t idx)  { return wins[idx].h; }
+int64_t k_ui_window_z(int64_t idx)  { return wins[idx].z; }
+const char* k_ui_window_title(int64_t idx) { return wins[idx].active ? wins[idx].title : ""; }
+const char* k_ui_window_text(int64_t idx)  { return wins[idx].active ? wins[idx].text : ""; }
+
+/* bring window to front on click */
+int64_t k_ui_window_front(int64_t idx) {
+    if (idx >= 0 && idx < MAX_WINDOWS && wins[idx].active) { wins[idx].z = next_z++; return 1; }
+    return 0;
+}
 
 /* helper for printing numbers to the console (used above) */
 const char* dec(int64_t n) {

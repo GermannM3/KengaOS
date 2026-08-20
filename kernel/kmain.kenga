@@ -54,6 +54,16 @@ import "desktop.kenga";
 @intrinsic fn vfs_count() -> i64;
 @intrinsic fn vfs_name(idx: i64) -> str;
 @intrinsic fn hw_cpu_brand_str() -> str;
+@intrinsic fn ui_window_count() -> i64;
+@intrinsic fn ui_window_x(idx: i64) -> i64;
+@intrinsic fn ui_window_y(idx: i64) -> i64;
+@intrinsic fn ui_window_w(idx: i64) -> i64;
+@intrinsic fn ui_window_h(idx: i64) -> i64;
+@intrinsic fn ui_window_z(idx: i64) -> i64;
+@intrinsic fn ui_window_title(idx: i64) -> str;
+@intrinsic fn ui_window_text(idx: i64) -> str;
+@intrinsic fn ui_window_front(idx: i64) -> i64;
+@intrinsic fn ui_system_window(title: str, text: str) -> i64;
 
 
 /* --- UART (сохранено для CI-гейта) --- */

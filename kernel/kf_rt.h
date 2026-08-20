@@ -136,7 +136,8 @@ uint64_t k_sched_current(void);
 #define CAP_MODEL_INFER  (1ull << 4)
 #define CAP_MODEL_LOAD   (1ull << 5)
 #define CAP_MODEL_TRAIN  (1ull << 6)
-#define CAP_ALL    (CAP_IPC|CAP_SPAWN|CAP_POWER|CAP_MEM|CAP_MODEL_INFER|CAP_MODEL_LOAD|CAP_MODEL_TRAIN)
+#define CAP_UI           (1ull << 7)
+#define CAP_ALL    (CAP_IPC|CAP_SPAWN|CAP_POWER|CAP_MEM|CAP_MODEL_INFER|CAP_MODEL_LOAD|CAP_MODEL_TRAIN|CAP_UI)
 #define CAP_AGENT  (CAP_IPC|CAP_SPAWN)
 
 int64_t k_proc_init(void);
@@ -152,6 +153,19 @@ const char* k_proc_name_at(int64_t idx);
 int64_t k_logger_pid(void);
 int64_t k_agent_pid(void);
 int64_t k_model_pid(void);
+
+/* Agent-created windows (CAP_UI). */
+int64_t k_ui_register_window(const char* title, const char* text);
+int64_t k_ui_system_window(const char* title, const char* text);
+int64_t k_ui_window_count(void);
+int64_t k_ui_window_x(int64_t idx);
+int64_t k_ui_window_y(int64_t idx);
+int64_t k_ui_window_w(int64_t idx);
+int64_t k_ui_window_h(int64_t idx);
+int64_t k_ui_window_z(int64_t idx);
+const char* k_ui_window_title(int64_t idx);
+const char* k_ui_window_text(int64_t idx);
+int64_t k_ui_window_front(int64_t idx);
 const char* dec(int64_t n);
 
 /* Timer / uptime (kernel/kf_time.c). */

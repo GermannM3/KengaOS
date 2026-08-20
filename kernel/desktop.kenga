@@ -42,7 +42,61 @@ fn draw_desktop(st: DesktopState) -> i64 {
     let ch: i64 = H - TOPBAR - STATUSB;
     fb_hrect(cx, cy, cw, ch, C_BG);
     draw_app(cx + 16, cy + 12, cw - 32, ch - 24, st);
+    draw_windows();
     return 0;
+}
+
+/* --- agent-created windows, drawn on top (sorted by z, later = higher) --- */
+fn draw_windows() -> i64 {
+    let C_PANEL: i64 = 0x1c2129;
+    let C_PANEL2: i64 = 0x232a34;
+    let C_ACCENT: i64 = 0x3daee9;
+    let C_TEXT: i64 = 0xe6edf3;
+    let C_DIM: i64 = 0x8a94a6;
+    let n: i64 = ui_window_count();
+    if n == 0 { return 0; }
+    /* draw in z order */
+    let done: i64 = 0;
+    while done < n {
+        let best: i64 = -1;
+        let bestz: i64 = 0;
+        let i: i64 = 0;
+        while i < n {
+            if ui_window_z(i) > bestz { bestz = ui_window_z(i); best = i; }
+            i = i + 1;
+        }
+        if best < 0 { break; }
+        let wx: i64 = ui_window_x(best);
+        let wy: i64 = ui_window_y(best);
+        let ww: i64 = ui_window_w(best);
+        let wh: i64 = ui_window_h(best);
+        fb_hrect(wx, wy, ww, wh, C_PANEL);
+        fb_hrect(wx, wy, ww, 18, C_ACCENT);
+        dtext(wx + 6, wy + 5, C_TEXT, C_ACCENT, ui_window_title(best));
+        dtext(wx + 6, wy + 26, C_TEXT, C_PANEL, ui_window_text(best));
+        done = done + 1;
+    }
+    return 0;
+}
+
+/* find the topmost window containing (mx,my); returns its index or -1 */
+fn win_at(mx: i64, my: i64) -> i64 {
+    let n: i64 = ui_window_count();
+    if n == 0 { return -1; }
+    let best: i64 = -1;
+    let bestz: i64 = -1;
+    let i: i64 = 0;
+    while i < n {
+        let wx: i64 = ui_window_x(i);
+        let wy: i64 = ui_window_y(i);
+        let ww: i64 = ui_window_w(i);
+        let wh: i64 = ui_window_h(i);
+        if mx >= wx && mx < wx + ww && my >= wy && my < wy + wh {
+            if ui_window_z(i) > bestz { bestz = ui_window_z(i); best = i; }
+        }
+        i = i + 1;
+    }
+    return best;
 }
 
 /* --- render the selected app's content --- */
@@ -163,6 +217,12 @@ fn handle_click(st: DesktopState, mx: i64, my: i64) -> DesktopState {
     let SIDEBAR: i64 = 200;
     let H: i64 = 800;
     let STATUSB: i64 = 28;
+    /* windows take precedence: bring the clicked one to front */
+    let w: i64 = win_at(mx, my);
+    if w >= 0 {
+        ui_window_front(w);
+        return st;
+    }
     /* sidebar app switch */
     if mx < SIDEBAR && my > TOPBAR && my < H - STATUSB {
         let idx: i64 = (my - TOPBAR - 12) / 44;
@@ -227,6 +287,7 @@ fn init_screen() -> i64 {
 fn desktop_main() -> i64 {
     let st: DesktopState = DesktopState{ cur_app: 0, sel_pid: 0, model_a: 0, model_b: 1, model_out: 0 };
     init_screen();
+    ui_system_window("welcome", "KengaOS 0.5 | agent-native desktop");
     draw_desktop(st);
     let mx: i64 = mouse_x();
     let my: i64 = mouse_y();
