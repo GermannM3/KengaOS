@@ -103,6 +103,11 @@ int64_t k_logger_pid(void);
 int64_t k_agent_pid(void);
 const char* dec(int64_t n);
 
+/* Timer / uptime (kernel/kf_time.c). */
+int64_t k_timer_init(void);
+int64_t k_time_uptime_ms(void);
+void k_timer_tick(void);
+
 /* Virtual filesystem (kernel/kf_vfs.c). */
 int64_t k_vfs_count(void);
 const char* k_vfs_name(int64_t idx);

@@ -70,6 +70,12 @@ static void run_cmd(const char* cmd) {
                 k_fb_con_print("\n");
             }
         }
+    } else if (scmp(cmd, "time") == 0) {
+        k_fb_con_print("uptime: ");
+        k_fb_con_print(dec(k_time_uptime_ms() / 1000));
+        k_fb_con_print(".");
+        k_fb_con_print(dec(k_time_uptime_ms() % 1000));
+        k_fb_con_print(" s\n");
     } else if (scmp(cmd, "ls") == 0) {
         int64_t n = k_vfs_count();
         for (int64_t i = 0; i < n; i++) {

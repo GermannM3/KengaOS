@@ -13,6 +13,8 @@
 @intrinsic fn mem_pfree(addr: i64) -> i64;
 @intrinsic fn kf_get_modules() -> i64;
 @intrinsic fn vfs_init_rd(addr: i64, size: i64) -> i64;
+@intrinsic fn timer_init() -> i64;
+@intrinsic fn time_uptime_ms() -> i64;
 
 /* Framebuffer FFI (kf_fb.c) */
 @intrinsic fn fb_init(fb: i64) -> i64;
@@ -318,6 +320,8 @@ fn main() -> i64 {
 
     kp_msg("KengaOS", "SHELL READY");
     kp_msg("KengaOS", "PROC READY");
+
+    timer_init();
 
     shell_init();
 
