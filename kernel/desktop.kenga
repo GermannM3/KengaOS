@@ -6,7 +6,7 @@
  */
 
 /* --- state threaded through the desktop (Kenga has no globals) --- */
-struct DesktopState { cur_app: i64, sel_pid: i64, model_a: i64, model_b: i64, model_out: i64, drag_win: i64, drag_ox: i64, drag_oy: i64 }
+struct DesktopState { cur_app: i64, sel_pid: i64, model_a: i64, model_b: i64, model_out: i64, drag_win: i64, drag_ox: i64, drag_oy: i64, hist: list }
 
 /* --- cursor (XOR draw; calling fb_cursor twice erases it) --- */
 fn cur_draw(mx: i64, my: i64) -> i64 {
@@ -86,29 +86,32 @@ fn draw_windows() -> i64 {
     let C_RED: i64 = 0xf85149;
     let n: i64 = ui_window_count();
     if n == 0 { return 0; }
-    /* draw in z order */
-    let done: i64 = 0;
-    while done < n {
-        let best: i64 = -1;
-        let bestz: i64 = 0;
+    /* draw in z order: lowest z first, highest last (on top).
+       Iterate z values 1.. so each window is drawn exactly once. */
+    let z: i64 = 1;
+    let drawn: i64 = 0;
+    while drawn < n {
         let i: i64 = 0;
+        let found: i64 = -1;
         while i < n {
-            if ui_window_z(i) > bestz { bestz = ui_window_z(i); best = i; }
+            if ui_window_z(i) == z { found = i; }
             i = i + 1;
         }
-        if best < 0 { break; }
-        let wx: i64 = ui_window_x(best);
-        let wy: i64 = ui_window_y(best);
-        let ww: i64 = ui_window_w(best);
-        let wh: i64 = ui_window_h(best);
-        fb_hrect(wx, wy, ww, wh, C_PANEL);
-        fb_hrect(wx, wy, ww, 18, C_ACCENT);
-        dtext(wx + 6, wy + 5, C_TEXT, C_ACCENT, ui_window_title(best));
-        /* close button [x] in the title bar top-right */
-        fb_hrect(wx + ww - 20, wy, 20, 18, C_RED);
-        dtext(wx + ww - 15, wy + 5, C_TEXT, C_RED, "x");
-        dtext(wx + 6, wy + 26, C_TEXT, C_PANEL, ui_window_text(best));
-        done = done + 1;
+        if found >= 0 {
+            let wx: i64 = ui_window_x(found);
+            let wy: i64 = ui_window_y(found);
+            let ww: i64 = ui_window_w(found);
+            let wh: i64 = ui_window_h(found);
+            fb_hrect(wx, wy, ww, wh, C_PANEL);
+            fb_hrect(wx, wy, ww, 18, C_ACCENT);
+            dtext(wx + 6, wy + 5, C_TEXT, C_ACCENT, ui_window_title(found));
+            /* close button [x] in the title bar top-right */
+            fb_hrect(wx + ww - 20, wy, 20, 18, C_RED);
+            dtext(wx + ww - 15, wy + 5, C_TEXT, C_RED, "x");
+            dtext(wx + 6, wy + 26, C_TEXT, C_PANEL, ui_window_text(found));
+            drawn = drawn + 1;
+        }
+        z = z + 1;
     }
     return 0;
 }
@@ -217,6 +220,15 @@ fn draw_model(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
     dtext(x + 170, y + 136, C_DIM, C_BG, "in2");
     dtext(x, y + 180, C_GREEN, C_BG, "output:");
     dtext(x + 80, y + 180, C_TEXT, C_BG, st.model_out);
+    /* inference history (last runs) */
+    dtext(x, y + 210, C_DIM, C_BG, "history:");
+    let hi: i64 = 0;
+    for v in st.hist {
+        if hi < 8 {
+            dtext(x + 8, y + 222 + hi * 18, C_TEXT, C_BG, v);
+        }
+        hi = hi + 1;
+    }
     return 0;
 }
 
@@ -336,6 +348,7 @@ fn handle_click(st: DesktopState, mx: i64, my: i64) -> DesktopState {
         if din(x + 90, y + 130, 40, 24, mx, my) == 1 { st.model_b = 1; }
         if din(x, y + 60, 110, 30, mx, my) == 1 {
             st.model_out = model_infer(st.model_a, st.model_b);
+            push(st.hist, st.model_a + " " + st.model_b + " = " + st.model_out);
         }
     }
     return st;
@@ -370,7 +383,7 @@ fn init_screen() -> i64 {
 
 /* --- desktop event loop (Kenga) --- */
 fn desktop_main() -> i64 {
-    let st: DesktopState = DesktopState{ cur_app: 0, sel_pid: 0, model_a: 0, model_b: 1, model_out: 0, drag_win: -1, drag_ox: 0, drag_oy: 0 };
+    let st: DesktopState = DesktopState{ cur_app: 0, sel_pid: 0, model_a: 0, model_b: 1, model_out: 0, drag_win: -1, drag_ox: 0, drag_oy: 0, hist: [] };
     init_screen();
     ui_system_window("welcome", "KengaOS 0.5 | agent-native desktop");
     /* let agents run once so a CAP_UI agent can open its window before first draw */
