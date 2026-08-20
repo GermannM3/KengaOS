@@ -70,6 +70,10 @@ qemu-system-x86_64 -M q35 -cdrom build/kengaos.iso -serial stdio
 
 ![KengaOS shell](docs/console-shell.png)
 
+Agent-native десктоп KengaOS 0.5 (десктоп, окна и логика на Kenga):
+
+![KengaOS desktop](docs/desktop.png)
+
 ---
 
 ## Возможности
@@ -91,7 +95,10 @@ qemu-system-x86_64 -M q35 -cdrom build/kengaos.iso -serial stdio
 | Kenga-agent | есть | Агент — системная сущность: `spawn` (создаёт агентов, рекурсивно), живая память (`remember`/`recall`), capability-права, русский ответ |
 | Agent-native модель | есть | Дерево процессов: `init` → системные агенты → пользовательские агенты (parent tracking) |
 | **Model Agent** | есть | Настоящая нейросеть (MLP, XOR) как системный процесс: `model a b` → предсказание через IPC + `CAP_MODEL_INFER` |
-| **GUI Desktop** | есть | Agent-native графическая среда: сайдбар (Agents/Model/Files/System), верхняя/статус панели, мышь, init-экран → desktop |
+| **GUI Desktop** | есть | Agent-native графическая среда, написана на Kenga (desktop.kenga): сайдбар (Agents/Model/Files/System), верхняя/статус панели, init-экран → desktop, живой рефрешь (часы RTC, uptime, RAM-бар), клавиатурное управление (1–4) |
+| **Окна (CAP_UI)** | есть | Агенты с `CAP_UI` создают свои окна через IPC (`ui <title>|<text>`), окна перетаскиваются, закрываются [x], z-order; researcher открывает своё окно при старте |
+| **Agent chat** | есть | Клавиатурный ввод в input-бар → IPC агенту → ответ в собственном окне агента |
+| **Живой лог** | есть | Панель событий агентов (IPC-трафик) над input-баром |
 | VFS + initrd | есть | Виртуальная ФС + initrd через Limine (git-лог, инфо хоста) |
 | Таймер / uptime | есть | PIT 100 Гц, команда `time` |
 | Аппаратура | есть | CPUID (`cpuinfo`), RTC (`date`), память (`mmap`) |
@@ -147,11 +154,13 @@ qemu-system-x86_64 -M q35 -cdrom build/kengaos.iso -serial stdio
 KengaOS/
 ├── kernel/                  # Ядро
 │   ├── kmain.kenga         # Основной код (Kenga)
+│   ├── desktop.kenga       # Desktop: event loop, окна, views (Kenga)
+│   ├── ui.kenga            # Chrome десктопа: панели, sidebar (Kenga)
 │   ├── start.S             # Точка входа (Assembly)
 │   ├── kf_fb.c             # Framebuffer + консоль
 │   ├── kf_kbd.c            # Клавиатура (PS/2)
 │   ├── kf_mem.c            # Физическая память + heap
-│   ├── kf_proc.c           # Процессы + IPC
+│   ├── kf_proc.c           # Процессы + IPC + окна (CAP_UI)
 │   ├── kf_shell.c          # Интерактивный shell
 │   ├── intr.c / isr.S      # GDT + IDT + обработчики
 │   ├── sched.c             # Планировщик
