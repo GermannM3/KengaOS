@@ -1,3 +1,5 @@
+import "ui.kenga";
+
 @intrinsic fn kf_get_boot_info() -> i64;
 @intrinsic fn kf_get_framebuffer() -> i64;
 @intrinsic fn kf_str(addr: i64) -> str;

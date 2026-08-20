@@ -51,40 +51,13 @@ static int btn(int x,int y,int w,int h,int mx,int my){ return mx>=x && mx<x+w &&
 /* redraw the whole desktop */
 static void draw_desktop(void){
     rect(0,0,W,H,C_BG);
-    /* top bar */
-    rect(0,0,W,TOPBAR,C_PANEL);
-    txt(16,12, C_GREEN, C_PANEL, "KengaOS");
-    txt(120,12, C_DIM, C_PANEL, "0.4 Agent Desktop");
-    txt(W-200,12, C_ACCENT, C_PANEL, "Agents: ");
-    /* agents count */
-    char tmp[16]; int i=0;
-    const char* d=dec(k_proc_count()); for(;*d && i<15;i++) tmp[i]=*d; tmp[i]=0;
-    txt(W-130,12, C_ACCENT, C_PANEL, tmp);
-    /* uptime */
-    char up[24]; i=0; d=dec(k_time_uptime_ms()/1000); for(;*d && i<15;i++) up[i]=*d; up[i]=0;
-    txt(W-80,12, C_DIM, C_PANEL, up);
-    txt(W-46,12, C_DIM, C_PANEL, "s");
-    /* sidebar */
-    rect(0,TOPBAR,SIDEBAR,H-TOPBAR-STATUSB,C_PANEL2);
-    const char* apps[4] = {"Agents","Model","Files","System"};
-    for(int a=0;a<4;a++){
-        int y = TOPBAR + 12 + a*44;
-        int on = (a==cur_app);
-        rect(8,y,SIDEBAR-16,36, on?C_HILITE:C_PANEL2);
-        txt(20,y+12, on?C_GREEN:C_TEXT, on?C_HILITE:C_PANEL2, apps[a]);
-    }
+    /* chrome (top bar + sidebar + status bar) drawn by Kenga code (ui.kenga) */
+    k_ui_chrome(W, (int64_t)k_proc_count(), k_time_uptime_ms()/1000,
+                (int64_t)k_mouse_x(), (int64_t)k_mouse_y(), (int64_t)cur_app);
     /* content area */
     int cx = SIDEBAR, cy = TOPBAR, cw = W-SIDEBAR, ch = H-TOPBAR-STATUSB;
     rect(cx,cy,cw,ch,C_BG);
     draw_app(cx+16, cy+12, cw-32, ch-24);
-    /* status bar */
-    rect(0,H-STATUSB,W,STATUSB,C_PANEL);
-    txt(12,H-STATUSB+8, C_DIM, C_PANEL, "KengaOS 0.4  |  mouse: ");
-    char mxb[8]; i=0; d=dec(k_mouse_x()); for(;*d&&i<7;i++) mxb[i]=*d; mxb[i]=0;
-    txt(190,H-STATUSB+8, C_DIM, C_PANEL, mxb);
-    txt(224,H-STATUSB+8, C_DIM, C_PANEL, ",");
-    i=0; d=dec(k_mouse_y()); for(;*d&&i<7;i++) mxb[i]=*d; mxb[i]=0;
-    txt(240,H-STATUSB+8, C_DIM, C_PANEL, mxb);
 }
 
 /* --- cursor: saved snapshot so moves don't need a full redraw --- */

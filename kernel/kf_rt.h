@@ -116,6 +116,10 @@ int64_t k_shell_init(void);
 
 /* GUI desktop (kernel/kf_gui.c). */
 int64_t k_gui_init(void);
+
+/* Kenga-written desktop chrome (kernel/ui.kenga, compiled via kmain.kenga). */
+int64_t k_ui_chrome(int64_t w, int64_t count, int64_t up, int64_t mx, int64_t my, int64_t cur);
+
 uint64_t k_task_create(void (*entry)(void));
 uint64_t k_task_yield(void);
 uint64_t k_sched_current(void);

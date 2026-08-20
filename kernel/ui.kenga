@@ -1,0 +1,67 @@
+/* ui.kenga — Kenga-written desktop chrome (first self-hosting component).
+ *
+ * Draws the static desktop chrome (top bar, sidebar, status bar) using the
+ * fb_* intrinsics declared in kmain.kenga. All drawing logic lives in Kenga;
+ * C only supplies the numbers (proc count, uptime, mouse position).
+ */
+
+fn ui_chrome(w: i64, count: i64, up: i64, mx: i64, my: i64, cur: i64) -> i64 {
+    /* palette (KDE-ish dark) */
+    let PANEL: i64 = 0x1c2129;
+    let PANEL2: i64 = 0x232a34;
+    let ACCENT: i64 = 0x3daee9;
+    let GREEN: i64 = 0x2ee6a6;
+    let TEXT: i64 = 0xe6edf3;
+    let DIM: i64 = 0x8a94a6;
+    let HILITE: i64 = 0x2a3340;
+
+    let TOPBAR: i64 = 40;
+    let SIDEBAR: i64 = 200;
+    let STATUSB: i64 = 28;
+    let H: i64 = 800;
+
+    /* top bar */
+    fb_hrect(0, 0, w, TOPBAR, PANEL);
+    fb_text(16, 12, GREEN, PANEL, "KengaOS");
+    fb_text(120, 12, DIM, PANEL, "0.4 Agent Desktop");
+    fb_text(w - 200, 12, ACCENT, PANEL, "Agents: ");
+    fb_text(w - 130, 12, ACCENT, PANEL, count);
+    fb_text(w - 80, 12, DIM, PANEL, up);
+    fb_text(w - 46, 12, DIM, PANEL, "s");
+
+    /* sidebar background + highlight the active app */
+    fb_hrect(0, TOPBAR, SIDEBAR, H - TOPBAR - STATUSB, PANEL2);
+    if cur == 0 {
+        fb_hrect(8, TOPBAR + 12, SIDEBAR - 16, 36, HILITE);
+        fb_text(20, TOPBAR + 24, GREEN, HILITE, "Agents");
+    } else {
+        fb_text(20, TOPBAR + 24, TEXT, PANEL2, "Agents");
+    }
+    if cur == 1 {
+        fb_hrect(8, TOPBAR + 56, SIDEBAR - 16, 36, HILITE);
+        fb_text(20, TOPBAR + 68, GREEN, HILITE, "Model");
+    } else {
+        fb_text(20, TOPBAR + 68, TEXT, PANEL2, "Model");
+    }
+    if cur == 2 {
+        fb_hrect(8, TOPBAR + 100, SIDEBAR - 16, 36, HILITE);
+        fb_text(20, TOPBAR + 112, GREEN, HILITE, "Files");
+    } else {
+        fb_text(20, TOPBAR + 112, TEXT, PANEL2, "Files");
+    }
+    if cur == 3 {
+        fb_hrect(8, TOPBAR + 144, SIDEBAR - 16, 36, HILITE);
+        fb_text(20, TOPBAR + 156, GREEN, HILITE, "System");
+    } else {
+        fb_text(20, TOPBAR + 156, TEXT, PANEL2, "System");
+    }
+
+    /* status bar */
+    fb_hrect(0, H - STATUSB, w, STATUSB, PANEL);
+    fb_text(12, H - STATUSB + 8, DIM, PANEL, "KengaOS 0.4  |  mouse: ");
+    fb_text(190, H - STATUSB + 8, DIM, PANEL, mx);
+    fb_text(224, H - STATUSB + 8, DIM, PANEL, ",");
+    fb_text(240, H - STATUSB + 8, DIM, PANEL, my);
+
+    return 1;
+}
