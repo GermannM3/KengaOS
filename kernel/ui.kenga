@@ -59,6 +59,21 @@ fn ui_chrome(w: i64, h: i64, sb: i64, tb: i64, stb: i64,
         fb_text(20, TOPBAR + 156, TEXT, PANEL2, "System");
     }
 
+    /* widgets under the menu: live RAM + agents */
+    let wtop: i64 = TOPBAR + 4 * 44 + 12;
+    fb_hrect(8, wtop, SIDEBAR - 16, 2, HILITE);
+    fb_text(12, wtop + 8, DIM, PANEL2, "RAM");
+    let total_kb: i64 = mem_total_kb();
+    let used_kb: i64 = total_kb - mem_pages_free() * 4;
+    let rw: i64 = SIDEBAR - 28;
+    fb_hrect(12, wtop + 20, rw, 8, 0x10141a);
+    if total_kb > 0 {
+        let fill: i64 = used_kb * rw / total_kb;
+        if fill > 0 { fb_hrect(12, wtop + 20, fill, 8, 0x2ee6a6); }
+    }
+    fb_text(12, wtop + 32, DIM, PANEL2, "agents ");
+    fb_text(12 + 8 * 7, wtop + 32, ACCENT, PANEL2, count);
+
     /* status bar */
     fb_hrect(0, H - STATUSB, w, STATUSB, PANEL);
     fb_text(12, H - STATUSB + 8, DIM, PANEL, "KengaOS 0.5  |  mouse: ");

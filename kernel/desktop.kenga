@@ -40,23 +40,66 @@ struct DesktopMetrics { sb: i64, tb: i64, stb: i64 }
 
 /* --- redraw the whole desktop --- */
 fn draw_desktop(st: DesktopState) -> i64 {
-    let C_BG: i64 = 0x12151a;
     let W: i64 = fb_width();
     let H: i64 = fb_height();
     let m: DesktopMetrics = dmetrics(W, H);
-    fb_hrect(0, 0, W, H, C_BG);
+    draw_wallpaper(W, H);
     ui_chrome(W, H, m.sb, m.tb, m.stb,
               proc_count(), time_uptime_ms() / 1000, mouse_x(), mouse_y(), st.cur_app);
     let cx: i64 = m.sb;
     let cy: i64 = m.tb;
     let cw: i64 = W - m.sb;
     let ch: i64 = H - m.tb - m.stb;
-    fb_hrect(cx, cy, cw, ch, C_BG);
+    /* content renders over the wallpaper gradient (no flat fill) */
     draw_app(cx + 16, cy + 12, cw - 32, ch - 24, st);
     /* agent chat input bar at the bottom of the content area */
     draw_input_bar(W, H, m.sb, m.tb, m.stb);
     draw_log(W, H, m.sb, m.tb, m.stb);
+    draw_taskbar(W, H, m.sb, m.tb, m.stb);
     draw_windows();
+    return 0;
+}
+
+/* --- taskbar: open windows as clickable buttons (bottom right) --- */
+fn draw_taskbar(w: i64, h: i64, sb: i64, tb: i64, stb: i64) -> i64 {
+    let C_PANEL: i64 = 0x1c2129;
+    let C_ACCENT: i64 = 0x3daee9;
+    let C_TEXT: i64 = 0xe6edf3;
+    let C_DIM: i64 = 0x8a94a6;
+    let n: i64 = ui_window_count();
+    if n == 0 { return 0; }
+    let ty: i64 = h - stb - 24;
+    fb_hrect(sb, ty, w - sb, 24, C_PANEL);
+    dtext(sb + 10, ty + 8, C_DIM, C_PANEL, "tasks");
+    let bx: i64 = sb + 60;
+    let i: i64 = 0;
+    while i < n {
+        let iw: i64 = 96;
+        fb_hrect(bx, ty + 4, iw, 16, C_ACCENT);
+        dtext(bx + 4, ty + 8, C_TEXT, C_ACCENT, ui_window_title(i));
+        bx = bx + iw + 4;
+        i = i + 1;
+    }
+    return 0;
+}
+
+/* --- wallpaper: vertical gradient (KengaOS brand colors), drawn in bands --- */
+fn draw_wallpaper(w: i64, h: i64) -> i64 {
+    let top: i64 = 0x10141a;
+    let bot: i64 = 0x1a2430;
+    let bands: i64 = 40;
+    let bh: i64 = h / bands;
+    if bh < 1 { bh = 1; }
+    let b: i64 = 0;
+    while b < bands {
+        let t: i64 = b * 255 / bands;
+        let r: i64 = 0x10 + t * 10 / 255;      /* interpolate R */
+        let g: i64 = 0x14 + t * 16 / 255;      /* interpolate G */
+        let bl: i64 = 0x1a + t * 22 / 255;     /* interpolate B */
+        let c: i64 = (r << 16) | (g << 8) | bl;
+        fb_hrect(0, b * bh, w, bh, c);
+        b = b + 1;
+    }
     return 0;
 }
 
@@ -333,6 +376,21 @@ fn handle_click(st: DesktopState, mx: i64, my: i64) -> DesktopState {
             st.drag_oy = my - ui_window_y(w);
         }
         return st;
+    }
+    /* taskbar: click a window button to raise it */
+    let ty: i64 = H - STATUSB - 24;
+    if my >= ty && my < ty + 24 && mx >= SIDEBAR + 60 {
+        let n: i64 = ui_window_count();
+        let bx: i64 = SIDEBAR + 60;
+        let i: i64 = 0;
+        while i < n {
+            if mx >= bx && mx < bx + 96 && my >= ty + 4 && my < ty + 20 {
+                ui_window_front(i);
+                return st;
+            }
+            bx = bx + 96 + 4;
+            i = i + 1;
+        }
     }
     /* sidebar app switch */
     if mx < SIDEBAR && my > TOPBAR && my < H - STATUSB {
