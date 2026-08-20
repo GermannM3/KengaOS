@@ -332,12 +332,24 @@ static void researcher_proc(void) {
     /* open a window on the desktop as soon as we run (CAP_UI required) */
     int64_t wid = k_ui_register_window("Research", "researcher online | model ready");
     lg_uart("RESEARCHER: window "); lg_uart(dec(wid)); lg_uart("\n");
+    /* live demo: update the window text through the same API an IPC "upd"
+       message uses — proves agent -> its own window works at startup. */
+    k_ui_window_set_text(wid - 1, "online | IPC + model ready");
+    lg_uart("RESEARCHER: window text updated\n");
     for (;;) {
         ipc_msg m;
         k_ipc_recv(&m);
         lg_uart("RESEARCHER: "); lg_uart(m.data); lg_uart("\n");
         char reply[MSG_MAX]; int k = 0;
         kf_proc_t* me = cur_proc();
+        /* "upd <text>" -> update this agent's window text over IPC */
+        if (m.data[0]=='u' && m.data[1]=='p' && m.data[2]=='d' && me && wid > 0) {
+            const char* s = m.data + 3;
+            while (*s == ' ') s++;
+            k_ui_window_set_text(wid - 1, s);
+            const char* pre = "window updated";
+            for (; *pre && k < MSG_MAX-1; k++) reply[k] = *pre++;
+        } else
         /* "infer a b" -> run the MLP and report */
         if (m.data[0]=='i' && m.data[1]=='n' && m.data[2]=='f' && m.data[3]=='e' && m.data[4]=='r' && me) {
             if (!(me->caps & CAP_MODEL_INFER)) {
@@ -479,6 +491,29 @@ const char* k_ui_window_text(int64_t idx)  { return wins[idx].active ? wins[idx]
 int64_t k_ui_window_front(int64_t idx) {
     if (idx >= 0 && idx < MAX_WINDOWS && wins[idx].active) { wins[idx].z = next_z++; return 1; }
     return 0;
+}
+
+/* move a window (drag). idx is 0-based. clamps to screen edges. */
+int64_t k_ui_window_move(int64_t idx, int64_t x, int64_t y) {
+    if (idx < 0 || idx >= MAX_WINDOWS || !wins[idx].active) return 0;
+    int64_t W = k_fb_width();
+    int64_t H = k_fb_height();
+    if (x < 0) x = 0;
+    if (y < 0) y = 0;
+    if (x + wins[idx].w > W) x = W - wins[idx].w;
+    if (y + wins[idx].h > H) y = H - wins[idx].h;
+    wins[idx].x = x;
+    wins[idx].y = y;
+    return 1;
+}
+
+/* update a window's text over IPC (agent -> its own window). idx 0-based. */
+int64_t k_ui_window_set_text(int64_t idx, const char* text) {
+    if (idx < 0 || idx >= MAX_WINDOWS || !wins[idx].active) return 0;
+    int k = 0;
+    for (; text && text[k] && k < WIN_TEXT-1; k++) wins[idx].text[k] = text[k];
+    wins[idx].text[k] = 0;
+    return 1;
 }
 
 /* helper for printing numbers to the console (used above) */

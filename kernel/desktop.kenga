@@ -6,7 +6,7 @@
  */
 
 /* --- state threaded through the desktop (Kenga has no globals) --- */
-struct DesktopState { cur_app: i64, sel_pid: i64, model_a: i64, model_b: i64, model_out: i64 }
+struct DesktopState { cur_app: i64, sel_pid: i64, model_a: i64, model_b: i64, model_out: i64, drag_win: i64, drag_ox: i64, drag_oy: i64 }
 
 /* --- cursor (XOR draw; calling fb_cursor twice erases it) --- */
 fn cur_draw(mx: i64, my: i64) -> i64 {
@@ -234,6 +234,12 @@ fn handle_click(st: DesktopState, mx: i64, my: i64) -> DesktopState {
     let w: i64 = win_at(mx, my);
     if w >= 0 {
         ui_window_front(w);
+        /* if clicked on the title bar (top 18px), start dragging it */
+        if my < ui_window_y(w) + 18 {
+            st.drag_win = w;
+            st.drag_ox = mx - ui_window_x(w);
+            st.drag_oy = my - ui_window_y(w);
+        }
         return st;
     }
     /* sidebar app switch */
@@ -298,7 +304,7 @@ fn init_screen() -> i64 {
 
 /* --- desktop event loop (Kenga) --- */
 fn desktop_main() -> i64 {
-    let st: DesktopState = DesktopState{ cur_app: 0, sel_pid: 0, model_a: 0, model_b: 1, model_out: 0 };
+    let st: DesktopState = DesktopState{ cur_app: 0, sel_pid: 0, model_a: 0, model_b: 1, model_out: 0, drag_win: -1, drag_ox: 0, drag_oy: 0 };
     init_screen();
     ui_system_window("welcome", "KengaOS 0.5 | agent-native desktop");
     /* let agents run once so a CAP_UI agent can open its window before first draw */
@@ -317,26 +323,45 @@ fn desktop_main() -> i64 {
     let tick: i64 = 0;
     let last_up: i64 = time_uptime_ms() / 1000;
     let last_n: i64 = proc_count();
+    let s: DesktopState = st;
     while 1 {
         let bx: i64 = mouse_buttons();
         let cmx: i64 = mouse_x();
         let cmy: i64 = mouse_y();
         let clicked: i64 = 0;
         if bx != 0 && mprev == 0 { clicked = 1; }
+        let released: i64 = 0;
+        if bx == 0 && mprev != 0 { released = 1; }
         /* live refresh: redraw when uptime tick or agent count changes */
         let now_up: i64 = time_uptime_ms() / 1000;
         let now_n: i64 = proc_count();
         let live: i64 = 0;
         if now_up != last_up { live = 1; }
         if now_n != last_n { live = 1; }
+        let dragging: i64 = 0;
+        if s.drag_win >= 0 && bx != 0 { dragging = 1; }
         if clicked == 1 {
-            st = handle_click(st, cmx, cmy);
+            let ns: DesktopState = handle_click(s, cmx, cmy);
             cur_erase(last_mx, last_my);
-            draw_desktop(st);
+            draw_desktop(ns);
+            cur_draw(cmx, cmy);
+            last_up = now_up;
+            last_n = now_n;
+            s = ns;
+        } else if dragging == 1 && (cmx != last_mx || cmy != last_my) {
+            /* drag the window under the cursor */
+            ui_window_move(s.drag_win, cmx - s.drag_ox, cmy - s.drag_oy);
+            cur_erase(last_mx, last_my);
+            draw_desktop(s);
+            cur_draw(cmx, cmy);
+        } else if released == 1 && s.drag_win >= 0 {
+            s.drag_win = -1;
+            cur_erase(last_mx, last_my);
+            draw_desktop(s);
             cur_draw(cmx, cmy);
         } else if live == 1 {
             cur_erase(last_mx, last_my);
-            draw_desktop(st);
+            draw_desktop(s);
             cur_draw(cmx, cmy);
             last_up = now_up;
             last_n = now_n;

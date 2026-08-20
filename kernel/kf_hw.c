@@ -92,3 +92,20 @@ int64_t k_hw_rtc_str(char* out, int max) {
     (void)digits; (void)sep;
     return n;
 }
+
+/* Current wall-clock time as a stable "HH:MM:SS" string (hardware bridge
+   for the Kenga desktop top bar). */
+static char g_rtc_time_str[16];
+const char* k_hw_rtc_time_str(void) {
+    uint8_t sec = cmos_read(0x00);
+    uint8_t min = cmos_read(0x02);
+    uint8_t hr  = cmos_read(0x04);
+    const char* dg = "0123456789";
+    g_rtc_time_str[0] = dg[bcd(hr)/10]; g_rtc_time_str[1] = dg[bcd(hr)%10];
+    g_rtc_time_str[2] = ':';
+    g_rtc_time_str[3] = dg[bcd(min)/10]; g_rtc_time_str[4] = dg[bcd(min)%10];
+    g_rtc_time_str[5] = ':';
+    g_rtc_time_str[6] = dg[bcd(sec)/10]; g_rtc_time_str[7] = dg[bcd(sec)%10];
+    g_rtc_time_str[8] = 0;
+    return g_rtc_time_str;
+}

@@ -26,6 +26,7 @@ fn ui_chrome(w: i64, h: i64, sb: i64, tb: i64, stb: i64,
     fb_hrect(0, 0, w, TOPBAR, PANEL);
     fb_text(16, tb / 2 - 6, GREEN, PANEL, "KengaOS");
     fb_text(120, tb / 2 - 5, DIM, PANEL, "0.5 Agent Desktop");
+    fb_text(w - 230, tb / 2 - 5, DIM, PANEL, hw_rtc_time_str());
     fb_text(w - 200, tb / 2 - 5, ACCENT, PANEL, "Agents: ");
     fb_text(w - 130, tb / 2 - 5, ACCENT, PANEL, count);
     fb_text(w - 80, tb / 2 - 5, DIM, PANEL, up);

@@ -74,6 +74,7 @@ int64_t k_model_dbg(void);
 int64_t k_hw_cpu_vendor(char* out, int max);
 int64_t k_hw_cpu_brand(char* out, int max);
 const char* k_hw_cpu_brand_str(void);
+const char* k_hw_rtc_time_str(void);
 int64_t k_hw_cpu_flags(void);
 int64_t k_hw_rtc_str(char* out, int max);
 
@@ -170,6 +171,8 @@ int64_t k_ui_window_z(int64_t idx);
 const char* k_ui_window_title(int64_t idx);
 const char* k_ui_window_text(int64_t idx);
 int64_t k_ui_window_front(int64_t idx);
+int64_t k_ui_window_move(int64_t idx, int64_t x, int64_t y);
+int64_t k_ui_window_set_text(int64_t idx, const char* text);
 const char* dec(int64_t n);
 
 /* Timer / uptime (kernel/kf_time.c). */
