@@ -26,14 +26,14 @@ fn din(x: i64, y: i64, w: i64, h: i64, mx: i64, my: i64) -> i64 {
     return 0;
 }
 
-/* --- desktop metrics, computed from the real framebuffer (adaptive layout) --- */
+/* --- desktop metrics, computed from the real framebuffer (adaptive layout) ---
+   Reference: topbar 38px + floating left dock + free-floating panels.
+   sb (sidebar) is 0 now — the dock is floating, not a full-height sidebar. */
 fn dmetrics(w: i64, h: i64) -> DesktopMetrics {
-    let sb: i64 = w / 6;
-    if sb < 140 { sb = 140; }
-    if sb > 260 { sb = 260; }
-    let tb: i64 = 40;
+    let sb: i64 = 0;
+    let tb: i64 = 38;
     if h < 500 { tb = 32; }
-    return DesktopMetrics{ sb: sb, tb: tb, stb: 28 };
+    return DesktopMetrics{ sb: sb, tb: tb, stb: 0 };
 }
 
 struct DesktopMetrics { sb: i64, tb: i64, stb: i64 }
@@ -46,48 +46,95 @@ fn draw_desktop(st: DesktopState) -> i64 {
     draw_wallpaper(W, H);
     ui_chrome(W, H, m.sb, m.tb, m.stb,
               proc_count(), time_uptime_ms() / 1000, mouse_x(), mouse_y(), st.cur_app);
-    let cx: i64 = m.sb;
-    let cy: i64 = m.tb;
-    let cw: i64 = W - m.sb;
-    let ch: i64 = H - m.tb - m.stb;
-    /* content renders over the wallpaper gradient (no flat fill) */
-    draw_app(cx + 16, cy + 12, cw - 32, ch - 24, st);
-    /* agent chat input bar at the bottom of the content area */
+    /* main view framed as a glass window (reference: big Agents window) */
+    let vx: i64 = 108;
+    let vy: i64 = m.tb + 18;
+    let vw: i64 = W - 108 - 30;
+    let vh: i64 = H - m.tb - 18 - 90;
+    draw_view_window(vx, vy, vw, vh, st);
+    /* floating input bar (chat) at the bottom */
     draw_input_bar(W, H, m.sb, m.tb, m.stb);
+    /* live log floating bottom-right */
     draw_log(W, H, m.sb, m.tb, m.stb);
-    draw_taskbar(W, H, m.sb, m.tb, m.stb);
+    /* floating left dock */
+    draw_dock(W, H, st.cur_app);
     draw_windows();
     return 0;
 }
 
-/* --- dock: futuristic glass bar with pixel app icons (bottom center) --- */
-fn draw_taskbar(w: i64, h: i64, sb: i64, tb: i64, stb: i64) -> i64 {
-    let GLASS: i64 = 0x141822;
+/* --- main view as a glass window (titlebar + traffic lights + content) --- */
+fn draw_view_window(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
+    let C_PANEL2: i64 = 0x1a2030;
+    let C_TEXT: i64 = 0xe6edf3;
+    let C_RED: i64 = 0xff5f57;
+    let C_YEL: i64 = 0xfebc2e;
+    let C_GRN: i64 = 0x28c840;
+    /* soft shadow */
+    fb_blend_rect(x + 3, y + 8, w, h, 0x000000, 46);
+    fb_blend_rect(x + 6, y + 14, w, h, 0x000000, 30);
+    /* glass body: translucent LIGHT panel over the wallpaper (reference:
+       rgba(22,28,48,.78) -> brighter than the bg, so it reads as glass) */
+    fb_blend_rrect(x, y, w, h, 14, 0x161c30, 190);
+    /* titlebar: slightly lighter glass */
+    fb_blend_rrect(x, y, w, 40, 14, 0x2a3450, 90);
+    fb_blend_rect(x, y + 39, w, 1, 0xffffff, 20);
+    /* 1px light border (stroke) */
+    fb_blend_rect(x, y, w, 1, 0xffffff, 30);
+    fb_blend_rect(x, y + h - 1, w, 1, 0xffffff, 30);
+    fb_blend_rect(x, y, 1, h, 0xffffff, 30);
+    fb_blend_rect(x + w - 1, y, 1, h, 0xffffff, 30);
+    /* traffic lights */
+    fb_hrect(x + 12, y + 14, 12, 12, C_RED);
+    fb_hrect(x + 31, y + 14, 12, 12, C_YEL);
+    fb_hrect(x + 50, y + 14, 12, 12, C_GRN);
+    /* window title by app */
+    if st.cur_app == 0 { dtext(x + 72, y + 12, C_TEXT, C_PANEL2, "Agents"); }
+    if st.cur_app == 1 { dtext(x + 72, y + 12, C_TEXT, C_PANEL2, "Model"); }
+    if st.cur_app == 2 { dtext(x + 72, y + 12, C_TEXT, C_PANEL2, "Files"); }
+    if st.cur_app == 3 { dtext(x + 72, y + 12, C_TEXT, C_PANEL2, "System"); }
+    /* content */
+    draw_app(x + 16, y + 52, w - 32, h - 64, st);
+    return 0;
+}
+
+/* --- floating left dock (reference: vertical, centered, glass, r18) --- */
+fn draw_dock(w: i64, h: i64, cur: i64) -> i64 {
     let HILITE: i64 = 0x8b7bff;
     let NEON: i64 = 0x22d3ee;
     let TEXT: i64 = 0xe6edf3;
     let DIM: i64 = 0x4a5578;
     let n: i64 = ui_window_count();
-    let dw: i64 = 420;
-    let dx: i64 = (w - dw) / 2;
-    let dy: i64 = h - stb - 52;
-    /* glass dock bar */
-    fb_hrect(dx, dy, dw, 44, GLASS);
-    fb_hrect(dx, dy, dw, 2, HILITE);      /* accent top edge */
-    /* pixel app icons (12x12 in 24x28 pads) */
-    let ix: i64 = dx + 10;
-    icon_agents(ix, dy + 14, NEON);
-    ix = ix + 44;
-    icon_model(ix, dy + 14, HILITE);
-    ix = ix + 44;
-    icon_files(ix, dy + 14, NEON);
-    ix = ix + 44;
-    icon_system(ix, dy + 14, HILITE);
-    ix = ix + 44;
-    icon_window(ix, dy + 14, NEON);
-    /* live window indicator: count */
-    dtext(dx + dw - 40, dy + 16, DIM, GLASS, "win ");
-    dtext(dx + dw - 20, dy + 16, HILITE, GLASS, n);
+    let dw: i64 = 64;
+    let dh: i64 = 4 * 52 + 20;
+    let dx: i64 = 12;
+    let dy: i64 = (h - dh) / 2;
+    /* glass dock bar with rounded corners (reference: r18, glass) */
+    fb_blend_rrect(dx, dy, dw, dh, 18, 0x161c30, 170);
+    fb_blend_rect(dx, dy, dw, 1, 0xffffff, 26);
+    /* dock icons: pixel-drawn, active highlighted */
+    let i: i64 = 0;
+    while i < 4 {
+        let iy: i64 = dy + 10 + i * 52;
+        let active: i64 = 0;
+        if cur == i { active = 1; }
+        if active == 1 {
+            fb_blend_rrect(dx + 10, iy, 44, 44, 12, HILITE, 200);
+        } else {
+            fb_blend_rrect(dx + 10, iy, 44, 44, 12, 0xffffff, 18);
+        }
+        /* icons (pixel art): agents/model/files/system */
+        let ic_col: i64 = NEON;
+        if active == 1 { ic_col = 0x0b0f1a; }
+        if i == 0 { icon_agents(dx + 21, iy + 15, ic_col); }
+        if i == 1 { icon_model(dx + 21, iy + 15, ic_col); }
+        if i == 2 { icon_files(dx + 21, iy + 15, ic_col); }
+        if i == 3 { icon_system(dx + 21, iy + 15, ic_col); }
+        /* running indicator dot */
+        if n > 0 {
+            fb_glow(dx + dw / 2, iy + 48, 3, NEON, 140);
+        }
+        i = i + 1;
+    }
     return 0;
 }
 
@@ -166,33 +213,54 @@ fn draw_wallpaper(w: i64, h: i64) -> i64 {
     return 0;
 }
 
-/* --- live agent event log (notifications above the input bar) --- */
+/* --- live agent event log: floating panel bottom-right (320px) --- */
 fn draw_log(w: i64, h: i64, sb: i64, tb: i64, stb: i64) -> i64 {
-    let C_PANEL: i64 = 0x141822;
+    let C_TEXT: i64 = 0xe6edf3;
     let C_DIM: i64 = 0x8fb3d9;
     let C_GREEN: i64 = 0x22d3ee;
-    let C_TEXT: i64 = 0xe6edf3;
-    let ly: i64 = h - stb - 26 - 24;
-    fb_hrect(sb, ly, w - sb, 24, C_PANEL);
-    dtext(sb + 10, ly + 8, C_GREEN, C_PANEL, "log:");
-    dtext(sb + 44, ly + 8, C_TEXT, C_PANEL, ui_log_at(0));
+    let lw: i64 = 320;
+    let lh: i64 = 118;
+    let lx: i64 = w - lw - 12;
+    let ly: i64 = h - lh - 12;
+    /* glass panel */
+    fb_blend_rect(lx + 3, ly + 6, lw, lh, 0x000000, 40);
+    fb_blend_rrect(lx, ly, lw, lh, 14, 0x161c30, 180);
+    fb_blend_rect(lx, ly, lw, 1, 0xffffff, 26);
+    /* header: blinking dot + title */
+    fb_glow(lx + 14, ly + 14, 4, C_GREEN, 160);
+    fb_hrect(lx + 11, ly + 11, 7, 7, C_GREEN);
+    dtext(lx + 26, ly + 8, C_DIM, 0x1a2030, "zhivoi log · IPC");
+    /* last 4 events */
+    let i: i64 = 0;
+    while i < 4 {
+        let s: str = ui_log_at(i);
+        if len(s) > 0 {
+            dtext(lx + 12, ly + 26 + i * 20, C_TEXT, 0x1a2030, s);
+        }
+        i = i + 1;
+    }
     return 0;
 }
 
-/* --- agent chat input bar: "> <typed text>" --- */
+/* --- agent chat input bar: floating bottom-center --- */
 fn draw_input_bar(w: i64, h: i64, sb: i64, tb: i64, stb: i64) -> i64 {
-    let C_PANEL: i64 = 0x141822;
     let C_ACCENT: i64 = 0x8b7bff;
     let C_TEXT: i64 = 0xe6edf3;
     let C_DIM: i64 = 0x8fb3d9;
     let C_GREEN: i64 = 0x22d3ee;
-    let y: i64 = h - stb - 26;
-    fb_hrect(sb, y, w - sb, 26, C_PANEL);
-    fb_text(sb + 10, y + 9, C_GREEN, C_PANEL, "> ");
-    fb_text(sb + 26, y + 9, C_TEXT, C_PANEL, ui_input_str());
+    let bw: i64 = w - 108 - 360;
+    let bx: i64 = 108;
+    let by: i64 = h - 52;
+    fb_blend_rect(bx + 2, by + 5, bw, 36, 0x000000, 36);
+    fb_blend_rrect(bx, by, bw, 36, 14, 0x161c30, 180);
+    fb_blend_rect(bx, by, bw, 1, 0xffffff, 26);
+    fb_text(bx + 14, by + 12, C_GREEN, 0x1a2030, "> ");
+    fb_text(bx + 30, by + 12, C_TEXT, 0x1a2030, ui_input_str());
     let il: i64 = ui_input_len();
-    fb_text(sb + 26 + il * 8, y + 9, C_ACCENT, C_PANEL, "_");
-    fb_text(w - 60, y + 9, C_DIM, C_PANEL, "Enter");
+    fb_text(bx + 30 + il * 8, by + 12, C_ACCENT, 0x1a2030, "_");
+    /* send button */
+    fb_blend_rrect(bx + bw - 100, by + 6, 92, 24, 10, C_ACCENT, 220);
+    fb_text(bx + bw - 78, by + 12, 0x0b0f1a, C_ACCENT, "send");
     return 0;
 }
 
@@ -210,12 +278,10 @@ fn draw_windows() -> i64 {
     if n == 0 { return 0; }
     /* find the topmost z (focused window) */
     let maxz: i64 = 0;
-    {
-        let i: i64 = 0;
-        while i < n {
-            if ui_window_z(i) > maxz { maxz = ui_window_z(i); }
-            i = i + 1;
-        }
+    let mi: i64 = 0;
+    while mi < n {
+        if ui_window_z(mi) > maxz { maxz = ui_window_z(mi); }
+        mi = mi + 1;
     }
     /* draw in z order: lowest z first, highest last (on top).
        Iterate z values 1..maxz so each window is drawn exactly once. */
@@ -238,16 +304,16 @@ fn draw_windows() -> i64 {
             /* soft shadow (3 blend layers, like the reference) */
             fb_blend_rect(wx + 3, wy + 8, ww, wh, 0x000000, 46);
             fb_blend_rect(wx + 6, wy + 14, ww, wh, 0x000000, 30);
-            fb_blend_rect(wx + 10, wy + 20, ww, wh, 0x000000, 16);
-            /* glass body: translucent tint over the wallpaper */
-            fb_blend_rect(wx, wy, ww, wh, 0x0a0e1a, 200);
-            /* titlebar glass */
-            fb_blend_rect(wx, wy, ww, 40, 0x1c2438, 150);
+            /* glass body: translucent LIGHT panel (reference glass) */
+            fb_blend_rrect(wx, wy, ww, wh, 14, 0x161c30, 190);
+            /* titlebar: slightly lighter glass */
+            fb_blend_rrect(wx, wy, ww, 40, 14, 0x2a3450, 90);
+            fb_blend_rect(wx, wy + 39, ww, 1, 0xffffff, 20);
             /* 1px light border (stroke) */
-            fb_blend_rect(wx, wy, ww, 1, 0xffffff, 24);
-            fb_blend_rect(wx, wy + wh - 1, ww, 1, 0xffffff, 24);
-            fb_blend_rect(wx, wy, 1, wh, 0xffffff, 24);
-            fb_blend_rect(wx + ww - 1, wy, 1, wh, 0xffffff, 24);
+            fb_blend_rect(wx, wy, ww, 1, 0xffffff, 30);
+            fb_blend_rect(wx, wy + wh - 1, ww, 1, 0xffffff, 30);
+            fb_blend_rect(wx, wy, 1, wh, 0xffffff, 30);
+            fb_blend_rect(wx + ww - 1, wy, 1, wh, 0xffffff, 30);
             /* focused window: accent glow border */
             if top == 1 {
                 fb_blend_rect(wx - 1, wy - 1, ww + 2, 1, C_ACCENT, 96);
@@ -475,29 +541,19 @@ fn handle_click(st: DesktopState, mx: i64, my: i64) -> DesktopState {
         }
         return st;
     }
-    /* taskbar: click a window button to raise it */
-    let ty: i64 = H - STATUSB - 24;
-    if my >= ty && my < ty + 24 && mx >= SIDEBAR + 60 {
-        let n: i64 = ui_window_count();
-        let bx: i64 = SIDEBAR + 60;
-        let i: i64 = 0;
-        while i < n {
-            if mx >= bx && mx < bx + 96 && my >= ty + 4 && my < ty + 20 {
-                ui_window_front(i);
-                return st;
-            }
-            bx = bx + 96 + 4;
-            i = i + 1;
-        }
-    }
-    /* sidebar app switch */
-    if mx < SIDEBAR && my > TOPBAR && my < H - STATUSB {
-        let idx: i64 = (my - TOPBAR - 12) / 44;
+    /* floating left dock: click an icon to switch the app */
+    let dw: i64 = 64;
+    let dh: i64 = 4 * 52 + 20;
+    let dx: i64 = 12;
+    let dy: i64 = (H - dh) / 2;
+    if mx >= dx && mx < dx + dw && my >= dy && my < dy + dh {
+        let idx: i64 = (my - dy - 10) / 52;
         if idx >= 0 && idx < 4 { st.cur_app = idx; }
         return st;
     }
-    let x: i64 = SIDEBAR + 16;
-    let y: i64 = TOPBAR + 12;
+    /* main view window: app content coordinates */
+    let x: i64 = 108 + 16;
+    let y: i64 = TOPBAR + 18 + 52;
     if st.cur_app == 0 {
         let n: i64 = proc_count();
         let row: i64 = y + 28;

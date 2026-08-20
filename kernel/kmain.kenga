@@ -43,6 +43,7 @@ import "desktop.kenga";
 @intrinsic fn fb_end_frame() -> i64;
 @intrinsic fn fb_blend_rect(x: i64, y: i64, w: i64, h: i64, color: i64, alpha: i64) -> i64;
 @intrinsic fn fb_rrect(x: i64, y: i64, w: i64, h: i64, r: i64, color: i64) -> i64;
+@intrinsic fn fb_blend_rrect(x: i64, y: i64, w: i64, h: i64, r: i64, color: i64, alpha: i64) -> i64;
 @intrinsic fn fb_grad_rect(x: i64, y: i64, w: i64, h: i64, c0: i64, c1: i64) -> i64;
 @intrinsic fn fb_glow(cx: i64, cy: i64, rad: i64, color: i64, amax: i64) -> i64;
 

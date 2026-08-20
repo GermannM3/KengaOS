@@ -292,11 +292,51 @@ int64_t k_fb_rrect(int64_t x0, int64_t y0, int64_t w, int64_t h,
         volatile uint32_t* row = (volatile uint32_t*)(base + (uintptr_t)(y0 + yy) * fb_pitch + (uintptr_t)x0 * 4);
         int64_t cy = yy;
         int64_t xskip = 0, xend = w;
-        if (cy < rr) { int64_t d = rr - cy; xskip = rr - (int64_t)(dsqrti((int64_t)rr * rr - d * d)); }
-        if (cy >= h - rr) { int64_t d = rr - (h - 1 - cy); xend = w - rr + (int64_t)(dsqrti((int64_t)rr * rr - d * d)); }
+        if (cy < rr) { int64_t d = rr - cy; xskip = rr - dsqrti(rr * rr - d * d); }
+        if (cy >= h - rr) { int64_t d = rr - (h - 1 - cy); xend = w - rr + dsqrti(rr * rr - d * d); }
         if (xskip < 0) xskip = 0;
         if (xend > w) xend = w;
         for (int64_t xx = xskip; xx < xend; xx++) row[xx] = c;
+    }
+    return 1;
+}
+
+/* Rounded glass panel: alpha-blend a rounded rect over the current content.
+   This is THE glassmorphism primitive (reference: rgba(22,28,48,.78), r=14). */
+int64_t k_fb_blend_rrect(int64_t x0, int64_t y0, int64_t w, int64_t h,
+                         int64_t r, int64_t color, int64_t alpha) {
+    if (!fb_ok || w < 1 || h < 1 || r < 0 || alpha <= 0) return 0;
+    if (alpha > 255) alpha = 255;
+    if (x0 < 0) { w += x0; x0 = 0; }
+    if (y0 < 0) { h += y0; y0 = 0; }
+    if (x0 + w > (int64_t)fb_w) w = fb_w - x0;
+    if (y0 + h > (int64_t)fb_h) h = fb_h - y0;
+    if (w <= 0 || h <= 0) return 0;
+    uint32_t a = (uint32_t)alpha;
+    uint32_t ia = 255 - a;
+    uint32_t fg = (uint32_t)color;
+    uint32_t fr = (fg >> 16) & 0xff, fgc = (fg >> 8) & 0xff, fbc = fg & 0xff;
+    int64_t rr = r;
+    if (rr > w / 2) rr = w / 2;
+    if (rr > h / 2) rr = h / 2;
+    uintptr_t base = fb_cur();
+    for (int64_t yy = 0; yy < h; yy++) {
+        volatile uint32_t* row = (volatile uint32_t*)(base + (uintptr_t)(y0 + yy) * fb_pitch + (uintptr_t)x0 * 4);
+        int64_t cy = yy;
+        int64_t xskip = 0, xend = w;
+        if (rr > 0) {
+            if (cy < rr) { int64_t d = rr - cy; xskip = rr - dsqrti(rr * rr - d * d); }
+            if (cy >= h - rr) { int64_t d = rr - (h - 1 - cy); xend = w - rr + dsqrti(rr * rr - d * d); }
+        }
+        if (xskip < 0) xskip = 0;
+        if (xend > w) xend = w;
+        for (int64_t xx = xskip; xx < xend; xx++) {
+            uint32_t bg = row[xx];
+            uint32_t r2 = (fr * a + ((bg >> 16) & 0xff) * ia) >> 8;
+            uint32_t g2 = (fgc * a + ((bg >> 8) & 0xff) * ia) >> 8;
+            uint32_t b2 = (fbc * a + (bg & 0xff) * ia) >> 8;
+            row[xx] = (r2 << 16) | (g2 << 8) | b2;
+        }
     }
     return 1;
 }

@@ -1,85 +1,46 @@
-/* ui.kenga — KengaOS 0.6: futuristic glassmorphism desktop chrome.
+/* ui.kenga — KengaOS 0.6 "Aurora" desktop chrome.
  *
- * Blue-green scheme (base #1E3A8A, accent #10B981). Panels simulate glass by
- * blending their color toward the wallpaper (no hardware alpha). Layout is
- * adaptive: real framebuffer w/h plus computed panel sizes (sb/tb/stb), so the
- * same UI works on desktop and small/mobile screens.
+ * Reference port: topbar only (38px glass) + floating left dock (desktop.kenga)
+ * + live log bottom-right. No full-height sidebar — the reference has a
+ * floating dock instead. Layout is adaptive (real framebuffer w/h).
  */
 
 fn ui_chrome(w: i64, h: i64, sb: i64, tb: i64, stb: i64,
              count: i64, up: i64, mx: i64, my: i64, cur: i64) -> i64 {
-    /* palette — glass neon (macOS-meets-sci-fi) */
-    let GLASS: i64 = 0x141822;      /* translucent deep panel */
-    let GLASS2: i64 = 0x1a2030;     /* slightly lighter glass */
-    let HILITE: i64 = 0x8b7bff;     /* neon purple accent */
+    /* palette — glass neon */
     let NEON: i64 = 0x22d3ee;       /* cyan accent 2 */
+    let HILITE: i64 = 0x8b7bff;     /* neon purple accent */
     let TEXT: i64 = 0xe6edf3;
     let DIM: i64 = 0x8fb3d9;        /* blue-tinted dim */
     let TOPBAR: i64 = tb;
-    let SIDEBAR: i64 = sb;
-    let STATUSB: i64 = stb;
-    let H: i64 = h;
 
-    /* top bar (glass: translucent blend over wallpaper) */
-    fb_blend_rect(0, 0, w, TOPBAR, 0x070a13, 140);
-    fb_blend_rect(0, TOPBAR - 1, w, 1, 0xffffff, 18);   /* hairline border */
-    fb_text(16, tb / 2 - 6, NEON, 0x0d0c1d, "KengaOS");
-    fb_text(120, tb / 2 - 5, DIM, 0x0d0c1d, "0.6 Agent Desktop");
-    fb_text(w - 230, tb / 2 - 5, DIM, 0x0a0e1a, hw_rtc_time_str());
-    fb_text(w - 200, tb / 2 - 5, HILITE, 0x0d0c1d, "Agents: ");
-    fb_text(w - 130, tb / 2 - 5, HILITE, 0x0a0e1a, count);
-    fb_text(w - 80, tb / 2 - 5, DIM, 0x0a0e1a, up);
-    fb_text(w - 46, tb / 2 - 5, DIM, 0x0d0c1d, "s");
-
-    /* sidebar (glass) + highlight active app */
-    fb_blend_rect(0, TOPBAR, SIDEBAR, H - TOPBAR - STATUSB, 0x070a13, 110);
-    if cur == 0 {
-        fb_hrect(8, TOPBAR + 12, SIDEBAR - 16, 36, HILITE);
-        fb_text(20, TOPBAR + 24, 0x0b0f1a, HILITE, "Agents");
-    } else {
-        fb_text(20, TOPBAR + 24, TEXT, 0x0d0c1d, "Agents");
-    }
-    if cur == 1 {
-        fb_hrect(8, TOPBAR + 56, SIDEBAR - 16, 36, HILITE);
-        fb_text(20, TOPBAR + 68, 0x0b0f1a, HILITE, "Model");
-    } else {
-        fb_text(20, TOPBAR + 68, TEXT, 0x0d0c1d, "Model");
-    }
-    if cur == 2 {
-        fb_hrect(8, TOPBAR + 100, SIDEBAR - 16, 36, HILITE);
-        fb_text(20, TOPBAR + 112, 0x0b0f1a, HILITE, "Files");
-    } else {
-        fb_text(20, TOPBAR + 112, TEXT, 0x0d0c1d, "Files");
-    }
-    if cur == 3 {
-        fb_hrect(8, TOPBAR + 144, SIDEBAR - 16, 36, HILITE);
-        fb_text(20, TOPBAR + 156, 0x0b0f1a, HILITE, "System");
-    } else {
-        fb_text(20, TOPBAR + 156, TEXT, 0x0d0c1d, "System");
-    }
-
-    /* widgets under the menu: live RAM + agents */
-    let wtop: i64 = TOPBAR + 4 * 44 + 12;
-    fb_hrect(8, wtop, SIDEBAR - 16, 2, HILITE);
-    fb_text(12, wtop + 8, DIM, 0x0d0c1d, "RAM");
+    /* top bar (glass: translucent LIGHT blend over wallpaper) */
+    fb_blend_rect(0, 0, w, TOPBAR, 0x161c30, 160);
+    fb_blend_rect(0, TOPBAR - 1, w, 1, 0xffffff, 22);   /* hairline border */
+    /* logo dot + KENGAOS + version chip */
+    fb_glow(18, tb / 2, 9, HILITE, 130);
+    fb_hrect(14, tb / 2 - 4, 8, 8, HILITE);
+    fb_text(32, tb / 2 - 5, TEXT, 0x1a2030, "KengaOS");
+    fb_blend_rect(110, tb / 2 - 9, 92, 18, 0xffffff, 16);
+    fb_text(116, tb / 2 - 4, DIM, 0x1a2030, "0.6 agent-native");
+    /* center: wall clock (RTC) */
+    fb_text(w / 2 - 32, tb / 2 - 5, TEXT, 0x1a2030, hw_rtc_time_str());
+    /* right: agents chip + RAM chip + uptime */
+    fb_blend_rect(w - 350, tb / 2 - 9, 104, 18, 0xffffff, 16);
+    fb_text(w - 344, tb / 2 - 4, HILITE, 0x1a2030, "agents ");
+    fb_text(w - 288, tb / 2 - 4, TEXT, 0x1a2030, count);
     let total_kb: i64 = mem_total_kb();
     let used_kb: i64 = total_kb - mem_pages_free() * 4;
-    let rw: i64 = SIDEBAR - 28;
-    fb_hrect(12, wtop + 20, rw, 8, 0x0b0f1a);
-    if total_kb > 0 {
-        let fill: i64 = used_kb * rw / total_kb;
-        if fill > 0 { fb_hrect(12, wtop + 20, fill, 8, HILITE); }
-    }
-    fb_text(12, wtop + 32, DIM, 0x0d0c1d, "agents ");
-    fb_text(12 + 8 * 7, wtop + 32, HILITE, 0x0a0e1a, count);
-
-    /* status bar (glass) */
-    fb_blend_rect(0, H - STATUSB, w, STATUSB, 0x070a13, 140);
-    fb_blend_rect(0, H - STATUSB, w, 1, 0xffffff, 18);
-    fb_text(12, H - STATUSB + 8, DIM, 0x0d0c1d, "KengaOS 0.6  |  mouse: ");
-    fb_text(190, H - STATUSB + 8, DIM, 0x0a0e1a, mx);
-    fb_text(224, H - STATUSB + 8, DIM, 0x0d0c1d, ",");
-    fb_text(240, H - STATUSB + 8, DIM, 0x0a0e1a, my);
+    let pct: i64 = 0;
+    if total_kb > 0 { pct = used_kb * 100 / total_kb; }
+    fb_blend_rect(w - 236, tb / 2 - 9, 110, 18, 0xffffff, 16);
+    fb_text(w - 230, tb / 2 - 4, DIM, 0x1a2030, "ram ");
+    fb_text(w - 198, tb / 2 - 4, NEON, 0x1a2030, pct);
+    fb_text(w - 184, tb / 2 - 4, DIM, 0x1a2030, "%");
+    fb_blend_rect(w - 118, tb / 2 - 9, 106, 18, 0xffffff, 16);
+    fb_text(w - 112, tb / 2 - 4, DIM, 0x1a2030, "up ");
+    fb_text(w - 88, tb / 2 - 4, TEXT, 0x1a2030, up);
+    fb_text(w - 46, tb / 2 - 4, DIM, 0x1a2030, "s");
 
     return 1;
 }
