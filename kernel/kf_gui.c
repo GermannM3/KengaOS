@@ -41,10 +41,8 @@ static int model_a = 0, model_b = 1;
 static int model_out = 0;
 static char* model_out_s = "?";
 
-/* --- drawing helpers (via k_fb_*) --- */
-static void rect(int x,int y,int w,int h,int c){
-    for(int yy=y;yy<y+h && yy<H;yy++) for(int xx=x;xx<x+w && xx<W;xx++) k_fb_putpixel(xx,yy,c);
-}
+/* --- drawing helpers (fast fills + text) --- */
+static void rect(int x,int y,int w,int h,int c){ k_fb_fill_rect(x,y,w,h,c); }
 static void txt(int x,int y,int fg,int bg,const char* s){ k_fb_text(x,y,fg,bg,s); }
 
 /* a simple clickable button: returns 1 if (mx,my) inside */
@@ -223,6 +221,9 @@ int64_t k_gui_init(void) {
     k_fb_con_init();           /* clear screen */
     k_proc_init();             /* spawn logger + agent + model agents */
     k_mouse_init();            /* PS/2 mouse IRQ12 */
+    uint8_t imr0;
+    __asm__ __volatile__("inb %1, %0" : "=a"(imr0) : "Nd"((uint16_t)0x21));
+    __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)(imr0 & ~0x03)), "Nd"((uint16_t)0x21)); /* ensure IRQ0+IRQ1 unmasked */
     __asm__ __volatile__("sti");               /* enable interrupts (timer/kbd/mouse) */
     /* boot / init screen: wait for ENTER to open the desktop */
     rect(0,0,W,H,C_BG);
@@ -235,7 +236,9 @@ int64_t k_gui_init(void) {
     for(;;){
         if(k_kbd_pending()){ int c=(int)k_kbd_read(); if(c=='\n') break; }
         if(k_time_uptime_ms() - boot_at > 2000) break;   /* auto to desktop */
-        if(++spins > 100000000ULL) break;                /* safety fallback */
+        if(++spins == 5000000ULL){ __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)'U'), "Nd"((uint16_t)0x3F8)); }
+        if(++spins > 20000000ULL) break;                 /* safety fallback */
+        __asm__ __volatile__("hlt");                     /* sleep until an IRQ */
     }
     /* desktop loop: event-driven, redraw only on change (mouse move / click /
        app switch), otherwise idle on hlt so the system stays responsive. */
@@ -247,7 +250,9 @@ int64_t k_gui_init(void) {
         if(bx && !mprev_buttons){ handle_click(mx, my); changed = 1; }
         mprev_buttons = bx;
         if(changed){
+            __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)'B'), "Nd"((uint16_t)0x3F8)); /* DIAG */
             draw_desktop();
+            __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)'E'), "Nd"((uint16_t)0x3F8)); /* DIAG */
             last_mx = mx; last_my = my; last_app = cur_app; last_btn = bx;
         }
         __asm__ __volatile__("hlt");

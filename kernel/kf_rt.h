@@ -166,6 +166,7 @@ int64_t k_fb_width(void);
 int64_t k_fb_height(void);
 int64_t k_fb_putpixel(int64_t x, int64_t y, int64_t color);
 int64_t k_fb_fill(int64_t color);
+void k_fb_fill_rect(int64_t x0, int64_t y0, int64_t w, int64_t h, int64_t color);
 int64_t k_fb_rect(int64_t x, int64_t y, int64_t w, int64_t h, int64_t color);
 int64_t k_fb_hrect(int64_t x, int64_t y, int64_t w, int64_t h, int64_t color);
 int64_t k_fb_text(int64_t x, int64_t y, int64_t fg, int64_t bg, const char* s);

@@ -127,6 +127,24 @@ int64_t k_fb_fill(int64_t color) {
     return fb_ok;
 }
 
+/* Fast rect fill: direct 32-bit writes (no per-pixel helper call). */
+void k_fb_fill_rect(int64_t x0, int64_t y0, int64_t w, int64_t h, int64_t color) {
+    if (!fb_ok) return;
+    if (fb_bpp != 32) { for (int64_t yy = y0; yy < y0 + h && yy < fb_h; yy++) for (int64_t xx = x0; xx < x0 + w && xx < fb_w; xx++) fb_put((uint32_t)xx, (uint32_t)yy, (uint32_t)color); return; }
+    if (x0 < 0) { w += x0; x0 = 0; }
+    if (y0 < 0) { h += y0; y0 = 0; }
+    if (x0 >= fb_w || y0 >= fb_h) return;
+    if (x0 + w > fb_w) w = fb_w - x0;
+    if (y0 + h > fb_h) h = fb_h - y0;
+    if (w <= 0 || h <= 0) return;
+    uint32_t c = (uint32_t)color;
+    uintptr_t base = fb_addr + (uintptr_t)y0 * fb_pitch + (uintptr_t)x0 * 4;
+    for (int64_t yy = 0; yy < h; yy++) {
+        volatile uint32_t* row = (volatile uint32_t*)(base + (uintptr_t)yy * fb_pitch);
+        for (int64_t xx = 0; xx < w; xx++) row[xx] = c;
+    }
+}
+
 /* Outlined rectangle. */
 int64_t k_fb_rect(int64_t x0, int64_t y0, int64_t w, int64_t h, int64_t color) {
     if (w < 1 || h < 1) return 0;
