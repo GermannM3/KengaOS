@@ -114,19 +114,37 @@ static void logger_proc(void) {
     }
 }
 
-/* --- kenga-agent: echoes the message back to the sender (IPC round-trip) --- */
+/* --- kenga-agent: an agent can CREATE agents.
+   On "spawn <name>" it spawns a child agent process (which can spawn its own),
+   on anything else it echoes "ack: <text>". This is the "agent creates agents"
+   foundation. */
 static void agent_proc(void) {
     for (;;) {
         ipc_msg m;
         k_ipc_recv(&m);
         lg_uart("AGENT: "); lg_uart(m.data); lg_uart("\n");
         char reply[MSG_MAX];
-        int k = 0; const char* p = "ack: ";
-        for (; *p && k < MSG_MAX - 1; k++) reply[k] = *p++;
-        p = m.data;
-        for (; *p && k < MSG_MAX - 1; k++) reply[k] = *p++;
+        int k = 0;
+        const char* pre;
+        const char* d;
+        if (m.data[0] == 's' && m.data[1] == 'p' && m.data[2] == 'a' && m.data[3] == 'w' && m.data[4] == 'n') {
+            /* spawn a child agent; optional name after "spawn " */
+            const char* name = m.data + 5;
+            while (*name == ' ') name++;
+            if (!*name) name = "agent";
+            int64_t child = k_proc_spawn(name, agent_proc);
+            pre = "spawned pid ";
+            for (; *pre && k < MSG_MAX - 1; k++) reply[k] = *pre++;
+            d = dec(child);
+            for (; *d && k < MSG_MAX - 1; k++) reply[k] = *d++;
+        } else {
+            pre = "ack: ";
+            for (; *pre && k < MSG_MAX - 1; k++) reply[k] = *pre++;
+            d = m.data;
+            for (; *d && k < MSG_MAX - 1; k++) reply[k] = *d++;
+        }
         reply[k] = 0;
-        k_ipc_send(m.from, reply);   /* reply to the sender */
+        k_ipc_send(m.from, reply);
         k_task_yield();
     }
 }

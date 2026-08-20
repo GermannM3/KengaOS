@@ -6,6 +6,8 @@
  */
 #include "kf_rt.h"
 
+static void sh_uart(const char* s) { for (; *s; s++) __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)*s), "Nd"((uint16_t)0x3F8)); }
+
 extern uint64_t k_task_create(void (*entry)(void));
 extern uint64_t k_task_yield(void);
 
@@ -35,6 +37,8 @@ static void run_cmd(const char* cmd) {
         k_fb_con_print("  ps     - list processes\n");
         k_fb_con_print("  log x  - IPC send 'x' to logger\n");
         k_fb_con_print("  ask x  - IPC round-trip to agent\n");
+        k_fb_con_print("  spawn x- agent creates an agent\n");
+        k_fb_con_print("  agents - list agents\n");
         k_fb_con_print("  ls     - list vfs files\n");
         k_fb_con_print("  cat x  - print vfs file\n");
         k_fb_con_print("  ver    - git version\n");
@@ -79,8 +83,14 @@ static void run_cmd(const char* cmd) {
         int64_t r = k_ipc_send(k_logger_pid(), cmd + 4);
         if (!r) k_fb_con_print("ipc queue full\n");
     } else if (sncmp(cmd, "ask ", 4) == 0) {
-        /* IPC round-trip: send to agent, wait for reply, print it. */
-        int64_t r = k_ipc_send(k_agent_pid(), cmd + 4);
+        /* IPC round-trip to an agent. "ask <text>" -> root agent;
+           "ask <pid> <text>" -> that agent. */
+        int64_t target = k_agent_pid();
+        const char* txt = cmd + 4;
+        int64_t n = 0, digits = 0;
+        while (txt[digits] >= '0' && txt[digits] <= '9') { n = n * 10 + (txt[digits] - '0'); digits++; }
+        if (digits > 0 && txt[digits] == ' ') { target = n; txt += digits + 1; }
+        int64_t r = k_ipc_send(target, txt);
         if (!r) { k_fb_con_print("ipc queue full\n"); }
         else {
             char reply[64];
@@ -89,6 +99,38 @@ static void run_cmd(const char* cmd) {
                 k_fb_con_print("\n");
             }
         }
+    } else if (sncmp(cmd, "spawn ", 6) == 0 || scmp(cmd, "spawn") == 0) {
+        /* ask root agent to spawn a child agent */
+        const char* name = (cmd[5] == ' ') ? cmd + 6 : "";
+        char full[80]; int i = 0;
+        const char* s = "spawn ";
+        for (; *s && i < 79; i++) full[i] = *s++;
+        for (; *name && i < 79; i++) full[i] = *name++;
+        full[i] = 0;
+        int64_t r = k_ipc_send(k_agent_pid(), full);
+        if (!r) { k_fb_con_print("ipc queue full\n"); }
+        else {
+            char reply[64];
+            if (k_ipc_recv_str(reply, sizeof reply)) { k_fb_con_print(reply); k_fb_con_print("\n"); }
+        }
+    } else if (scmp(cmd, "agents") == 0) {
+        int64_t n = k_proc_count();
+        sh_uart("AGENTS:");
+        k_fb_con_print("agents/processes: ");
+        k_fb_con_print(dec(n));
+        k_fb_con_print("\n");
+        for (int64_t i = 0; i < n; i++) {
+            sh_uart(" ");
+            sh_uart(dec(k_proc_pid_at(i)));
+            sh_uart("=");
+            sh_uart(k_proc_name_at(i));
+            k_fb_con_print("  pid ");
+            k_fb_con_print(dec(k_proc_pid_at(i)));
+            k_fb_con_print("  ");
+            k_fb_con_print(k_proc_name_at(i));
+            k_fb_con_print("\n");
+        }
+        sh_uart("\n");
     } else if (scmp(cmd, "ver") == 0) {
         char b[128];
         if (k_vfs_cat("version", b, sizeof b)) { k_fb_con_print(b); }
@@ -193,8 +235,6 @@ static void shell_task(void) {
         k_task_yield();
     }
 }
-
-static void sh_uart(const char* s) { for (; *s; s++) __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)*s), "Nd"((uint16_t)0x3F8)); }
 
 int64_t k_shell_init(void) {
     k_kbd_init();           /* PIC remap + IRQ1 -> vector 33 */
