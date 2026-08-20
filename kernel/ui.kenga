@@ -17,30 +17,28 @@ fn ui_chrome(w: i64, h: i64, sb: i64, tb: i64, stb: i64,
     /* top bar (glass: translucent LIGHT blend over wallpaper) */
     fb_blend_rect(0, 0, w, TOPBAR, 0x161c30, 160);
     fb_blend_rect(0, TOPBAR - 1, w, 1, 0xffffff, 22);   /* hairline border */
-    /* logo dot + KENGAOS + version chip (2x smooth font, 16px glyphs) */
+    /* logo dot + KENGAOS + version chip (Segoe UI 16px, true AA) */
     fb_glow(18, tb / 2, 9, HILITE, 130);
     fb_hrect(14, tb / 2 - 4, 8, 8, HILITE);
-    fb_text2x(32, tb / 2 - 8, TEXT, 0x1a2030, "KengaOS");
-    fb_blend_rect(152, tb / 2 - 12, 56, 24, 0xffffff, 16);
-    fb_text2x(158, tb / 2 - 8, DIM, 0x1a2030, "0.6");
+    fb_text_aa(32, tb / 2 - 8, TEXT, 0x1a2030, "KengaOS");
+    fb_blend_rect(136, tb / 2 - 12, 56, 24, 0xffffff, 16);
+    fb_text_aa(142, tb / 2 - 8, DIM, 0x1a2030, "0.6");
     /* center: wall clock (RTC) */
-    fb_text2x(w / 2 - 64, tb / 2 - 8, TEXT, 0x1a2030, hw_rtc_time_str());
+    fb_text_aa(w / 2 - 32, tb / 2 - 8, TEXT, 0x1a2030, hw_rtc_time_str());
     /* right: agents chip + RAM chip + uptime */
-    fb_blend_rect(w - 420, tb / 2 - 12, 138, 24, 0xffffff, 16);
-    fb_text2x(w - 414, tb / 2 - 8, HILITE, 0x1a2030, "agents ");
-    fb_text2x(w - 286, tb / 2 - 8, TEXT, 0x1a2030, count);
+    fb_blend_rect(w - 344, tb / 2 - 12, 116, 24, 0xffffff, 16);
+    fb_text_aa(w - 338, tb / 2 - 8, HILITE, 0x1a2030, "agents ");
+    fb_text_aa(w - 278, tb / 2 - 8, TEXT, 0x1a2030, count);
     let total_kb: i64 = mem_total_kb();
     let used_kb: i64 = total_kb - mem_pages_free() * 4;
     let pct: i64 = 0;
     if total_kb > 0 { pct = used_kb * 100 / total_kb; }
-    fb_blend_rect(w - 270, tb / 2 - 12, 128, 24, 0xffffff, 16);
-    fb_text2x(w - 264, tb / 2 - 8, DIM, 0x1a2030, "ram ");
-    fb_text2x(w - 196, tb / 2 - 8, NEON, 0x1a2030, pct);
-    fb_text2x(w - 148, tb / 2 - 8, DIM, 0x1a2030, "%");
+    fb_blend_rect(w - 250, tb / 2 - 12, 108, 24, 0xffffff, 16);
+    fb_text_aa(w - 244, tb / 2 - 8, DIM, 0x1a2030, "ram ");
+    fb_text_aa(w - 204, tb / 2 - 8, NEON, 0x1a2030, pct + "%");
     fb_blend_rect(w - 130, tb / 2 - 12, 122, 24, 0xffffff, 16);
-    fb_text2x(w - 124, tb / 2 - 8, DIM, 0x1a2030, "up ");
-    fb_text2x(w - 76, tb / 2 - 8, TEXT, 0x1a2030, up);
-    fb_text2x(w - 28, tb / 2 - 8, DIM, 0x1a2030, "s");
+    fb_text_aa(w - 124, tb / 2 - 8, DIM, 0x1a2030, "up ");
+    fb_text_aa(w - 92, tb / 2 - 8, TEXT, 0x1a2030, up + "s");
 
     return 1;
 }
