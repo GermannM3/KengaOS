@@ -136,6 +136,17 @@ int64_t k_ipc_poll(void) {
     return 0;
 }
 
+/* Live IPC backlog length for a pid (0 if unknown). Used by the desktop
+   Agents view to show per-agent message queue occupancy. */
+int64_t k_proc_qlen(int64_t pid) {
+    for (int i = 0; i < MAX_PROC; i++)
+        if (procs[i].active && procs[i].pid == pid) {
+            int n = (procs[i].qh - procs[i].qt + IPC_QLEN) % IPC_QLEN;
+            return (int64_t)n;
+        }
+    return 0;
+}
+
 int64_t k_proc_count(void) {
     int n = 0;
     for (int i = 0; i < MAX_PROC; i++) if (procs[i].active) n++;
@@ -371,6 +382,7 @@ static void researcher_proc(void) {
     lg_uart("RESEARCHER: window text updated\n");
     int64_t reqs = 0;
     int64_t last_upd = 0;
+    int64_t last_ping = -1;
     for (;;) {
         if (k_ipc_poll()) {
             ipc_msg m;
@@ -449,6 +461,12 @@ static void researcher_proc(void) {
                 for (; *dq && k < WIN_TEXT-1; k++) txt[k] = *dq++;
                 txt[k] = 0;
                 k_ui_window_set_text(wid - 1, txt);
+            }
+            /* every ~3s ping the model agent: keeps IPC traffic alive so the
+               Agents view shows live queue occupancy, and exercises the net. */
+            if (now % 3 == 0 && now != last_ping) {
+                last_ping = now;
+                k_ipc_send(model_pid, "1 0");
             }
         }
         k_task_yield();

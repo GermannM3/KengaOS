@@ -160,6 +160,8 @@ fn draw_agents(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
         dtext(x + 40, row + 4, C_TEXT, bg, proc_name_at(i));
         dtext(x + 120, row + 4, C_DIM, bg, "p:");
         dtext(x + 134, row + 4, C_DIM, bg, proc_parent_at(i));
+        dtext(x + 200, row + 4, C_DIM, bg, "q:");
+        dtext(x + 214, row + 4, C_DIM, bg, proc_qlen(proc_pid_at(i)));
         row = row + 20;
         i = i + 1;
     }

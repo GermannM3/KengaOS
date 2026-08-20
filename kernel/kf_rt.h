@@ -147,6 +147,7 @@ int64_t k_yield_agent(void);
 int64_t k_proc_init(void);
 int64_t k_proc_spawn(const char* name, void (*entry)(void), uint64_t caps);
 int64_t k_proc_caps(int64_t pid);
+int64_t k_proc_qlen(int64_t pid);
 int64_t k_proc_set_caps(int64_t pid, int64_t caps);
 int64_t k_ipc_send(int64_t pid, const char* data);
 int64_t k_ipc_recv_str(char* buf, int max);
