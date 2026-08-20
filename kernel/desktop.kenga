@@ -121,33 +121,47 @@ fn icon_window(x: i64, y: i64, c: i64) -> i64 {
     return 0;
 }
 
-/* --- wallpaper: deep-space gradient + neon tech grid (glass neon theme) --- */
+/* --- wallpaper: deep-space nebula (reference: primer.jpg) ---
+   Dark indigo gradient + purple/magenta core glow + blue side glow +
+   deterministic stars + faint tech grid. */
 fn draw_wallpaper(w: i64, h: i64) -> i64 {
-    /* vertical gradient: dark indigo top -> darker bottom */
-    let bands: i64 = 40;
-    let bh: i64 = h / bands;
-    if bh < 1 { bh = 1; }
-    let b: i64 = 0;
-    while b < bands {
-        let t: i64 = b * 255 / bands;
-        let r: i64 = 0x14 - t * 8 / 255;      /* 0x14 -> 0x0c */
-        let g: i64 = 0x0e - t * 6 / 255;      /* 0x0e -> 0x08 */
-        let bl: i64 = 0x2a + t * 8 / 255;     /* 0x2a -> 0x32 (indigo) */
-        let c: i64 = (r << 16) | (g << 8) | bl;
-        fb_hrect(0, b * bh, w, bh, c);
-        b = b + 1;
+    /* vertical gradient: deep indigo #080f30 -> #0a0d22 */
+    fb_grad_rect(0, 0, w, h, 0x080f30, 0x0a0d22);
+    /* nebula: blue-violet core (center, like primer) */
+    fb_glow(w / 2, h / 2 - 40, h * 58 / 100, 0x2a2a6e, 70);
+    fb_glow(w / 2 + 40, h / 2 - 60, h * 36 / 100, 0x4f46b8, 80);
+    fb_glow(w / 2 + 60, h / 2 - 80, h * 22 / 100, 0x7b6ff0, 60);
+    fb_glow(w / 2 - 160, h / 2 + 60, h * 26 / 100, 0x22d3ee, 34);
+    /* corner glows */
+    fb_glow(w * 8 / 100, h * 16 / 100, h * 38 / 100, 0x2742b0, 44);
+    fb_glow(w * 92 / 100, h * 86 / 100, h * 42 / 100, 0x1f2f6e, 40);
+    /* stars: deterministic LCG */
+    let s: i64 = 88172645463325252;
+    let i: i64 = 0;
+    while i < 160 {
+        s = (s * 6364136223846793005) % 9223372036854775807;
+        if s < 0 { s = 0 - s; }
+        let sx: i64 = s % w;
+        s = (s * 6364136223846793005) % 9223372036854775807;
+        if s < 0 { s = 0 - s; }
+        let sy: i64 = s % h;
+        s = (s * 6364136223846793005) % 9223372036854775807;
+        if s < 0 { s = 0 - s; }
+        let bri: i64 = 40 + s % 90;
+        fb_putpixel(sx, sy, 0xdfe6ff * bri / 100 + 0x0d1020);
+        i = i + 1;
     }
-    /* neon tech grid: faint purple lines */
-    let GRID: i64 = 0x241d3f;
+    /* faint tech grid */
+    let GRID: i64 = 0x10142a;
     let gx: i64 = 0;
     while gx < w {
         fb_hrect(gx, 0, 1, h, GRID);
-        gx = gx + 32;
+        gx = gx + 48;
     }
     let gy: i64 = 0;
     while gy < h {
         fb_hrect(0, gy, w, 1, GRID);
-        gy = gy + 32;
+        gy = gy + 48;
     }
     return 0;
 }
@@ -194,11 +208,20 @@ fn draw_windows() -> i64 {
     let C_GRN: i64 = 0x28c840;
     let n: i64 = ui_window_count();
     if n == 0 { return 0; }
+    /* find the topmost z (focused window) */
+    let maxz: i64 = 0;
+    {
+        let i: i64 = 0;
+        while i < n {
+            if ui_window_z(i) > maxz { maxz = ui_window_z(i); }
+            i = i + 1;
+        }
+    }
     /* draw in z order: lowest z first, highest last (on top).
-       Iterate z values 1.. so each window is drawn exactly once. */
+       Iterate z values 1..maxz so each window is drawn exactly once. */
     let z: i64 = 1;
     let drawn: i64 = 0;
-    while drawn < n {
+    while drawn < n && z <= maxz {
         let i: i64 = 0;
         let found: i64 = -1;
         while i < n {
@@ -210,18 +233,34 @@ fn draw_windows() -> i64 {
             let wy: i64 = ui_window_y(found);
             let ww: i64 = ui_window_w(found);
             let wh: i64 = ui_window_h(found);
-            /* glass window: translucent tint over the wallpaper */
+            let top: i64 = 0;
+            if z == maxz { top = 1; }    /* highest z = focused */
+            /* soft shadow (3 blend layers, like the reference) */
+            fb_blend_rect(wx + 3, wy + 8, ww, wh, 0x000000, 46);
+            fb_blend_rect(wx + 6, wy + 14, ww, wh, 0x000000, 30);
+            fb_blend_rect(wx + 10, wy + 20, ww, wh, 0x000000, 16);
+            /* glass body: translucent tint over the wallpaper */
             fb_blend_rect(wx, wy, ww, wh, 0x0a0e1a, 200);
-            /* 1px light border (stroke illusion) */
+            /* titlebar glass */
+            fb_blend_rect(wx, wy, ww, 40, 0x1c2438, 150);
+            /* 1px light border (stroke) */
             fb_blend_rect(wx, wy, ww, 1, 0xffffff, 24);
             fb_blend_rect(wx, wy + wh - 1, ww, 1, 0xffffff, 24);
             fb_blend_rect(wx, wy, 1, wh, 0xffffff, 24);
             fb_blend_rect(wx + ww - 1, wy, 1, wh, 0xffffff, 24);
-            /* titlebar glass */
-            fb_blend_rect(wx, wy, ww, 40, 0x1c2438, 150);
-            /* traffic lights */
+            /* focused window: accent glow border */
+            if top == 1 {
+                fb_blend_rect(wx - 1, wy - 1, ww + 2, 1, C_ACCENT, 96);
+                fb_blend_rect(wx - 1, wy + wh, ww + 2, 1, C_ACCENT, 96);
+                fb_blend_rect(wx - 1, wy - 1, 1, wh + 2, C_ACCENT, 96);
+                fb_blend_rect(wx + ww, wy - 1, 1, wh + 2, C_ACCENT, 96);
+            }
+            /* traffic lights: round dots 12px */
+            fb_glow(wx + 18, wy + 20, 8, C_RED, 120);
             fb_hrect(wx + 12, wy + 14, 12, 12, C_RED);
+            fb_glow(wx + 37, wy + 20, 8, C_YEL, 110);
             fb_hrect(wx + 31, wy + 14, 12, 12, C_YEL);
+            fb_glow(wx + 56, wy + 20, 8, C_GRN, 110);
             fb_hrect(wx + 50, wy + 14, 12, 12, C_GRN);
             dtext(wx + 72, wy + 12, C_TEXT, C_PANEL2, ui_window_title(found));
             dtext(wx + 10, wy + 50, C_TEXT, C_PANEL, ui_window_text(found));

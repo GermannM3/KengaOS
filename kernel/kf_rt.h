@@ -227,6 +227,7 @@ int64_t k_fb_end_frame(void);
 int64_t k_fb_blend_rect(int64_t x, int64_t y, int64_t w, int64_t h, int64_t color, int64_t alpha);
 int64_t k_fb_rrect(int64_t x, int64_t y, int64_t w, int64_t h, int64_t r, int64_t color);
 int64_t k_fb_grad_rect(int64_t x, int64_t y, int64_t w, int64_t h, int64_t c0, int64_t c1);
+int64_t k_fb_glow(int64_t cx, int64_t cy, int64_t rad, int64_t color, int64_t amax);
 
 /* Turn a numeric address into a C string pointer (for uart_puts on MMIO/tag
    strings living at raw addresses). */

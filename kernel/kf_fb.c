@@ -208,6 +208,43 @@ static int64_t dsqrti(int64_t n) {
     return x;
 }
 
+/* Radial glow: soft light falloff around (cx,cy), color c, radius rad,
+   maximum alpha amax at the center. Used for the nebula wallpaper and
+   focused-window halos. */
+int64_t k_fb_glow(int64_t cx, int64_t cy, int64_t rad, int64_t color, int64_t amax) {
+    if (!fb_ok || rad <= 0) return 0;
+    if (amax < 0) amax = 0;
+    if (amax > 255) amax = 255;
+    int64_t r2 = rad * rad;
+    int64_t x0 = cx - rad < 0 ? 0 : cx - rad;
+    int64_t y0 = cy - rad < 0 ? 0 : cy - rad;
+    int64_t x1 = cx + rad >= (int64_t)fb_w ? (int64_t)fb_w - 1 : cx + rad;
+    int64_t y1 = cy + rad >= (int64_t)fb_h ? (int64_t)fb_h - 1 : cy + rad;
+    uint32_t fg = (uint32_t)color;
+    uint32_t fr = (fg >> 16) & 0xff, fgc = (fg >> 8) & 0xff, fbc = fg & 0xff;
+    uintptr_t base = fb_cur();
+    for (int64_t y = y0; y <= y1; y++) {
+        volatile uint32_t* row = (volatile uint32_t*)(base + (uintptr_t)y * fb_pitch + (uintptr_t)x0 * 4);
+        int64_t dy = y - cy;
+        for (int64_t x = x0; x <= x1; x++, row++) {
+            int64_t dx = x - cx;
+            int64_t d2 = dx * dx + dy * dy;
+            if (d2 >= r2) continue;
+            /* quadratic falloff: t in 0..255 */
+            int64_t t = (r2 - d2) * 255 / r2;
+            int64_t a = amax * t * t / (255 * 255);
+            if (a <= 0) continue;
+            uint32_t bg = *row;
+            uint32_t ia = 255 - (uint32_t)a;
+            uint32_t r = (uint32_t)((fr * (uint32_t)a + ((bg >> 16) & 0xff) * ia) >> 8);
+            uint32_t g = (uint32_t)((fgc * (uint32_t)a + ((bg >> 8) & 0xff) * ia) >> 8);
+            uint32_t b = (uint32_t)((fbc * (uint32_t)a + (bg & 0xff) * ia) >> 8);
+            *row = (r << 16) | (g << 8) | b;
+        }
+    }
+    return 1;
+}
+
 /* Alpha-blend a solid color over the current framebuffer content.
    alpha: 0..255 (255 = fully opaque). Reads back the pixel, so it works
    on the back buffer too. */
