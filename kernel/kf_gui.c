@@ -237,12 +237,19 @@ int64_t k_gui_init(void) {
         if(k_time_uptime_ms() - boot_at > 2000) break;   /* auto to desktop */
         if(++spins > 100000000ULL) break;                /* safety fallback */
     }
-    /* desktop loop */
+    /* desktop loop: event-driven, redraw only on change (mouse move / click /
+       app switch), otherwise idle on hlt so the system stays responsive. */
+    int last_mx = -1, last_my = -1, last_app = -1, last_btn = 0;
     for(;;){
-        int bx=k_mouse_buttons();
-        if(bx && !mprev_buttons){ handle_click(k_mouse_x(), k_mouse_y()); }
-        mprev_buttons=bx;
-        draw_desktop();
+        int bx = (int)k_mouse_buttons();
+        int mx = (int)k_mouse_x(), my = (int)k_mouse_y();
+        int changed = (mx != last_mx || my != last_my || bx != last_btn || cur_app != last_app);
+        if(bx && !mprev_buttons){ handle_click(mx, my); changed = 1; }
+        mprev_buttons = bx;
+        if(changed){
+            draw_desktop();
+            last_mx = mx; last_my = my; last_app = cur_app; last_btn = bx;
+        }
         __asm__ __volatile__("hlt");
     }
     return 1;
