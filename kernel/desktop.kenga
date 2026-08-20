@@ -348,6 +348,17 @@ fn desktop_main() -> i64 {
             last_up = now_up;
             last_n = now_n;
             s = ns;
+        } else if kbd_pending() == 1 {
+            /* keyboard control: 1..4 switch apps, updates state + redraw */
+            let c: i64 = kbd_read();
+            if c >= 49 && c <= 52 {
+                s.cur_app = c - 49;
+                cur_erase(last_mx, last_my);
+                draw_desktop(s);
+                cur_draw(cmx, cmy);
+                last_up = now_up;
+                last_n = now_n;
+            }
         } else if dragging == 1 && (cmx != last_mx || cmy != last_my) {
             /* drag the window under the cursor */
             ui_window_move(s.drag_win, cmx - s.drag_ox, cmy - s.drag_oy);

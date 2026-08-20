@@ -16,6 +16,11 @@ extern uint64_t k_sched_current(void);
 #define IPC_QLEN 16
 #define MSG_MAX  48
 
+/* UI windows (agent-created, CAP_UI). */
+#define MAX_WINDOWS 8
+#define WIN_TITLE 24
+#define WIN_TEXT  48
+
 typedef struct {
     int64_t from;
     char    data[MSG_MAX];
@@ -117,6 +122,14 @@ int64_t k_ipc_recv_str(char* buf, int max) {
     for (; m.data[k] && k < max - 1; k++) buf[k] = m.data[k];
     buf[k] = 0;
     return 1;
+}
+
+/* Non-blocking poll: 1 if a message is queued for the calling process. */
+int64_t k_ipc_poll(void) {
+    uint64_t me = k_sched_current();
+    for (int i = 0; i < MAX_PROC; i++)
+        if (procs[i].active && procs[i].task == me && procs[i].qh != procs[i].qt) return 1;
+    return 0;
 }
 
 int64_t k_proc_count(void) {
@@ -336,64 +349,88 @@ static void researcher_proc(void) {
        message uses — proves agent -> its own window works at startup. */
     k_ui_window_set_text(wid - 1, "online | IPC + model ready");
     lg_uart("RESEARCHER: window text updated\n");
+    int64_t reqs = 0;
+    int64_t last_upd = 0;
     for (;;) {
-        ipc_msg m;
-        k_ipc_recv(&m);
-        lg_uart("RESEARCHER: "); lg_uart(m.data); lg_uart("\n");
-        char reply[MSG_MAX]; int k = 0;
-        kf_proc_t* me = cur_proc();
-        /* "upd <text>" -> update this agent's window text over IPC */
-        if (m.data[0]=='u' && m.data[1]=='p' && m.data[2]=='d' && me && wid > 0) {
-            const char* s = m.data + 3;
-            while (*s == ' ') s++;
-            k_ui_window_set_text(wid - 1, s);
-            const char* pre = "window updated";
-            for (; *pre && k < MSG_MAX-1; k++) reply[k] = *pre++;
-        } else
-        /* "infer a b" -> run the MLP and report */
-        if (m.data[0]=='i' && m.data[1]=='n' && m.data[2]=='f' && m.data[3]=='e' && m.data[4]=='r' && me) {
-            if (!(me->caps & CAP_MODEL_INFER)) {
-                const char* pre = "denied: no model capability";
-                for (; *pre && k < MSG_MAX-1; k++) reply[k] = *pre++;
-            } else {
-                int64_t a=0, b=0; const char* s = m.data + 5;
-                while (*s==' ') s++;
-                while (*s>='0'&&*s<='9'){ a=a*10+(*s-'0'); s++; }
-                while (*s==' ') s++;
-                while (*s>='0'&&*s<='9'){ b=b*10+(*s-'0'); s++; }
-                int64_t r = k_model_infer(a, b);
-                const char* pre = "xor ";
-                for (; *pre && k < MSG_MAX-1; k++) reply[k] = *pre++;
-                const char* dv = dec(r);
-                for (; *dv && k < MSG_MAX-1; k++) reply[k] = *dv++;
-            }
-        } else if (m.data[0]=='w' && m.data[1]=='i' && m.data[2]=='n' && me) {
-            /* "win <title>|<text>" -> open another window (CAP_UI) */
-            if (!(me->caps & CAP_UI)) {
-                const char* pre = "denied: no ui capability";
-                for (; *pre && k < MSG_MAX-1; k++) reply[k] = *pre++;
-            } else {
+        if (k_ipc_poll()) {
+            ipc_msg m;
+            k_ipc_recv(&m);
+            reqs++;
+            lg_uart("RESEARCHER: "); lg_uart(m.data); lg_uart("\n");
+            char reply[MSG_MAX]; int k = 0;
+            kf_proc_t* me = cur_proc();
+            /* "upd <text>" -> update this agent's window text over IPC */
+            if (m.data[0]=='u' && m.data[1]=='p' && m.data[2]=='d' && me && wid > 0) {
                 const char* s = m.data + 3;
-                while (*s==' ') s++;
-                char title[24]; int ti=0;
-                while (*s && *s!='|' && ti<23) title[ti++]=*s++;
-                title[ti]=0;
-                const char* text = "";
-                if (*s=='|'){ s++; while(*s==' ') s++; text = s; }
-                int64_t w = k_ui_register_window(title, text);
-                const char* pre = "window ";
+                while (*s == ' ') s++;
+                k_ui_window_set_text(wid - 1, s);
+                const char* pre = "window updated";
                 for (; *pre && k < MSG_MAX-1; k++) reply[k] = *pre++;
-                const char* dv = dec(w);
-                for (; *dv && k < MSG_MAX-1; k++) reply[k] = *dv++;
+            } else
+            /* "infer a b" -> run the MLP and report */
+            if (m.data[0]=='i' && m.data[1]=='n' && m.data[2]=='f' && m.data[3]=='e' && m.data[4]=='r' && me) {
+                if (!(me->caps & CAP_MODEL_INFER)) {
+                    const char* pre = "denied: no model capability";
+                    for (; *pre && k < MSG_MAX-1; k++) reply[k] = *pre++;
+                } else {
+                    int64_t a=0, b=0; const char* s = m.data + 5;
+                    while (*s==' ') s++;
+                    while (*s>='0'&&*s<='9'){ a=a*10+(*s-'0'); s++; }
+                    while (*s==' ') s++;
+                    while (*s>='0'&&*s<='9'){ b=b*10+(*s-'0'); s++; }
+                    int64_t r = k_model_infer(a, b);
+                    const char* pre = "xor ";
+                    for (; *pre && k < MSG_MAX-1; k++) reply[k] = *pre++;
+                    const char* dv = dec(r);
+                    for (; *dv && k < MSG_MAX-1; k++) reply[k] = *dv++;
+                }
+            } else if (m.data[0]=='w' && m.data[1]=='i' && m.data[2]=='n' && me) {
+                /* "win <title>|<text>" -> open another window (CAP_UI) */
+                if (!(me->caps & CAP_UI)) {
+                    const char* pre = "denied: no ui capability";
+                    for (; *pre && k < MSG_MAX-1; k++) reply[k] = *pre++;
+                } else {
+                    const char* s = m.data + 3;
+                    while (*s==' ') s++;
+                    char title[24]; int ti=0;
+                    while (*s && *s!='|' && ti<23) title[ti++]=*s++;
+                    title[ti]=0;
+                    const char* text = "";
+                    if (*s=='|'){ s++; while(*s==' ') s++; text = s; }
+                    int64_t w = k_ui_register_window(title, text);
+                    const char* pre = "window ";
+                    for (; *pre && k < MSG_MAX-1; k++) reply[k] = *pre++;
+                    const char* dv = dec(w);
+                    for (; *dv && k < MSG_MAX-1; k++) reply[k] = *dv++;
+                }
+            } else {
+                const char* pre = "ack: ";
+                for (; *pre && k < MSG_MAX-1; k++) reply[k] = *pre++;
+                const char* d = m.data;
+                for (; *d && k < MSG_MAX-1; k++) reply[k] = *d++;
             }
+            reply[k] = 0;
+            k_ipc_send(m.from, reply);
         } else {
-            const char* pre = "ack: ";
-            for (; *pre && k < MSG_MAX-1; k++) reply[k] = *pre++;
-            const char* d = m.data;
-            for (; *d && k < MSG_MAX-1; k++) reply[k] = *d++;
+            /* live: refresh our window every ~1s so the UI shows agent state
+               without any IPC command (agent-native living window). */
+            int64_t now = k_time_uptime_ms() / 1000;
+            if (now != last_upd && wid > 0) {
+                last_upd = now;
+                char txt[WIN_TEXT];
+                const char* pre = "online | up ";
+                int k = 0;
+                for (; *pre && k < WIN_TEXT-1; k++) txt[k] = *pre++;
+                const char* dv = dec(now);
+                for (; *dv && k < WIN_TEXT-1; k++) txt[k] = *dv++;
+                const char* su = "s | reqs ";
+                for (; *su && k < WIN_TEXT-1; k++) txt[k] = *su++;
+                const char* dq = dec(reqs);
+                for (; *dq && k < WIN_TEXT-1; k++) txt[k] = *dq++;
+                txt[k] = 0;
+                k_ui_window_set_text(wid - 1, txt);
+            }
         }
-        reply[k] = 0;
-        k_ipc_send(m.from, reply);
         k_task_yield();
     }
 }
@@ -423,9 +460,6 @@ int64_t k_researcher_pid(void) { return researcher_pid; }
 /* --- UI: agent-created windows (CAP_UI). -----------------------------
    The desktop (desktop.kenga) polls these via intrinsics and draws them.
    Registering requires the calling process to hold CAP_UI. */
-#define MAX_WINDOWS 8
-#define WIN_TITLE 24
-#define WIN_TEXT  48
 
 typedef struct {
     int64_t    x, y, w, h;

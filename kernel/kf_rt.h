@@ -150,6 +150,7 @@ int64_t k_proc_caps(int64_t pid);
 int64_t k_proc_set_caps(int64_t pid, int64_t caps);
 int64_t k_ipc_send(int64_t pid, const char* data);
 int64_t k_ipc_recv_str(char* buf, int max);
+int64_t k_ipc_poll(void);
 int64_t k_proc_count(void);
 int64_t k_proc_pid_at(int64_t idx);
 int64_t k_proc_parent_at(int64_t idx);
