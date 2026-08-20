@@ -48,7 +48,9 @@ int64_t k_model_init(void) {
     return 1;
 }
 
-/* Infer: input two ints (0/1), returns rounded output (0 or 1). */
+/* Infer: input two ints (0/1), returns rounded output (0 or 1).
+   Compiled with -mno-sse so doubles use x87 (no 16-byte stack alignment
+   requirement), safe to call from any stack alignment. */
 int64_t k_model_infer(int64_t a, int64_t b) {
     double x0 = a ? 1.0 : 0.0, x1 = b ? 1.0 : 0.0;
     double h0 = m_sig(w1[0]*x0 + w1[1]*x1 + b1[0]);

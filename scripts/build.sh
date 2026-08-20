@@ -161,7 +161,8 @@ fi
 
 log "4l/7" "Compiling kf_model.c (neural agent) ($CC)"
 if [[ -f "$KERNEL_DIR/kf_model.c" ]]; then
-    eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_model.c\" -o \"$BUILD_DIR/kf_model.o\""
+    # -mno-sse: doubles use x87, safe from any stack alignment (click handler).
+    eval "$CC -c $CFLAGS -mno-sse -mno-sse2 \"$KERNEL_DIR/kf_model.c\" -o \"$BUILD_DIR/kf_model.o\""
 fi
 
 log "4m/7" "Compiling kf_mouse.c (mouse) ($CC)"
@@ -227,7 +228,14 @@ mkdir -p "$BUILD_DIR/iso_root/boot"
 cp "$BUILD_DIR/kengaos.elf" "$BUILD_DIR/iso_root/boot/kengaos.elf"
 # Limine looks for boot/limine.conf (limine.cfg is the in-repo source name).
 # Generate the initrd and tell Limine to load it as a module.
-if command -v python3 >/dev/null 2>&1; then PY=python3; else PY=python; fi
+# Prefer python (Python314 installs python.exe only); skip the Microsoft Store
+# python3 app-execution stub, which fails silently.
+for cand in python python3 py; do
+    if command -v "$cand" >/dev/null 2>&1 && [[ "$(command -v "$cand")" != /c/Users/*/AppData/Local/Microsoft/WindowsApps/* ]]; then
+        PY="$cand"; break
+    fi
+done
+PY="${PY:-python3}"
 "$PY" "$ROOT/scripts/mkinitrd.py" "$BUILD_DIR/iso_root/boot/initrd.img" "$ROOT"
 # Insert module_path into the /KengaOS kernel entry of the generated config.
 sed '/kernel_path:/a\    module_path: boot():/boot/initrd.img' "$KERNEL_DIR/limine.cfg" > "$BUILD_DIR/iso_root/boot/limine.conf"
