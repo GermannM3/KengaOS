@@ -588,6 +588,15 @@ int64_t k_ui_window_set_text(int64_t idx, const char* text) {
     return 1;
 }
 
+/* close a window. idx 0-based. */
+int64_t k_ui_window_close(int64_t idx) {
+    if (idx < 0 || idx >= MAX_WINDOWS || !wins[idx].active) return 0;
+    wins[idx].active = 0;
+    wins[idx].title[0] = 0;
+    wins[idx].text[0] = 0;
+    return 1;
+}
+
 /* --- desktop text input (agent chat bar). -----------------------------
    The Kenga desktop accumulates typed characters here, draws them, and on
    Enter submits the line to the system agent as an IPC "chat" message.

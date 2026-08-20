@@ -83,6 +83,7 @@ fn draw_windows() -> i64 {
     let C_ACCENT: i64 = 0x3daee9;
     let C_TEXT: i64 = 0xe6edf3;
     let C_DIM: i64 = 0x8a94a6;
+    let C_RED: i64 = 0xf85149;
     let n: i64 = ui_window_count();
     if n == 0 { return 0; }
     /* draw in z order */
@@ -103,6 +104,9 @@ fn draw_windows() -> i64 {
         fb_hrect(wx, wy, ww, wh, C_PANEL);
         fb_hrect(wx, wy, ww, 18, C_ACCENT);
         dtext(wx + 6, wy + 5, C_TEXT, C_ACCENT, ui_window_title(best));
+        /* close button [x] in the title bar top-right */
+        fb_hrect(wx + ww - 20, wy, 20, 18, C_RED);
+        dtext(wx + ww - 15, wy + 5, C_TEXT, C_RED, "x");
         dtext(wx + 6, wy + 26, C_TEXT, C_PANEL, ui_window_text(best));
         done = done + 1;
     }
@@ -289,6 +293,13 @@ fn handle_click(st: DesktopState, mx: i64, my: i64) -> DesktopState {
     let w: i64 = win_at(mx, my);
     if w >= 0 {
         ui_window_front(w);
+        /* close button [x] in the title bar top-right */
+        let cwx: i64 = ui_window_x(w) + ui_window_w(w) - 20;
+        let cwy: i64 = ui_window_y(w);
+        if mx >= cwx && mx < cwx + 20 && my >= cwy && my < cwy + 18 {
+            ui_window_close(w);
+            return st;
+        }
         /* if clicked on the title bar (top 18px), start dragging it */
         if my < ui_window_y(w) + 18 {
             st.drag_win = w;
