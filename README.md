@@ -84,9 +84,14 @@ qemu-system-x86_64 -M q35 -cdrom build/kengaos.iso -serial stdio
 | GDT + IDT | есть | Исключения + panic (UART + framebuffer) |
 | Планировщик | есть | Round-robin multitasking, собственные стеки |
 | Клавиатура (PS/2) | есть | IRQ1, ring buffer, framebuffer-консоль |
-| Shell | есть | `help`, `info`, `clear`, `echo`, `mem`, `ps`, `log`, `tasks` |
-| Память | есть | Физическая память + kernel heap (~62 МБ) |
+| Shell | есть | `help`, `info`, `clear`, `echo`, `mem`, `ps`, `log`, `ask`, `tasks`, `ls`, `cat`, `time`, `cpuinfo`, `date`, `mmap`, `reboot`, `poweroff` |
+| Память | есть | Kernel heap + frame-аллокатор (bitmap, ~94 МБ фреймов) |
 | Процессы + IPC | есть | `k_proc_spawn`, `k_ipc_send`/`k_ipc_recv`, очереди сообщений |
+| Kenga-agent | есть | Двусторонний IPC round-trip (`ask` → `ack`) |
+| VFS + initrd | есть | Виртуальная ФС + initrd через Limine (git-лог, инфо хоста) |
+| Таймер / uptime | есть | PIT 100 Гц, команда `time` |
+| Аппаратура | есть | CPUID (`cpuinfo`), RTC (`date`), память (`mmap`) |
+| Power | есть | `reboot`, `poweroff` |
 | CI/CD | есть | Автосборка ISO + smoke-тест в QEMU |
 | Release | есть | Мультиплатформенный (7 таргетов) |
 
@@ -100,9 +105,9 @@ qemu-system-x86_64 -M q35 -cdrom build/kengaos.iso -serial stdio
 - Потоки и IPC-каналы
 
 Фаза 3 — процессы и память:
-- Процессы с изоляцией адресного пространства
-- Page allocator и paging
-- IPC-каналы между процессами
+- Процессы с изоляцией адресного пространства (paging)
+- Buddy-аллокатор для kernel heap
+- Прерывный (timer-driven) планировщик
 - Init daemon
 
 Фаза 4+ — расширенный функционал:
