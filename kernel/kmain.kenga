@@ -53,6 +53,7 @@ import "desktop.kenga";
 @intrinsic fn mouse_x() -> i64;
 @intrinsic fn mouse_y() -> i64;
 @intrinsic fn mouse_buttons() -> i64;
+@intrinsic fn mouse_poll() -> i64;
 @intrinsic fn proc_init() -> i64;
 @intrinsic fn proc_count() -> i64;
 @intrinsic fn proc_pid_at(idx: i64) -> i64;

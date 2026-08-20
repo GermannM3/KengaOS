@@ -585,6 +585,7 @@ fn desktop_main() -> i64 {
     cur_draw(mx, my);
     fb_end_frame();
     while 1 {
+        mouse_poll();   /* USB tablet poll (no-op for PS/2) */
         let bx: i64 = mouse_buttons();
         let cmx: i64 = mouse_x();
         let cmy: i64 = mouse_y();

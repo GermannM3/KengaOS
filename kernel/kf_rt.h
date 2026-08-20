@@ -56,6 +56,15 @@ int64_t k_mem_total_bytes(void);
 int64_t k_mem_palloc(void);
 int64_t k_mem_pfree(int64_t addr);
 int64_t k_mem_pages_free(void);
+int64_t k_mem_virt_to_phys(int64_t addr);
+
+/* USB (kernel/kf_usb.c). */
+int64_t k_usb_init(void);
+int64_t k_usb_ready(void);
+int64_t k_usb_poll(void);
+int64_t k_usb_tab_x(void);
+int64_t k_usb_tab_y(void);
+int64_t k_usb_tab_btn(void);
 int64_t k_mem_region_count(void);
 int64_t k_mem_region_base(int64_t i);
 int64_t k_mem_region_len(int64_t i);
@@ -97,6 +106,7 @@ int64_t k_mouse_init(void);
 int64_t k_mouse_x(void);
 int64_t k_mouse_y(void);
 int64_t k_mouse_buttons(void);
+int64_t k_mouse_poll(void);
 void k_mouse_irq(void);
 
 /* Keyboard (kernel/kf_kbd.c): PS/2 IRQ1 -> ring buffer. */

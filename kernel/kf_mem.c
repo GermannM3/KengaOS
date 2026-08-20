@@ -133,6 +133,12 @@ int64_t k_mem_pfree(int64_t addr) {
 
 int64_t k_mem_pages_free(void) { return (int64_t)free_frames; }
 
+/* Convert a kernel virtual (HHDM-mapped) address back to a physical one.
+   Needed by DMA-capable drivers (UHCI frame lists live in physical memory). */
+int64_t k_mem_virt_to_phys(int64_t addr) {
+    return (int64_t)((uint64_t)addr - hhdm);
+}
+
 /* Fallback arena used until mem_init() sets up the real heap (the runtime
    calls kf_alloc very early, before mem_init runs). */
 static uint8_t  fallback_arena[8192];
