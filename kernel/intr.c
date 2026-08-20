@@ -190,6 +190,7 @@ void k_kf_intr_handler(void* regs) {
         __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)0x20), "Nd"((uint16_t)0x20));
         if (r->vector == 33) k_kbd_irq();   /* IRQ1: keyboard */
         if (r->vector == 32) k_timer_tick(); /* IRQ0: PIT timer */
+        if (r->vector == 44) k_mouse_irq(); /* IRQ12: mouse */
         return;
     }
 

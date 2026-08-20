@@ -90,6 +90,13 @@ extern uint16_t kernel_cs;
 int64_t k_sched_init(void);
 uint64_t k_sched_yield(uint64_t current_ctx);
 
+/* Mouse (kernel/kf_mouse.c): PS/2 IRQ12 -> cursor + buttons. */
+int64_t k_mouse_init(void);
+int64_t k_mouse_x(void);
+int64_t k_mouse_y(void);
+int64_t k_mouse_buttons(void);
+void k_mouse_irq(void);
+
 /* Keyboard (kernel/kf_kbd.c): PS/2 IRQ1 -> ring buffer. */
 int64_t k_kbd_init(void);
 int64_t k_kbd_pending(void);
@@ -106,6 +113,9 @@ int64_t k_fb_con_redraw(void);
 
 /* Shell (kernel/kf_shell.c). */
 int64_t k_shell_init(void);
+
+/* GUI desktop (kernel/kf_gui.c). */
+int64_t k_gui_init(void);
 uint64_t k_task_create(void (*entry)(void));
 uint64_t k_task_yield(void);
 uint64_t k_sched_current(void);

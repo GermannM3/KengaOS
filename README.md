@@ -91,6 +91,7 @@ qemu-system-x86_64 -M q35 -cdrom build/kengaos.iso -serial stdio
 | Kenga-agent | есть | Агент — системная сущность: `spawn` (создаёт агентов, рекурсивно), живая память (`remember`/`recall`), capability-права, русский ответ |
 | Agent-native модель | есть | Дерево процессов: `init` → системные агенты → пользовательские агенты (parent tracking) |
 | **Model Agent** | есть | Настоящая нейросеть (MLP, XOR) как системный процесс: `model a b` → предсказание через IPC + `CAP_MODEL_INFER` |
+| **GUI Desktop** | есть | Agent-native графическая среда: сайдбар (Agents/Model/Files/System), верхняя/статус панели, мышь, init-экран → desktop |
 | VFS + initrd | есть | Виртуальная ФС + initrd через Limine (git-лог, инфо хоста) |
 | Таймер / uptime | есть | PIT 100 Гц, команда `time` |
 | Аппаратура | есть | CPUID (`cpuinfo`), RTC (`date`), память (`mmap`) |

@@ -164,6 +164,16 @@ if [[ -f "$KERNEL_DIR/kf_model.c" ]]; then
     eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_model.c\" -o \"$BUILD_DIR/kf_model.o\""
 fi
 
+log "4m/7" "Compiling kf_mouse.c (mouse) ($CC)"
+if [[ -f "$KERNEL_DIR/kf_mouse.c" ]]; then
+    eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_mouse.c\" -o \"$BUILD_DIR/kf_mouse.o\""
+fi
+
+log "4n/7" "Compiling kf_gui.c (desktop) ($CC)"
+if [[ -f "$KERNEL_DIR/kf_gui.c" ]]; then
+    eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_gui.c\" -o \"$BUILD_DIR/kf_gui.o\""
+fi
+
 log "5/7" "Linking kengaos.elf ($LD)"
 OBJS=("$BUILD_DIR/start.o" "$BUILD_DIR/kmain.o")
 if [[ -f "$BUILD_DIR/kf_mem.o" ]]; then OBJS+=("$BUILD_DIR/kf_mem.o"); fi
@@ -179,6 +189,8 @@ if [[ -f "$BUILD_DIR/kf_time.o" ]]; then OBJS+=("$BUILD_DIR/kf_time.o"); fi
 if [[ -f "$BUILD_DIR/kf_hw.o" ]]; then OBJS+=("$BUILD_DIR/kf_hw.o"); fi
 if [[ -f "$BUILD_DIR/kf_power.o" ]]; then OBJS+=("$BUILD_DIR/kf_power.o"); fi
 if [[ -f "$BUILD_DIR/kf_model.o" ]]; then OBJS+=("$BUILD_DIR/kf_model.o"); fi
+if [[ -f "$BUILD_DIR/kf_mouse.o" ]]; then OBJS+=("$BUILD_DIR/kf_mouse.o"); fi
+if [[ -f "$BUILD_DIR/kf_gui.o" ]]; then OBJS+=("$BUILD_DIR/kf_gui.o"); fi
 $LD -n -nostdlib -T "$KERNEL_DIR/linker.ld" "${OBJS[@]}" -o "$BUILD_DIR/kengaos.elf"
 ls -la "$BUILD_DIR/kengaos.elf"
 
