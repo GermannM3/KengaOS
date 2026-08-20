@@ -168,48 +168,18 @@ fn icon_window(x: i64, y: i64, c: i64) -> i64 {
     return 0;
 }
 
-/* --- wallpaper: deep-space nebula (reference: primer.jpg) ---
-   Dark indigo gradient + purple/magenta core glow + blue side glow +
-   deterministic stars + faint tech grid. */
+/* --- wallpaper: the actual reference image (embedded, 160x100 upscaled) ---
+   Plus the reference's two drifting glows and a vignette. */
 fn draw_wallpaper(w: i64, h: i64) -> i64 {
-    /* vertical gradient: deep indigo #080f30 -> #0a0d22 */
-    fb_grad_rect(0, 0, w, h, 0x080f30, 0x0a0d22);
-    /* nebula: blue-violet core (center, like primer) */
-    fb_glow(w / 2, h / 2 - 40, h * 58 / 100, 0x2a2a6e, 70);
-    fb_glow(w / 2 + 40, h / 2 - 60, h * 36 / 100, 0x4f46b8, 80);
-    fb_glow(w / 2 + 60, h / 2 - 80, h * 22 / 100, 0x7b6ff0, 60);
-    fb_glow(w / 2 - 160, h / 2 + 60, h * 26 / 100, 0x22d3ee, 34);
-    /* corner glows */
-    fb_glow(w * 8 / 100, h * 16 / 100, h * 38 / 100, 0x2742b0, 44);
-    fb_glow(w * 92 / 100, h * 86 / 100, h * 42 / 100, 0x1f2f6e, 40);
-    /* stars: deterministic LCG */
-    let s: i64 = 88172645463325252;
-    let i: i64 = 0;
-    while i < 160 {
-        s = (s * 6364136223846793005) % 9223372036854775807;
-        if s < 0 { s = 0 - s; }
-        let sx: i64 = s % w;
-        s = (s * 6364136223846793005) % 9223372036854775807;
-        if s < 0 { s = 0 - s; }
-        let sy: i64 = s % h;
-        s = (s * 6364136223846793005) % 9223372036854775807;
-        if s < 0 { s = 0 - s; }
-        let bri: i64 = 40 + s % 90;
-        fb_putpixel(sx, sy, 0xdfe6ff * bri / 100 + 0x0d1020);
-        i = i + 1;
-    }
-    /* faint tech grid */
-    let GRID: i64 = 0x10142a;
-    let gx: i64 = 0;
-    while gx < w {
-        fb_hrect(gx, 0, 1, h, GRID);
-        gx = gx + 48;
-    }
-    let gy: i64 = 0;
-    while gy < h {
-        fb_hrect(0, gy, w, 1, GRID);
-        gy = gy + 48;
-    }
+    wp_draw(0, 0, w, h);
+    /* reference wallGlow: accent top-left, accent2 bottom-right */
+    fb_glow(w * 12 / 100, h * 18 / 100, h * 42 / 100, 0x8b7bff, 40);
+    fb_glow(w * 88 / 100, h * 84 / 100, h * 46 / 100, 0x22d3ee, 36);
+    /* vignette: darken the edges (radial) */
+    fb_blend_rect(0, 0, w, 3, 0x000000, 60);
+    fb_blend_rect(0, 3, w, 6, 0x000000, 30);
+    fb_blend_rect(0, h - 9, w, 6, 0x000000, 30);
+    fb_blend_rect(0, h - 3, w, 3, 0x000000, 60);
     return 0;
 }
 
