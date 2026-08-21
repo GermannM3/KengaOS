@@ -223,6 +223,19 @@ fn uart_write(c: i64) {
 
 ## Участие в проекте
 
+### Установка на Windows-ноутбук
+
+После успешной сборки релиза создайте переносимый пакет:
+
+```powershell
+python scripts/release_gate.py --build build
+python scripts/package_windows_installer.py --build build
+Expand-Archive dist/KengaOS-Installer-x86_64.zip -DestinationPath $env:TEMP\KengaOS-Installer
+powershell -ExecutionPolicy Bypass -File $env:TEMP\KengaOS-Installer\scripts\install-kengaos.ps1 -Package $env:TEMP\KengaOS-Installer
+```
+
+Установщик проверяет SHA-256 всех артефактов и раскладывает релиз в отдельный слот с `active.json`. Это безопасный portable/deployment installer: он не форматирует диск и не заменяет загрузчик Windows. Bare-metal установка потребует отдельного подписанного загрузчика и проверенного сценария разметки диска.
+
 KengaOS — активно развивающийся проект. Приветствуются:
 - Отчеты об ошибках через Issues
 - Предложения улучшений
