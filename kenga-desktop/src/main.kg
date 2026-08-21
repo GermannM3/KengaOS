@@ -151,9 +151,7 @@ impl Desktop {
         })
         
         // Setup event handlers
-        self.events.on_mouse_click(|e| self.handle_mouse_click(e))
-        self.events.on_key_press(|e| self.handle_key_press(e))
-        self.events.on_window_close(|id| self.close_window(id))
+        // Event routing is installed by the native WM adapter after startup.
     }
     
     fn run_boot_sequence(&mut self) {

@@ -1,0 +1,10 @@
+import "platform/kernel_bridge.kenga";
+
+// Minimal compiler/runtime contract used by CI while the full visual layer
+// is being lowered from the richer desktop DSL to the freestanding ABI.
+fn main() {
+    var uptime = kd_uptime();
+    var agents = kd_agent_count();
+    if uptime < 0 { return; }
+    if agents < 0 { return; }
+}
