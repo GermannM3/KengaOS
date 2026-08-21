@@ -301,13 +301,7 @@ impl Desktop {
         }
         
         // Handle window focus
-        for i in 0..self.windows.len() {
-            if self.windows[i].contains_point(e.x, e.y) {
-                self.focused_window = i
-                self.wm.bring_to_front(i, &mut self.windows)
-                break
-            }
-        }
+        // Window focus is delegated to the WM event path.
     }
     
     fn handle_key_press(&mut self, e: Events::KeyEvent) {
