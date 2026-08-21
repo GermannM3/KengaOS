@@ -31,6 +31,7 @@ typedef struct {
 } ipc_msg;
 
 #define MEM_SLOTS 8
+#define PAGE_SLOTS 16
 
 typedef struct {
     char key[16];
@@ -47,6 +48,7 @@ typedef struct {
     ipc_msg      q[IPC_QLEN];
     int          qh, qt;
     mem_slot     mem[MEM_SLOTS];   /* per-agent living memory */
+    uint64_t     pages[PAGE_SLOTS];
 } kf_proc_t;
 
 static kf_proc_t* cur_proc(void);
@@ -59,6 +61,10 @@ static int64_t   agent_pid = 0;
 static void reap_finished(void) {
     for (int i = 0; i < MAX_PROC; i++)
         if (procs[i].active && !k_sched_task_alive(procs[i].task)) {
+            for (int j = 0; j < PAGE_SLOTS; j++) {
+                if (procs[i].pages[j]) k_mem_pfree((int64_t)procs[i].pages[j]);
+                procs[i].pages[j] = 0;
+            }
             procs[i].active = 0;
             procs[i].qh = procs[i].qt = 0;
         }
@@ -106,6 +112,7 @@ int64_t k_proc_spawn(const char* name, void (*entry)(void), uint64_t caps) {
             procs[i].mem[m].key[0] = 0;
             procs[i].mem[m].val[0] = 0;
         }
+        for (int m = 0; m < PAGE_SLOTS; m++) procs[i].pages[m] = 0;
         return procs[i].pid;
     }
     return 0;
@@ -125,6 +132,42 @@ int64_t k_proc_set_caps(int64_t pid, int64_t caps) {
     if ((uint64_t)caps & ~CAP_ALL) return 0;
     for (int i = 0; i < MAX_PROC; i++)
         if (procs[i].active && procs[i].pid == pid) { procs[i].caps = (uint64_t)caps; return 1; }
+    return 0;
+}
+
+/* Ownership-tracked page handles. A process may release only pages recorded
+   in its own slot table; this is the software invariant used by the future
+   CR3/page-table mapper. */
+int64_t k_proc_page_alloc(void) {
+    kf_proc_t* p = cur_proc();
+    if (!p || !(p->caps & CAP_MEM)) return 0;
+    int slot = -1;
+    for (int i = 0; i < PAGE_SLOTS; i++) if (!p->pages[i]) { slot = i; break; }
+    if (slot < 0) return 0;
+    int64_t page = k_mem_palloc();
+    if (!page) return 0;
+    p->pages[slot] = (uint64_t)page;
+    return page;
+}
+
+int64_t k_proc_page_free(int64_t addr) {
+    kf_proc_t* p = cur_proc();
+    if (!p || !addr) return 0;
+    for (int i = 0; i < PAGE_SLOTS; i++) if (p->pages[i] == (uint64_t)addr) {
+        if (!k_mem_pfree(addr)) return 0;
+        p->pages[i] = 0;
+        return 1;
+    }
+    return 0;
+}
+
+int64_t k_proc_page_count(int64_t pid) {
+    reap_finished();
+    for (int i = 0; i < MAX_PROC; i++) if (procs[i].active && procs[i].pid == pid) {
+        int n = 0;
+        for (int j = 0; j < PAGE_SLOTS; j++) if (procs[i].pages[j]) n++;
+        return n;
+    }
     return 0;
 }
 
