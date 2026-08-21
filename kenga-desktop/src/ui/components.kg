@@ -1,0 +1,882 @@
+// KengaOS UI Components
+// Desktop environment UI elements matching HTML design reference
+
+import "graphics/renderer.kg" as Renderer
+import "system/events.kg" as Events
+
+// ============================================================
+// CONSTANTS - Design System Values
+// ============================================================
+
+const COLOR_ACCENT = 0x8B7BFF      // #8b7bff
+const COLOR_ACCENT2 = 0x22D3EE     // #22d3ee
+const COLOR_BG = 0x04060B          // #04060b
+const COLOR_TEXT = 0xE8ECF8        // #e8ecf8
+const COLOR_TEXT_DIM = 0xA8B0D0    // Dimmed text
+const GLASS_ALPHA = 0.78
+
+const TOPBAR_HEIGHT = 38
+const DOCK_BUTTON_SIZE = 44
+const WINDOW_BAR_HEIGHT = 40
+const BUTTON_SIZE_CLOSE = 12
+const BUTTON_SIZE_DOCK = 44
+
+const FONT_INTER = "Inter"
+const FONT_UNBOUNDED = "Unbounded"
+const FONT_JETBRAINS = "JetBrains Mono"
+
+// ============================================================
+// TOP BAR COMPONENT
+// ============================================================
+
+struct TopBar {
+    x: int
+    y: int
+    width: int
+    height: int
+    visible: bool
+    
+    clock_time: string
+    clock_date: string
+    ram_usage: float
+    cpu_usage: float
+    uptime_seconds: int
+    
+    power_menu_visible: bool
+    power_menu_x: int
+    power_menu_y: int
+}
+
+impl TopBar {
+    fn new() -> Self {
+        return TopBar {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: TOPBAR_HEIGHT,
+            visible: true,
+            clock_time: "00:00",
+            clock_date: "",
+            ram_usage: 0.4,
+            cpu_usage: 0.25,
+            uptime_seconds: 0,
+            power_menu_visible: false,
+            power_menu_x: 1920 - 220,
+            power_menu_y: TOPBAR_HEIGHT + 6
+        }
+    }
+    
+    fn update_metrics(&mut self, ram: float, cpu: float, uptime: int) {
+        self.ram_usage = ram
+        self.cpu_usage = cpu
+        self.uptime_seconds = uptime
+        
+        // Format time
+        let hours = (uptime / 3600) % 24
+        let minutes = (uptime / 60) % 60
+        self.clock_time = format("{:02}:{:02}", hours, minutes)
+        
+        // Format date
+        self.clock_date = format("{} {}", self.get_day_name(), self.get_date())
+    }
+    
+    fn render(&self, renderer: &mut Renderer.Renderer) {
+        if !self.visible {
+            return
+        }
+        
+        // Draw glass background
+        let glass_color = Color::from_rgba(22, 28, 48, 140)
+        renderer.draw_rect(0, 0, self.width, self.height, glass_color)
+        
+        // Draw left section - logo/time
+        renderer.draw_text("KENGAOS", 12, 10, FONT_UNBOUNDED, 16, COLOR_TEXT)
+        renderer.draw_text(self.clock_time, 100, 12, FONT_INTER, 13, COLOR_TEXT)
+        renderer.draw_text(self.clock_date, 180, 12, FONT_INTER, 11, COLOR_TEXT_DIM)
+        
+        // Draw right section - metrics
+        let ram_x = self.width - 180
+        renderer.draw_text("RAM", ram_x, 12, FONT_INTER, 11, COLOR_TEXT)
+        
+        // RAM bar background
+        renderer.draw_rect(ram_x + 35, 14, 52, 4, Color::from_rgba(255, 255, 255, 30))
+        // RAM bar fill
+        let ram_width = (52.0 * self.ram_usage) as int
+        renderer.draw_gradient_rect(
+            ram_x + 35, 14, ram_width, 4,
+            COLOR_ACCENT, COLOR_ACCENT2
+        )
+        
+        // CPU badge
+        let cpu_x = ram_x + 100
+        renderer.draw_rect(cpu_x, 10, 45, 18, Color::from_rgba(139, 123, 255, 25))
+        renderer.draw_text(format("{:.0}%", self.cpu_usage * 100), cpu_x + 8, 13, FONT_JETBRAINS, 10, COLOR_ACCENT)
+        
+        // Power button
+        let power_x = self.width - 38
+        renderer.draw_rect(power_x, 5, 28, 28, Color::from_rgba(255, 255, 255, 10))
+        renderer.draw_text("⏻", power_x + 8, 10, FONT_INTER, 18, COLOR_TEXT)
+        
+        // Power menu (if visible)
+        if self.power_menu_visible {
+            self.render_power_menu(renderer)
+        }
+    }
+    
+    fn render_power_menu(&self, renderer: &mut Renderer.Renderer) {
+        // Glass background
+        let glass_color = Color::from_rgba(22, 28, 48, 200)
+        renderer.draw_rect(self.power_menu_x, self.power_menu_y, 210, 120, glass_color)
+        renderer.draw_stroke_rect(self.power_menu_x, self.power_menu_y, 210, 120, 1, Color::from_rgba(255, 255, 255, 15))
+        
+        // Menu items
+        let base_y = self.power_menu_y + 10
+        renderer.draw_text("⚙ Settings", self.power_menu_x + 12, base_y, FONT_INTER, 13, COLOR_TEXT)
+        renderer.draw_text("🔒 Lock", self.power_menu_x + 12, base_y + 32, FONT_INTER, 13, COLOR_TEXT)
+        renderer.draw_text("🔄 Restart", self.power_menu_x + 12, base_y + 64, FONT_INTER, 13, COLOR_TEXT)
+        renderer.draw_text("⏻ Shutdown", self.power_menu_x + 12, base_y + 96, FONT_INTER, 13, Color::from_rgba(255, 180, 180, 255))
+    }
+    
+    fn handle_click(&mut self, x: int, y: int) -> Option<Event> {
+        // Check power button
+        let power_x = self.width - 38
+        if x >= power_x && x < power_x + 28 && y >= 5 && y < 33 {
+            self.power_menu_visible = !self.power_menu_visible
+            return Some(Event::PowerMenuToggled)
+        }
+        
+        // Check if clicked outside power menu
+        if self.power_menu_visible {
+            if x < self.power_menu_x || x >= self.power_menu_x + 210 ||
+               y < self.power_menu_y || y >= self.power_menu_y + 120 {
+                self.power_menu_visible = false
+            }
+        }
+        
+        return None
+    }
+    
+    fn get_day_name(&self) -> string {
+        // Simplified - would get actual day from system
+        return "Wed"
+    }
+    
+    fn get_date(&self) -> string {
+        // Simplified - would get actual date from system
+        return "Dec 18"
+    }
+}
+
+// ============================================================
+// DOCK COMPONENT
+// ============================================================
+
+struct Dock {
+    x: int
+    y: int
+    width: int
+    height: int
+    visible: bool
+    
+    buttons: array<DockButton, 8>
+    active_app: int
+}
+
+struct DockButton {
+    icon: string
+    tooltip: string
+    is_running: bool
+    is_active: bool
+    app_id: int
+}
+
+impl Dock {
+    fn new() -> Self {
+        var dock = Dock {
+            x: 10,
+            y: 540 - 30,  // Centered vertically for 1080p
+            width: 64,
+            height: 300,
+            visible: true,
+            buttons: [],
+            active_app: -1
+        }
+        
+        // Initialize default apps
+        dock.buttons.push(DockButton {
+            icon: "terminal",
+            tooltip: "Terminal",
+            is_running: false,
+            is_active: false,
+            app_id: 0
+        })
+        
+        dock.buttons.push(DockButton {
+            icon: "files",
+            tooltip: "File Manager",
+            is_running: false,
+            is_active: false,
+            app_id: 1
+        })
+        
+        dock.buttons.push(DockButton {
+            icon: "settings",
+            tooltip: "Settings",
+            is_running: false,
+            is_active: false,
+            app_id: 2
+        })
+        
+        dock.buttons.push(DockButton {
+            icon: "browser",
+            tooltip: "Browser",
+            is_running: false,
+            is_active: false,
+            app_id: 3
+        })
+        
+        return dock
+    }
+    
+    fn render(&self, renderer: &mut Renderer.Renderer) {
+        if !self.visible {
+            return
+        }
+        
+        // Draw glass background
+        let glass_color = Color::from_rgba(22, 28, 48, 200)
+        renderer.draw_rounded_rect(self.x, self.y - 50, self.width + 20, self.height + 100, 18, glass_color)
+        renderer.draw_stroke_rect(self.x, self.y - 50, self.width + 20, self.height + 100, 1, Color::from_rgba(255, 255, 255, 10))
+        
+        // Draw buttons
+        for i in 0..self.buttons.len() {
+            let btn_y = self.y + (i * 54)
+            self.render_button(&self.buttons[i], renderer, self.x + 10, btn_y)
+        }
+    }
+    
+    fn render_button(&self, button: &DockButton, renderer: &mut Renderer.Renderer, x: int, y: int) {
+        // Button background
+        var bg_color = Color::from_rgba(0, 0, 0, 0)
+        if button.is_active {
+            bg_color = Color::from_rgba(255, 255, 255, 25)
+        }
+        
+        renderer.draw_rounded_rect(x, y, BUTTON_SIZE_DOCK, BUTTON_SIZE_DOCK, 12, bg_color)
+        
+        if button.is_active {
+            renderer.draw_stroke_rect(x, y, BUTTON_SIZE_DOCK, BUTTON_SIZE_DOCK, 1, Color::from_rgba(255, 255, 255, 35))
+        }
+        
+        // Draw icon (simplified - would use actual icons)
+        let icon_color = if button.is_active { 0xFFFFFF } else { 0xC3CDF0 }
+        renderer.draw_text(button.icon[0..1].to_uppercase(), x + 16, y + 28, FONT_INTER, 18, icon_color)
+        
+        // Running indicator
+        if button.is_running {
+            renderer.draw_circle(x + 22, y + 40, 2, COLOR_ACCENT2)
+        }
+    }
+    
+    fn contains_point(&self, x: int, y: int) -> bool {
+        return x >= self.x && x < self.x + self.width + 20 &&
+               y >= self.y - 50 && y < self.y + self.height + 100
+    }
+    
+    fn get_clicked_app(&self, x: int, y: int) -> int {
+        if !self.contains_point(x, y) {
+            return -1
+        }
+        
+        let rel_y = y - self.y
+        let index = rel_y / 54
+        
+        if index >= 0 && index < self.buttons.len() {
+            return self.buttons[index].app_id
+        }
+        
+        return -1
+    }
+    
+    fn set_app_running(&mut self, app_id: int, running: bool) {
+        for i in 0..self.buttons.len() {
+            if self.buttons[i].app_id == app_id {
+                self.buttons[i].is_running = running
+                break
+            }
+        }
+    }
+    
+    fn set_active_app(&mut self, app_id: int) {
+        for i in 0..self.buttons.len() {
+            self.buttons[i].is_active = (self.buttons[i].app_id == app_id)
+        }
+        self.active_app = app_id
+    }
+}
+
+// ============================================================
+// WINDOW COMPONENT
+// ============================================================
+
+struct Window {
+    id: int
+    x: int
+    y: int
+    width: int
+    height: int
+    title: string
+    is_focused: bool
+    is_minimized: bool
+    is_maximized: bool
+    is_closing: bool
+    
+    // Window content type
+    is_terminal: bool
+    terminal: Option<TerminalWindow>
+    
+    // Drag state
+    is_dragging: bool
+    drag_offset_x: int
+    drag_offset_y: int
+}
+
+impl Window {
+    fn new(id: int, x: int, y: int, width: int, height: int, title: string) -> Self {
+        return Window {
+            id: id,
+            x: x,
+            y: y,
+            width: width,
+            height: height,
+            title: title,
+            is_focused: false,
+            is_minimized: false,
+            is_maximized: false,
+            is_closing: false,
+            is_terminal: false,
+            terminal: None,
+            is_dragging: false,
+            drag_offset_x: 0,
+            drag_offset_y: 0
+        }
+    }
+    
+    fn render(&self, renderer: &mut Renderer.Renderer, focused: bool) {
+        if self.is_minimized || self.is_closing {
+            return
+        }
+        
+        // Shadow
+        let shadow_alpha = if focused { 100 } else { 60 }
+        renderer.draw_shadow(self.x + 5, self.y + 30, self.width, self.height, 60, shadow_alpha)
+        
+        // Window frame
+        let frame_color = Color::from_rgba(22, 28, 48, 220)
+        renderer.draw_rounded_rect(self.x, self.y, self.width, self.height, 14, frame_color)
+        
+        // Focus glow
+        if focused {
+            renderer.draw_stroke_rect(self.x - 1, self.y - 1, self.width + 2, self.height + 2, 2, 
+                                      Color::from_rgba(139, 123, 255, 140))
+        } else {
+            renderer.draw_stroke_rect(self.x, self.y, self.width, self.height, 1, 
+                                      Color::from_rgba(255, 255, 255, 15))
+        }
+        
+        // Title bar
+        let bar_color = Color::from_rgba(255, 255, 255, 10)
+        renderer.draw_rect(self.x, self.y, self.width, WINDOW_BAR_HEIGHT, bar_color)
+        renderer.draw_line(self.x, self.y + WINDOW_BAR_HEIGHT, self.x + self.width, self.y + WINDOW_BAR_HEIGHT,
+                          Color::from_rgba(255, 255, 255, 10))
+        
+        // Traffic light buttons
+        self.render_traffic_buttons(renderer, self.x + 12, self.y + 14)
+        
+        // Title
+        renderer.draw_text(self.title, self.x + 60, self.y + 13, FONT_INTER, 12, COLOR_TEXT)
+        
+        // Tag (for terminal)
+        if self.is_terminal {
+            let tag_x = self.x + self.width - 60
+            renderer.draw_stroke_rect(tag_x, self.y + 11, 45, 18, 1, Color::from_rgba(255, 255, 255, 20))
+            renderer.draw_text("bash", tag_x + 8, self.y + 14, FONT_JETBRAINS, 9, Color::from_rgba(255, 255, 255, 90))
+        }
+        
+        // Content area
+        let content_y = self.y + WINDOW_BAR_HEIGHT
+        let content_height = self.height - WINDOW_BAR_HEIGHT
+        renderer.draw_rounded_rect(self.x, content_y, self.width, content_height, 0, 
+                                   Color::from_rgba(8, 11, 20, 90))
+        
+        // Render specific content
+        if self.is_terminal && self.terminal.is_some() {
+            self.terminal.unwrap().render(renderer, self.x + 8, content_y + 8, 
+                                         self.width - 16, content_height - 16)
+        }
+    }
+    
+    fn render_traffic_buttons(&self, renderer: &mut Renderer.Renderer, x: int, y: int) {
+        // Close button
+        renderer.draw_circle(x, y, BUTTON_SIZE_CLOSE, 0xFF5F57)
+        // Minimize button
+        renderer.draw_circle(x + 20, y, BUTTON_SIZE_CLOSE, 0xFEBC2E)
+        // Maximize button
+        renderer.draw_circle(x + 40, y, BUTTON_SIZE_CLOSE, 0x28C840)
+    }
+    
+    fn contains_point(&self, px: int, py: int) -> bool {
+        return px >= self.x && px < self.x + self.width &&
+               py >= self.y && py < self.y + self.height
+    }
+    
+    fn contains_title_bar(&self, px: int, py: int) -> bool {
+        return px >= self.x && px < self.x + self.width &&
+               py >= self.y && py < self.y + WINDOW_BAR_HEIGHT
+    }
+    
+    fn update(&mut self) {
+        // Animation updates, etc.
+        if self.is_closing {
+            // Fade out animation
+        }
+    }
+    
+    fn start_drag(&mut self, px: int, py: int) {
+        if self.contains_title_bar(px, py) {
+            self.is_dragging = true
+            self.drag_offset_x = px - self.x
+            self.drag_offset_y = py - self.y
+        }
+    }
+    
+    fn drag(&mut self, px: int, py: int) {
+        if self.is_dragging {
+            self.x = px - self.drag_offset_x
+            self.y = py - self.drag_offset_y
+        }
+    }
+    
+    fn end_drag(&mut self) {
+        self.is_dragging = false
+    }
+}
+
+// ============================================================
+// TERMINAL WINDOW COMPONENT
+// ============================================================
+
+struct TerminalWindow {
+    lines: array<string, 100>
+    line_count: int
+    scroll_offset: int
+    cursor_blink: bool
+    current_command: string
+    command_history: array<string, 50>
+    history_index: int
+}
+
+impl TerminalWindow {
+    fn new() -> Self {
+        var term = TerminalWindow {
+            lines: [],
+            line_count: 0,
+            scroll_offset: 0,
+            cursor_blink: true,
+            current_command: "",
+            command_history: [],
+            history_index: -1
+        }
+        
+        // Initial boot messages
+        term.add_line("KengaOS Terminal v0.5", 0x7EE7D0)
+        term.add_line("Type 'help' for available commands", 0xA8B0D0)
+        term.add_line("", 0)
+        term.prompt()
+        
+        return term
+    }
+    
+    fn add_line(&mut self, text: string, color: u32) {
+        if self.line_count < 100 {
+            self.lines[self.line_count] = text
+            self.line_count += 1
+        } else {
+            // Scroll up
+            for i in 0..99 {
+                self.lines[i] = self.lines[i + 1]
+            }
+            self.lines[99] = text
+        }
+    }
+    
+    fn prompt(&mut self) {
+        self.add_line("❯ " + self.current_command, 0x9FF2E0)
+    }
+    
+    fn handle_key(&mut self, key: int) {
+        if key == Keys::ENTER {
+            self.execute_command()
+            self.current_command = ""
+        } else if key == Keys::BACKSPACE {
+            if self.current_command.len() > 0 {
+                self.current_command = self.current_command[0..-1]
+            }
+        } else if key >= 32 && key <= 126 {
+            self.current_command += char(key)
+        }
+    }
+    
+    fn execute_command(&mut self) {
+        let cmd = self.current_command.trim()
+        
+        match cmd {
+            "help" => {
+                self.add_line("Available commands:", 0xFFFFFF)
+                self.add_line("  help    - Show this help", 0xCFD8F2)
+                self.add_line("  ver     - Show version", 0xCFD8F2)
+                self.add_line("  mem     - Show memory info", 0xCFD8F2)
+                self.add_line("  clear   - Clear terminal", 0xCFD8F2)
+                self.add_line("  demo    - Run demo", 0xCFD8F2)
+            }
+            "ver" => {
+                self.add_line("KengaOS 0.5 - Next Generation OS", 0x7EE7A3)
+            }
+            "mem" => {
+                self.add_line("Total: 16384 MB", 0xCFD8F2)
+                self.add_line("Used: 6234 MB", 0xCFD8F2)
+                self.add_line("Free: 10150 MB", 0xCFD8F2)
+            }
+            "clear" => {
+                self.lines = []
+                self.line_count = 0
+                self.prompt()
+            }
+            "demo" => {
+                self.add_line("Running demo...", 0x22D3EE)
+                self.add_line("Done!", 0x7EE7A3)
+            }
+            "" => {}
+            _ => {
+                self.add_line("Command not found: " + cmd, 0xFF8F8F)
+            }
+        }
+        
+        if cmd != "clear" {
+            self.prompt()
+        }
+    }
+    
+    fn render(&self, renderer: &mut Renderer.Renderer, x: int, y: int, width: int, height: int) {
+        // Set clip region
+        renderer.set_clip_rect(x, y, width, height)
+        
+        let line_height = 20
+        var display_y = y - (self.scroll_offset * line_height)
+        
+        for i in 0..self.line_count {
+            if display_y > y + height {
+                break
+            }
+            
+            let line = self.lines[i]
+            let color = self.get_line_color(i)
+            
+            renderer.draw_text(line, x, display_y, FONT_JETBRAINS, 12, color)
+            display_y += line_height
+        }
+        
+        // Cursor
+        if self.cursor_blink {
+            let cursor_x = x + 10 + (self.current_command.len() * 8)
+            renderer.draw_rect(cursor_x, y + (self.line_count * line_height), 8, 18, 0x9FF2E0)
+        }
+        
+        renderer.clear_clip()
+    }
+    
+    fn get_line_color(&self, index: int) -> u32 {
+        // Simplified - would store colors with lines
+        return 0xCFD8F2
+    }
+}
+
+// ============================================================
+// LAUNCHER COMPONENT
+// ============================================================
+
+struct Launcher {
+    visible: bool
+    search_text: string
+    search_focused: bool
+    apps: array<LauncherApp, 20>
+}
+
+struct LauncherApp {
+    name: string
+    icon: string
+    category: string
+    app_id: int
+}
+
+impl Launcher {
+    fn new() -> Self {
+        var launcher = Launcher {
+            visible: false,
+            search_text: "",
+            search_focused: false,
+            apps: []
+        }
+        
+        // Initialize apps
+        launcher.apps.push(LauncherApp {
+            name: "Terminal",
+            icon: "terminal",
+            category: "System",
+            app_id: 0
+        })
+        
+        launcher.apps.push(LauncherApp {
+            name: "File Manager",
+            icon: "files",
+            category: "System",
+            app_id: 1
+        })
+        
+        launcher.apps.push(LauncherApp {
+            name: "Settings",
+            icon: "settings",
+            category: "System",
+            app_id: 2
+        })
+        
+        launcher.apps.push(LauncherApp {
+            name: "Browser",
+            icon: "browser",
+            category: "Internet",
+            app_id: 3
+        })
+        
+        return launcher
+    }
+    
+    fn toggle(&mut self) {
+        self.visible = !self.visible
+        if self.visible {
+            self.search_text = ""
+            self.search_focused = true
+        }
+    }
+    
+    fn hide(&mut self) {
+        self.visible = false
+    }
+    
+    fn render(&self, renderer: &mut Renderer.Renderer) {
+        if !self.visible {
+            return
+        }
+        
+        // Overlay background
+        renderer.draw_rect(0, 0, 1920, 1080, Color::from_rgba(4, 7, 14, 150))
+        
+        // Search box
+        let search_x = 960 - 250
+        let search_y = 100
+        renderer.draw_rounded_rect(search_x, search_y, 500, 48, 12, Color::from_rgba(255, 255, 255, 10))
+        renderer.draw_stroke_rect(search_x, search_y, 500, 48, 1, Color::from_rgba(255, 255, 255, 20))
+        
+        if self.search_text.len() == 0 && !self.search_focused {
+            renderer.draw_text("Search applications...", search_x + 16, search_y + 28, FONT_INTER, 14, COLOR_TEXT_DIM)
+        } else {
+            renderer.draw_text(self.search_text, search_x + 16, search_y + 28, FONT_INTER, 14, COLOR_TEXT)
+        }
+        
+        // App grid
+        let grid_x = 960 - 320
+        let grid_y = 180
+        var app_x = grid_x
+        var app_y = grid_y
+        var col = 0
+        
+        for app in &self.apps {
+            if col >= 4 {
+                col = 0
+                app_x = grid_x
+                app_y += 160
+            }
+            
+            self.render_app_tile(renderer, app, app_x, app_y)
+            app_x += 160
+            col += 1
+        }
+    }
+    
+    fn render_app_tile(&self, renderer: &mut Renderer.Renderer, app: &LauncherApp, x: int, y: int) {
+        // Tile background
+        renderer.draw_rounded_rect(x, y, 150, 140, 16, Color::from_rgba(255, 255, 255, 8))
+        renderer.draw_stroke_rect(x, y, 150, 140, 1, Color::from_rgba(255, 255, 255, 12))
+        
+        // Icon
+        let icon_bg = Color::from_gradient(140, COLOR_ACCENT, 30, COLOR_ACCENT2, 25)
+        renderer.draw_rounded_rect(x + 52, y + 18, 46, 46, 14, icon_bg)
+        renderer.draw_text(app.icon[0..1].to_uppercase(), x + 68, y + 48, FONT_INTER, 22, 0xFFFFFF)
+        
+        // Name
+        renderer.draw_text(app.name, x + 75, y + 85, FONT_INTER, 13, COLOR_TEXT)
+        
+        // Category
+        renderer.draw_text(app.category, x + 75, y + 105, FONT_INTER, 10, COLOR_TEXT_DIM)
+    }
+    
+    fn handle_click(&mut self, x: int, y: int) -> Option<int> {
+        // Check app clicks
+        let grid_x = 960 - 320
+        let grid_y = 180
+        var app_x = grid_x
+        var app_y = grid_y
+        var col = 0
+        
+        for i in 0..self.apps.len() {
+            if col >= 4 {
+                col = 0
+                app_x = grid_x
+                app_y += 160
+            }
+            
+            if x >= app_x && x < app_x + 150 && y >= app_y && y < app_y + 140 {
+                self.hide()
+                return Some(self.apps[i].app_id)
+            }
+            
+            app_x += 160
+            col += 1
+        }
+        
+        return None
+    }
+}
+
+// ============================================================
+// BOOT SCREEN COMPONENT
+// ============================================================
+
+struct BootScreen {
+    visible: bool
+    logs: array<string, 20>
+    log_count: int
+    progress: float
+    alpha: float
+}
+
+impl BootScreen {
+    fn new() -> Self {
+        return BootScreen {
+            visible: true,
+            logs: [],
+            log_count: 0,
+            progress: 0.0,
+            alpha: 1.0
+        }
+    }
+    
+    fn add_log(&mut self, log: string) {
+        if self.log_count < 20 {
+            self.logs[self.log_count] = log
+            self.log_count += 1
+        }
+    }
+    
+    fn set_progress(&mut self, value: float) {
+        self.progress = clamp(value, 0.0, 1.0)
+    }
+    
+    fn set_alpha(&mut self, value: float) {
+        self.alpha = clamp(value, 0.0, 1.0)
+    }
+    
+    fn set_visible(&mut self, visible: bool) {
+        self.visible = visible
+    }
+    
+    fn render(&self, renderer: &mut Renderer.Renderer) {
+        if !self.visible {
+            return
+        }
+        
+        // Logo
+        renderer.draw_text("KENGAOS", 960 - 100, 400, FONT_UNBOUNDED, 32, 0xFFFFFF)
+        renderer.draw_text("ОПЕРАЦИОННАЯ СИСТЕМА НОВОГО ПОКОЛЕНИЯ · v0.5", 
+                          960 - 200, 440, FONT_JETBRAINS, 12, Color::from_rgba(255, 255, 255, 100))
+        
+        // Progress bar
+        renderer.draw_rounded_rect(960 - 150, 500, 300, 4, 2, Color::from_rgba(255, 255, 255, 20))
+        let bar_width = (300.0 * self.progress) as int
+        renderer.draw_gradient_rect(960 - 150, 500, bar_width, 4, COLOR_ACCENT, COLOR_ACCENT2)
+        
+        // Boot logs
+        let log_y = 540
+        for i in 0..self.log_count {
+            let color = if self.logs[i].starts_with("[OK]") { 0x7EE7D0 } else { 0xA8B0D0 }
+            renderer.draw_text(self.logs[i], 960 - 300, log_y + (i * 18), FONT_JETBRAINS, 11, color)
+        }
+    }
+}
+
+// ============================================================
+// LOCK SCREEN COMPONENT
+// ============================================================
+
+struct LockScreen {
+    visible: bool
+    time_string: string
+    date_string: string
+    hint_alpha: float
+}
+
+impl LockScreen {
+    fn new() -> Self {
+        return LockScreen {
+            visible: false,
+            time_string: "00:00",
+            date_string: "",
+            hint_alpha: 1.0
+        }
+    }
+    
+    fn render(&self, renderer: &mut Renderer.Renderer) {
+        if !self.visible {
+            return
+        }
+        
+        // Time
+        renderer.draw_text(self.time_string, 960 - 150, 400, FONT_UNBOUNDED, 76, 0xFFFFFF)
+        
+        // Date
+        renderer.draw_text(self.date_string, 960 - 100, 490, FONT_INTER, 15, Color::from_rgba(255, 255, 255, 165))
+        
+        // Hint
+        let hint_y = 600 + (sin(get_time_ms() / 500.0) * 5.0) as int
+        renderer.draw_text("Click to unlock", 960 - 80, hint_y, FONT_INTER, 13, 
+                          Color::from_rgba(255, 255, 255, 100))
+    }
+    
+    fn handle_click(&mut self, x: int, y: int) {
+        self.visible = false
+    }
+    
+    fn update_time(&mut self, hours: int, minutes: int) {
+        self.time_string = format("{:02}:{:02}", hours, minutes)
+    }
+}
+
+// Export components
+export TopBar
+export Dock
+export Window
+export TerminalWindow
+export Launcher
+export BootScreen
+export LockScreen
+export COLOR_ACCENT
+export COLOR_ACCENT2

@@ -1,11 +1,98 @@
-# Build output
-/build/
-*.iso
+```
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+target/
+
+# Environment variables
+.env
+.env.local
+.env.*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+*.tmp
+
+# Node.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+node_modules/
+jspm_packages/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
 *.log
 
-# Limine binaries are auto-downloaded by scripts/build.sh
-/limine/
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
 
-# OS / editor noise
-Thumbs.db
-Desktop.ini
+# Coverage directory used by tools like istanbul
+coverage/
+lib-cov/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Vite
+!.vite/
+.vite/
+
+# Temporary folders
+temp/
+tmp/
+
+# Compiled JavaScript
+*.js.map
+*.mjs.map
+
+# PostCSS
+.postcss-cache/
+
+# Tailwind
+.tailwind/
+.tailwind-cache/
+
+# Lock files
+package-lock.json
+yarn.lock
+```

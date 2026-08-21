@@ -1,0 +1,611 @@
+// KengaOS Native Graphics Renderer
+// Low-level rendering engine for desktop UI
+// Implements double buffering, hardware acceleration, and effects
+
+import "kernel/hardware.kg" as Hardware
+import "kernel/memory.kg" as Memory
+
+// ============================================================
+// CONSTANTS
+// ============================================================
+
+const MAX_TEXTURES = 256
+const MAX_VERTICES = 8192
+const BLUR_SAMPLES = 16
+
+// Pixel format: RGBA8888
+const PF_RGBA8888 = 0
+const PF_RGB565 = 1
+const PF_ARGB8888 = 2
+
+// Blend modes
+const BLEND_NONE = 0
+const BLEND_ALPHA = 1
+const BLEND_ADDITIVE = 2
+const BLEND_MULTIPLY = 3
+
+// ============================================================
+// STRUCTS
+// ============================================================
+
+struct Framebuffer {
+    width: int
+    height: int
+    pitch: int  // bytes per row
+    format: int
+    data: ptr<u8>
+    size: int
+}
+
+struct Texture {
+    id: int
+    width: int
+    height: int
+    format: int
+    data: ptr<u8>
+    is_valid: bool
+}
+
+struct Vertex {
+    x: float
+    y: float
+    z: float
+    u: float  // texture coordinate
+    v: float
+    color: u32
+}
+
+struct Rectangle {
+    x: int
+    y: int
+    width: int
+    height: int
+}
+
+struct Color {
+    r: u8
+    g: u8
+    b: u8
+    a: u8
+}
+
+// Main Renderer struct
+struct Renderer {
+    front_buffer: Framebuffer
+    back_buffer: Framebuffer
+    depth_buffer: ptr<float>
+    
+    textures: array<Texture, MAX_TEXTURES>
+    vertex_buffer: array<Vertex, MAX_VERTICES>
+    vertex_count: int
+    
+    current_blend_mode: int
+    global_alpha: float
+    
+    clip_rect: Rectangle
+    has_clip: bool
+    
+    default_font: Font
+    fonts: array<Font, 32>
+    
+    gpu_accelerated: bool
+    vsync_enabled: bool
+}
+
+struct Font {
+    name: string
+    glyph_count: int
+    glyphs: ptr<Glyph>
+    texture: Texture
+    ascent: int
+    descent: int
+    line_height: int
+}
+
+struct Glyph {
+    codepoint: u32
+    x: int
+    y: int
+    width: int
+    height: int
+    advance: int
+    bearing_x: int
+    bearing_y: int
+}
+
+// ============================================================
+// RENDERER IMPLEMENTATION
+// ============================================================
+
+impl Renderer {
+    // Create new renderer with specified resolution
+    fn new(width: int, height: int) -> Self {
+        var renderer = Renderer {
+            front_buffer: Framebuffer::new(width, height, PF_RGBA8888),
+            back_buffer: Framebuffer::new(width, height, PF_RGBA8888),
+            depth_buffer: Memory::alloc_array<float>(width * height),
+            textures: [],
+            vertex_buffer: [],
+            vertex_count: 0,
+            current_blend_mode: BLEND_ALPHA,
+            global_alpha: 1.0,
+            clip_rect: Rectangle { x: 0, y: 0, width: width, height: height },
+            has_clip: false,
+            fonts: [],
+            gpu_accelerated: Hardware::has_gpu_acceleration(),
+            vsync_enabled: true
+        }
+        
+        // Initialize depth buffer to 1.0
+        for i in 0..(width * height) {
+            renderer.depth_buffer[i] = 1.0
+        }
+        
+        return renderer
+    }
+    
+    // Initialize double buffering system
+    fn init_double_buffer(&mut self) {
+        if self.gpu_accelerated {
+            Hardware::gpu_init_double_buffer(
+                self.front_buffer.data,
+                self.back_buffer.data,
+                self.front_buffer.width,
+                self.front_buffer.height
+            )
+        }
+    }
+    
+    // Clear the back buffer with a solid color
+    fn clear(&mut self, color: u32) {
+        let size = self.back_buffer.size
+        
+        if self.gpu_accelerated {
+            Hardware::gpu_clear(self.back_buffer.data, color, size)
+        } else {
+            // CPU fallback - optimized memset-like operation
+            var pixels = self.back_buffer.data as ptr<u32>
+            let pixel_count = size / 4
+            
+            // Unroll loop for performance (process 4 pixels at once)
+            var i = 0
+            while i < pixel_count - 3 {
+                pixels[i] = color
+                pixels[i + 1] = color
+                pixels[i + 2] = color
+                pixels[i + 3] = color
+                i += 4
+            }
+            
+            // Handle remaining pixels
+            while i < pixel_count {
+                pixels[i] = color
+                i += 1
+            }
+        }
+        
+        // Reset depth buffer
+        for i in 0..(self.front_buffer.width * self.front_buffer.height) {
+            self.depth_buffer[i] = 1.0
+        }
+    }
+    
+    // Swap front and back buffers (with optional vsync)
+    fn swap_buffers(&mut self) {
+        if self.vsync_enabled {
+            Hardware::wait_for_vsync()
+        }
+        
+        if self.gpu_accelerated {
+            Hardware::gpu_swap_buffers()
+        } else {
+            // CPU copy: back buffer -> front buffer
+            Memory::copy(
+                self.front_buffer.data,
+                self.back_buffer.data,
+                self.front_buffer.size
+            )
+            
+            // Display front buffer
+            Hardware::display_framebuffer(self.front_buffer.data)
+        }
+    }
+    
+    // Set global alpha for transparency
+    fn set_global_alpha(&mut self, alpha: float) {
+        self.global_alpha = clamp(alpha, 0.0, 1.0)
+    }
+    
+    // Draw a single pixel
+    fn draw_pixel(&mut self, x: int, y: int, color: u32) {
+        // Clip check
+        if self.has_clip {
+            if x < self.clip_rect.x || x >= self.clip_rect.x + self.clip_rect.width ||
+               y < self.clip_rect.y || y >= self.clip_rect.y + self.clip_rect.height {
+                return
+            }
+        }
+        
+        // Bounds check
+        if x < 0 || x >= self.back_buffer.width || y < 0 || y >= self.back_buffer.height {
+            return
+        }
+        
+        let offset = y * self.back_buffer.pitch + x * 4
+        let pixels = self.back_buffer.data as ptr<u32>
+        
+        if self.current_blend_mode == BLEND_ALPHA {
+            let src_color = Color::from_u32(color)
+            let dst_color = Color::from_u32(pixels[offset / 4])
+            
+            // Alpha blending
+            let alpha = (src_color.a as float / 255.0) * self.global_alpha
+            let inv_alpha = 1.0 - alpha
+            
+            let r = (src_color.r as float * alpha + dst_color.r as float * inv_alpha) as u8
+            let g = (src_color.g as float * alpha + dst_color.g as float * inv_alpha) as u8
+            let b = (src_color.b as float * alpha + dst_color.b as float * inv_alpha) as u8
+            
+            pixels[offset / 4] = Color::to_u32(Color { r: r, g: g, b: b, a: 255 })
+        } else {
+            pixels[offset / 4] = color
+        }
+    }
+    
+    // Draw a filled rectangle
+    fn draw_rect(&mut self, x: int, y: int, width: int, height: int, color: u32) {
+        // Clip check
+        if self.has_clip {
+            let clip_x = max(x, self.clip_rect.x)
+            let clip_y = max(y, self.clip_rect.y)
+            let clip_w = min(x + width, self.clip_rect.x + self.clip_rect.width) - clip_x
+            let clip_h = min(y + height, self.clip_rect.y + self.clip_rect.height) - clip_y
+            
+            if clip_w <= 0 || clip_h <= 0 {
+                return
+            }
+            
+            x = clip_x
+            y = clip_y
+            width = clip_w
+            height = clip_h
+        }
+        
+        // Bounds check
+        if x >= self.back_buffer.width || y >= self.back_buffer.height ||
+           x + width <= 0 || y + height <= 0 {
+            return
+        }
+        
+        let start_x = max(0, x)
+        let start_y = max(0, y)
+        let end_x = min(self.back_buffer.width, x + width)
+        let end_y = min(self.back_buffer.height, y + height)
+        
+        let pixels = self.back_buffer.data as ptr<u32>
+        let pitch = self.back_buffer.pitch / 4
+        
+        for cy in start_y..end_y {
+            let offset = cy * pitch + start_x
+            for cx in 0..(end_x - start_x) {
+                pixels[offset + cx] = color
+            }
+        }
+    }
+    
+    // Draw a rectangle with gradient fill
+    fn draw_gradient_rect(&mut self, x: int, y: int, width: int, height: int, 
+                          color_top: u32, color_bottom: u32) {
+        for cy in 0..height {
+            let t = cy as float / height as float
+            let color = Color::lerp(color_top, color_bottom, t)
+            self.draw_rect(x, y + cy, width, 1, color)
+        }
+    }
+    
+    // Draw a circle (filled)
+    fn draw_circle(&mut self, cx: int, cy: int, radius: int, color: u32) {
+        var x = radius
+        var y = 0
+        let error = 0
+        
+        while x >= y {
+            self.draw_horizontal_line(cx - x, cy + y, x * 2, color)
+            self.draw_horizontal_line(cx - y, cy + x, y * 2, color)
+            self.draw_horizontal_line(cx - x, cy - y, x * 2, color)
+            self.draw_horizontal_line(cx - y, cy - x, y * 2, color)
+            
+            y += 1
+            if error <= 0 {
+                error += 2 * y + 1
+            }
+            if error > 0 {
+                x -= 1
+                error -= 2 * x + 1
+            }
+        }
+    }
+    
+    // Draw a blurred circle (for glow effects)
+    fn draw_blurred_circle(&mut self, cx: int, cy: int, radius: int, 
+                           color: u32, blur_radius: int) {
+        // Multi-pass box blur approximation
+        // Draw multiple concentric circles with decreasing alpha
+        
+        let base_color = Color::from_u32(color)
+        let layers = blur_radius / 4
+        
+        for i in 0..layers {
+            let layer_radius = radius - (i * 4)
+            if layer_radius <= 0 {
+                break
+            }
+            
+            let alpha_factor = 1.0 - (i as float / layers as float)
+            let layer_color = Color {
+                r: base_color.r,
+                g: base_color.g,
+                b: base_color.b,
+                a: (base_color.a as float * alpha_factor) as u8
+            }
+            
+            self.draw_circle(cx, cy, layer_radius, Color::to_u32(layer_color))
+        }
+    }
+    
+    // Draw horizontal line
+    fn draw_horizontal_line(&mut self, x: int, y: int, length: int, color: u32) {
+        self.draw_rect(x, y, length, 1, color)
+    }
+    
+    // Draw vertical line
+    fn draw_vertical_line(&mut self, x: int, y: int, length: int, color: u32) {
+        self.draw_rect(x, y, 1, length, color)
+    }
+    
+    // Draw an image/sprite
+    fn draw_image(&mut self, image: &Image, x: int, y: int, width: int, height: int) {
+        // Implementation depends on image format
+        // For now, assume RGBA8888
+        let src_pixels = image.data as ptr<u32>
+        let dst_pixels = self.back_buffer.data as ptr<u32>
+        
+        let scale_x = image.width as float / width as float
+        let scale_y = image.height as float / height as float
+        
+        for dy in 0..height {
+            for dx in 0..width {
+                let src_x = (dx as float * scale_x) as int
+                let src_y = (dy as float * scale_y) as int
+                
+                if src_x >= 0 && src_x < image.width && src_y >= 0 && src_y < image.height {
+                    let src_offset = src_y * image.width + src_x
+                    let dst_offset = (y + dy) * (self.back_buffer.pitch / 4) + (x + dx)
+                    
+                    if dst_offset >= 0 && dst_offset < (self.back_buffer.width * self.back_buffer.height) {
+                        dst_pixels[dst_offset] = src_pixels[src_offset]
+                    }
+                }
+            }
+        }
+    }
+    
+    // Draw text using loaded font
+    fn draw_text(&mut self, text: string, x: int, y: int, 
+                 font_name: string, size: int, color: u32) {
+        // Find font by name
+        var font_index = -1
+        for i in 0..self.fonts.len() {
+            if self.fonts[i].name == font_name {
+                font_index = i
+                break
+            }
+        }
+        
+        if font_index < 0 {
+            return  // Font not found
+        }
+        
+        let font = &self.fonts[font_index]
+        let scale = size as float / font.line_height as float
+        
+        var cursor_x = x
+        let cursor_y = y
+        
+        for char_code in text.chars() {
+            // Find glyph
+            for g in 0..font.glyph_count {
+                let glyph = font.glyphs[g]
+                if glyph.codepoint == char_code {
+                    // Render glyph bitmap
+                    self.draw_glyph(
+                        glyph,
+                        cursor_x + glyph.bearing_x,
+                        cursor_y - glyph.bearing_y,
+                        scale,
+                        color
+                    )
+                    
+                    cursor_x += (glyph.advance as float * scale) as int
+                    break
+                }
+            }
+        }
+    }
+    
+    // Draw a single glyph
+    fn draw_glyph(&mut self, glyph: Glyph, x: int, y: int, scale: float, color: u32) {
+        let width = (glyph.width as float * scale) as int
+        let height = (glyph.height as float * scale) as int
+        
+        // Sample from glyph texture and draw
+        // Simplified implementation
+        self.draw_rect(x, y, width, height, color)
+    }
+    
+    // Load font from file
+    fn load_font(&mut self, name: string, path: string) -> bool {
+        // Parse TTF/OTF file and extract glyph data
+        let font_data = Hardware::load_file(path)
+        if font_data.is_null() {
+            return false
+        }
+        
+        // Parse font metrics and glyphs
+        var font = Font::parse(font_data, name)
+        if !font.is_valid {
+            return false
+        }
+        
+        self.fonts.push(font)
+        return true
+    }
+    
+    // Draw vignette overlay (darkened corners)
+    fn draw_vignette(&mut self, width: int, height: int) {
+        let center_x = width / 2
+        let center_y = height / 2
+        let max_dist = sqrt((center_x * center_x + center_y * center_y) as float) as int
+        
+        for y in 0..height {
+            for x in 0..width {
+                let dx = x - center_x
+                let dy = y - center_y
+                let dist = sqrt((dx * dx + dy * dy) as float) as int
+                let normalized_dist = dist as float / max_dist as float
+                
+                if normalized_dist > 0.55 {
+                    let darkness = (normalized_dist - 0.55) / 0.45
+                    let alpha = (darkness * 120.0) as u8
+                    
+                    self.draw_pixel(x, y, Color::to_u32(Color {
+                        r: 0,
+                        g: 0,
+                        b: 0,
+                        a: alpha
+                    }))
+                }
+            }
+        }
+    }
+    
+    // Set clipping rectangle
+    fn set_clip_rect(&mut self, x: int, y: int, width: int, height: int) {
+        self.clip_rect = Rectangle { x: x, y: y, width: width, height: height }
+        self.has_clip = true
+    }
+    
+    // Clear clipping rectangle
+    fn clear_clip(&mut self) {
+        self.has_clip = false
+        self.clip_rect = Rectangle { 
+            x: 0, 
+            y: 0, 
+            width: self.back_buffer.width, 
+            height: self.back_buffer.height 
+        }
+    }
+    
+    // Sync to vertical sync
+    fn sync_to_vsync() {
+        Hardware::wait_for_vsync()
+    }
+}
+
+// ============================================================
+// COLOR UTILITIES
+// ============================================================
+
+impl Color {
+    fn from_u32(color: u32) -> Self {
+        return Color {
+            r: ((color >> 16) & 0xFF) as u8,
+            g: ((color >> 8) & 0xFF) as u8,
+            b: (color & 0xFF) as u8,
+            a: ((color >> 24) & 0xFF) as u8
+        }
+    }
+    
+    fn to_u32(self) -> u32 {
+        return ((self.a as u32) << 24) | 
+               ((self.r as u32) << 16) | 
+               ((self.g as u32) << 8) | 
+               (self.b as u32)
+    }
+    
+    fn lerp(color1: u32, color2: u32, t: float) -> u32 {
+        let c1 = Color::from_u32(color1)
+        let c2 = Color::from_u32(color2)
+        
+        return Color::to_u32(Color {
+            r: (c1.r as float * (1.0 - t) + c2.r as float * t) as u8,
+            g: (c1.g as float * (1.0 - t) + c2.g as float * t) as u8,
+            b: (c1.b as float * (1.0 - t) + c2.b as float * t) as u8,
+            a: (c1.a as float * (1.0 - t) + c2.a as float * t) as u8
+        })
+    }
+}
+
+// ============================================================
+// FRAMEBUFFER IMPLEMENTATION
+// ============================================================
+
+impl Framebuffer {
+    fn new(width: int, height: int, format: int) -> Self {
+        let bytes_per_pixel = match format {
+            PF_RGBA8888 => 4,
+            PF_RGB565 => 2,
+            PF_ARGB8888 => 4,
+            _ => 4
+        }
+        
+        let pitch = width * bytes_per_pixel
+        let size = pitch * height
+        
+        var data = Memory::alloc(size)
+        Memory::set(data, 0, size)  // Clear to black
+        
+        return Framebuffer {
+            width: width,
+            height: height,
+            pitch: pitch,
+            format: format,
+            data: data,
+            size: size
+        }
+    }
+}
+
+// ============================================================
+// HELPER FUNCTIONS
+// ============================================================
+
+fn clamp(value: float, min_val: float, max_val: float) -> float {
+    if value < min_val {
+        return min_val
+    }
+    if value > max_val {
+        return max_val
+    }
+    return value
+}
+
+fn max(a: int, b: int) -> int {
+    return if a > b { a } else { b }
+}
+
+fn min(a: int, b: int) -> int {
+    return if a < b { a } else { b }
+}
+
+fn sqrt(x: float) -> float {
+    return Math::sqrt(x)
+}
+
+// Export public API
+export Renderer
+export Framebuffer
+export Texture
+export Color
+export PF_RGBA8888
+export BLEND_ALPHA
