@@ -77,7 +77,10 @@ KengaOS получает абсолютные координаты курсор�
 
 Agent-native десктоп KengaOS 0.5 (десктоп, окна и логика на Kenga):
 
-![KengaOS desktop](docs/desktop.png)
+![KengaOS Aurora desktop — live QEMU framebuffer](docs/desktop.png)
+
+Скриншот выше снят непосредственно из собранного ISO в QEMU через
+framebuffer monitor, а не из HTML-preview.
 
 ### Визуальное направление
 
