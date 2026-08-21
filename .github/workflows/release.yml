@@ -156,6 +156,9 @@ jobs:
       - name: Build KengaOS ISO
         run: ./scripts/build.sh
 
+      - name: Verify release manifest
+        run: python3 scripts/release_gate.py --build build
+
       - name: Upload ISO
         uses: actions/upload-artifact@v5
         with:

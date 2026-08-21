@@ -10,6 +10,14 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  release-tools:
+    name: Release manifest + rollback fault tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run release fault tests
+        run: python3 -m unittest discover -s tests -v
+
   os-smoke:
     name: Build ISO + QEMU smoke test
     runs-on: ubuntu-latest
@@ -25,3 +33,5 @@ jobs:
 
       - name: Build + smoke test
         run: ./scripts/build.sh
+      - name: Verify release artifacts
+        run: python3 scripts/release_gate.py --build build
