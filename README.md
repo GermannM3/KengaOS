@@ -75,7 +75,7 @@ KengaOS получает абсолютные координаты курсор�
 
 ![KengaOS shell](docs/console-shell.png)
 
-Agent-native десктоп KengaOS 0.5 (десктоп, окна и логика на Kenga):
+Agent-native десктоп KengaOS 0.6 Command Center (десктоп и логика на Kenga):
 
 ![KengaOS Aurora desktop — live QEMU framebuffer](docs/desktop.png)
 
@@ -85,8 +85,9 @@ framebuffer monitor, а не из HTML-preview.
 ### Визуальное направление
 
 Десктоп закреплён в стиле Aurora / glassmorphism: глубокий космический фон,
-фиолетово-циановые свечения, полупрозрачные окна, плавающий dock и
-agent-native рабочее пространство. В качестве визуального ориентира
+фиолетово-циановые свечения и единый Command Center с агентским графом,
+телеметрией и рабочей строкой IPC. Старые плавающие окна и dock убраны из
+основной композиции. В качестве визуального ориентира
 используется [`docs/ui-reference-primer.jpg`](docs/ui-reference-primer.jpg),
 а текущий рабочий результат показан на [`docs/desktop.png`](docs/desktop.png).
 

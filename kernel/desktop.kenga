@@ -51,10 +51,6 @@ fn draw_desktop(st: DesktopState) -> i64 {
     draw_input_bar(W, H, m.sb, m.tb, m.stb);
     /* live log floating bottom-right */
     draw_log(W, H, m.sb, m.tb, m.stb);
-    /* agent windows (CAP_UI) */
-    draw_windows();
-    /* dock LAST: it floats above everything and always eats its clicks */
-    draw_dock(W, H, st.cur_app);
     return 0;
 }
 
@@ -589,34 +585,12 @@ fn handle_click(st: DesktopState, mx: i64, my: i64) -> DesktopState {
     let TOPBAR: i64 = m.tb;
     let SIDEBAR: i64 = m.sb;
     let STATUSB: i64 = m.stb;
-    /* dock FIRST: it is drawn on top of the windows and must eat its clicks
-       even when an agent window overlaps the dock area */
-    let dw: i64 = 64;
-    let dh: i64 = 5 * 52 + 20;
-    let dx: i64 = 12;
-    let dy: i64 = (H - dh) / 2;
-    if mx >= dx && mx < dx + dw && my >= dy && my < dy + dh {
-        let idx: i64 = (my - dy - 10) / 52;
-        if idx >= 0 && idx < 5 { st.cur_app = idx; }
-        return st;
-    }
-    /* windows take precedence: bring the clicked one to front */
-    let w: i64 = win_at(mx, my);
-    if w >= 0 {
-        ui_window_front(w);
-        /* traffic-light close button (red disc, top-left) */
-        let cwx: i64 = ui_window_x(w) + 18;
-        let cwy: i64 = ui_window_y(w) + 22;
-        if mx >= cwx - 6 && mx < cwx + 6 && my >= cwy - 6 && my < cwy + 6 {
-            ui_window_close(w);
-            return st;
-        }
-        /* if clicked on the title bar (top 44px), start dragging it */
-        if my < ui_window_y(w) + 44 {
-            st.drag_win = w;
-            st.drag_ox = mx - ui_window_x(w);
-            st.drag_oy = my - ui_window_y(w);
-        }
+    /* Command Center agent rail and live process cards. */
+    let cx: i64 = 96;
+    let cy: i64 = 72;
+    if mx >= cx + 18 && mx < cx + 238 && my >= cy + 82 && my < H - 100 {
+        let idx: i64 = (my - (cy + 82)) / 36;
+        if idx >= 0 && idx < proc_count() { st.sel_pid = proc_pid_at(idx); }
         return st;
     }
     /* input bar send button: submit the chat line to the agent */
@@ -624,32 +598,6 @@ fn handle_click(st: DesktopState, mx: i64, my: i64) -> DesktopState {
     if mx >= 108 + bw - 100 && mx < 108 + bw - 8 && my >= H - 52 + 5 && my < H - 52 + 31 {
         ui_input_submit();
         return st;
-    }
-    /* main view window: app content coordinates */
-    let x: i64 = 108 + 16;
-    let y: i64 = TOPBAR + 18 + 52;
-    if st.cur_app == 0 {
-        let n: i64 = proc_count();
-        let row: i64 = y + 28;
-        let i: i64 = 0;
-        while i < n && i < 20 {
-            if mx >= x + 6 && mx < x + 180 && my >= row && my < row + 20 {
-                st.sel_pid = proc_pid_at(i);
-                return st;
-            }
-            row = row + 20;
-            i = i + 1;
-        }
-    }
-    if st.cur_app == 1 {
-        if din(x + 40, y + 100, 40, 24, mx, my) == 1 { st.model_a = 0; }
-        if din(x + 90, y + 100, 40, 24, mx, my) == 1 { st.model_a = 1; }
-        if din(x + 40, y + 130, 40, 24, mx, my) == 1 { st.model_b = 0; }
-        if din(x + 90, y + 130, 40, 24, mx, my) == 1 { st.model_b = 1; }
-        if din(x, y + 60, 110, 30, mx, my) == 1 {
-            st.model_out = model_infer(st.model_a, st.model_b);
-            push(st.hist, st.model_a + " " + st.model_b + " = " + st.model_out);
-        }
     }
     return st;
 }
@@ -732,7 +680,6 @@ fn desktop_main() -> i64 {
     let st: DesktopState = DesktopState{ cur_app: 0, sel_pid: 0, model_a: 0, model_b: 1, model_out: 0, drag_win: -1, drag_ox: 0, drag_oy: 0, hist: [] };
     init_screen();
     lock_screen();
-    ui_system_window("welcome", "KengaOS 0.5 | agent-native desktop");
     /* let agents run once so a CAP_UI agent can open its window before first draw */
     let yc: i64 = 0;
     while yc < 8 {

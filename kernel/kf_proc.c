@@ -381,12 +381,13 @@ static void researcher_proc(void) {
     ipc_msg ar; int got_agent = k_ipc_recv(&ar);
     if (got_agent) { lg_uart("RESEARCHER: agent said "); lg_uart(ar.data); lg_uart("\n"); }
     /* open a window on the desktop as soon as we run (CAP_UI required) */
-    int64_t wid = k_ui_register_window("Research", "researcher online | model ready");
-    lg_uart("RESEARCHER: window "); lg_uart(dec(wid)); lg_uart("\n");
+    /* Command Center owns the visual surface; the researcher remains an IPC
+       service and must not spawn a legacy floating window. */
+    int64_t wid = 0;
+    lg_uart("RESEARCHER: visual surface delegated to Command Center\n");
     /* live demo: update the window text through the same API an IPC "upd"
        message uses — proves agent -> its own window works at startup. */
-    k_ui_window_set_text(wid - 1, "online | IPC + model ready");
-    lg_uart("RESEARCHER: window text updated\n");
+    lg_uart("RESEARCHER: IPC status online\n");
     int64_t reqs = 0;
     int64_t last_upd = 0;
     int64_t last_ping = -1;
