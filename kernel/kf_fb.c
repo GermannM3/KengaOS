@@ -445,6 +445,47 @@ int64_t k_fb_blend_rrect_top(int64_t x0, int64_t y0, int64_t w, int64_t h,
     return 1;
 }
 
+/* Glass gradient rrect: c0 at top -> c1 at bottom, alpha constant.
+   Replicates the reference .glass: linear-gradient(160deg, rgba(22,28,48,.78),
+   rgba(10,14,26,.72)). */
+int64_t k_fb_blend_rrect_grad(int64_t x0, int64_t y0, int64_t w, int64_t h,
+                              int64_t r, int64_t c0, int64_t c1, int64_t alpha) {
+    if (!fb_ok || w < 1 || h < 1 || r < 0 || alpha <= 0) return 0;
+    if (alpha > 255) alpha = 255;
+    if (x0 < 0) { w += x0; x0 = 0; }
+    if (y0 < 0) { h += y0; y0 = 0; }
+    if (x0 + w > (int64_t)fb_w) w = fb_w - x0;
+    if (y0 + h > (int64_t)fb_h) h = fb_h - y0;
+    if (w <= 0 || h <= 0) return 0;
+    uint32_t a = (uint32_t)alpha;
+    int64_t r0 = (c0 >> 16) & 0xff, g0 = (c0 >> 8) & 0xff, b0 = c0 & 0xff;
+    int64_t r1 = (c1 >> 16) & 0xff, g1 = (c1 >> 8) & 0xff, b1 = c1 & 0xff;
+    int64_t rr = r; if (rr > w / 2) rr = w / 2; if (rr > h / 2) rr = h / 2;
+    int64_t cx4 = (x0 * 2 + w) * 2, cy4 = (y0 * 2 + h) * 2;
+    int64_t hw4 = w * 2, hh4 = h * 2, r4 = rr * 4;
+    uintptr_t base = fb_cur();
+    for (int64_t yy = 0; yy < h; yy++) {
+        uint32_t* row = (uint32_t*)(base + (uintptr_t)(y0 + yy) * fb_pitch + (uintptr_t)x0 * 4);
+        /* color for this row: lerp with slight horizontal tilt (160deg) */
+        int64_t t = yy * 255 / (h > 1 ? h - 1 : 1);
+        uint32_t fr = (uint32_t)(r0 + (r1 - r0) * t / 255);
+        uint32_t fg = (uint32_t)(g0 + (g1 - g0) * t / 255);
+        uint32_t fb = (uint32_t)(b0 + (b1 - b0) * t / 255);
+        int64_t yedge = (yy < rr + 1 || yy >= h - rr - 1);
+        for (int64_t xx = 0; xx < w; xx++) {
+            if (!yedge && xx >= rr + 1 && xx < w - rr - 1) {
+                fb_blend_px(row, xx, fr, fg, fb, a);
+                continue;
+            }
+            int cov = rrect_cov4(x0 + xx, y0 + yy, cx4, cy4, hw4, hh4, r4);
+            if (cov == 0) continue;
+            uint32_t ae = (a * (uint32_t)cov) >> 4;
+            fb_blend_px(row, xx, fr, fg, fb, ae);
+        }
+    }
+    return 1;
+}
+
 /* --- Vector icons (SDF union, anti-aliased, 20x20 box) ---
    type 0=agents 1=model 2=files 3=system. All geometry in quarter-px. */
 static int64_t sd_circle(int64_t px4, int64_t py4, int64_t cx4, int64_t cy4, int64_t r4) {
@@ -474,36 +515,60 @@ static int64_t sd_capsule(int64_t px4, int64_t py4,
 }
 
 static int64_t icon_sd(int type, int64_t px4, int64_t py4) {
-    /* line-style icons: stroke helper |sd| - thickness (quarter-px).
-       Strokes are ~9-11 quarter-px (2.2-2.8px) — visible at 20px. */
+    /* 1:1 SDF replicas of the reference SVG icons (24x24 viewBox, stroke 1.8).
+       Grid: 20x20 px = 80x80 quarter-px. Stroke ~6 quarter-px (1.5px). */
     int64_t sd = 0x7fffffff;
     int64_t t;
-    if (type == 0) {          /* agents: person */
-        t = sd_circle(px4, py4, 40, 25, 11); if (t < 0) t = -t; t -= 9;   /* head ring */
+    if (type == 0) {          /* agents: two people (reference paths) */
+        /* head 1: circle cx9 cy8 r3.2 -> (30,27) r11 */
+        t = sd_circle(px4, py4, 30, 27, 11); if (t < 0) t = -t; t -= 6;
         if (t < sd) sd = t;
-        t = sd_circle(px4, py4, 40, 62, 20); if (t < 0) t = -t; t -= 9;   /* shoulders arc */
+        /* body 1: arc M3.5 19 c.6-3.2... -> upper arc of circle (30,72) r18 */
+        if (py4 <= 78) {
+            t = sd_circle(px4, py4, 30, 72, 18); if (t < 0) t = -t; t -= 6;
+            if (t < sd) sd = t;
+        }
+        /* head 2: circle cx17 cy9 r2.6 -> (57,30) r9 */
+        t = sd_circle(px4, py4, 57, 30, 9); if (t < 0) t = -t; t -= 6;
         if (t < sd) sd = t;
-    } else if (type == 1) {   /* model: neural graph */
-        t = sd_circle(px4, py4, 40, 16, 10); if (t < 0) t = -t; t -= 8;
+        /* body 2: arc M15.5 14.4 c2.3... -> upper arc (57,68) r15 */
+        if (py4 <= 74) {
+            t = sd_circle(px4, py4, 57, 68, 15); if (t < 0) t = -t; t -= 6;
+            if (t < sd) sd = t;
+        }
+    } else if (type == 1) {   /* model: monitor pulse line (heartbeat) */
+        /* M3 12 h4 l3 -7 l4 14 l3 -7 h4 -> pts (10,40)(23,40)(33,17)(47,63)(57,40)(70,40) */
+        t = sd_capsule(px4, py4, 10, 40, 23, 40, 5); if (t < sd) sd = t;
+        t = sd_capsule(px4, py4, 23, 40, 33, 17, 5); if (t < sd) sd = t;
+        t = sd_capsule(px4, py4, 33, 17, 47, 63, 5); if (t < sd) sd = t;
+        t = sd_capsule(px4, py4, 47, 63, 57, 40, 5); if (t < sd) sd = t;
+        t = sd_capsule(px4, py4, 57, 40, 70, 40, 5); if (t < sd) sd = t;
+    } else if (type == 2) {   /* files: folder (rounded rect + tab) */
+        /* outline: ring of rrect c(40,44) hw26 hh19 r7 */
+        t = sd_rrect(px4, py4, 40, 44, 26, 19, 7); if (t < 0) t = -t; t -= 6;
         if (t < sd) sd = t;
-        t = sd_circle(px4, py4, 14, 63, 10); if (t < 0) t = -t; t -= 8;
+        /* tab: small capsule on the top edge, left (x 12..30 at y 21) */
+        t = sd_capsule(px4, py4, 13, 21, 28, 21, 4); if (t < sd) sd = t;
+    } else if (type == 3) {   /* system: settings gear */
+        /* center ring r3.2*3.33=11 */
+        t = sd_circle(px4, py4, 40, 40, 11); if (t < 0) t = -t; t -= 6;
         if (t < sd) sd = t;
-        t = sd_circle(px4, py4, 66, 63, 10); if (t < 0) t = -t; t -= 8;
+        /* 8 spokes (r=16..26 quarter), N NE E SE S SW W NW */
+        static const int8_t sp[8][4] = {
+            { 0,-24,  0,-15}, { 17,-17, 11,-11}, { 24,0, 15,0}, { 17,17, 11,11},
+            { 0, 24,  0, 15}, {-17,17, -11,11}, {-24,0, -15,0}, {-17,-17, -11,-11}
+        };
+        for (int i = 0; i < 8; i++) {
+            t = sd_capsule(px4, py4, 40 + sp[i][0], 40 + sp[i][1],
+                           40 + sp[i][2], 40 + sp[i][3], 4);
+            if (t < sd) sd = t;
+        }
+    } else {                  /* terminal: rrect frame + >_ */
+        t = sd_rrect(px4, py4, 40, 40, 27, 21, 8); if (t < 0) t = -t; t -= 6;
         if (t < sd) sd = t;
-        t = sd_capsule(px4, py4, 33, 24, 18, 54, 6); if (t < sd) sd = t;
-        t = sd_capsule(px4, py4, 47, 24, 62, 54, 6); if (t < sd) sd = t;
-    } else if (type == 2) {   /* files: folder outline */
-        t = sd_rrect(px4, py4, 40, 48, 27, 18, 8); if (t < 0) t = -t; t -= 8;
-        if (t < sd) sd = t;
-        t = sd_capsule(px4, py4, 20, 30, 40, 30, 7); if (t < sd) sd = t;
-    } else if (type == 3) {   /* system: orbit + core */
-        t = sd_circle(px4, py4, 40, 40, 26); if (t < 0) t = -t; t -= 8;
-        if (t < sd) sd = t;
-        t = sd_circle(px4, py4, 40, 40, 8); if (t < sd) sd = t;
-    } else {                  /* terminal: chevron > + underscore */
-        t = sd_capsule(px4, py4, 24, 20, 38, 36, 8); if (t < sd) sd = t;
-        t = sd_capsule(px4, py4, 24, 52, 38, 36, 8); if (t < sd) sd = t;
-        t = sd_capsule(px4, py4, 42, 55, 60, 55, 8); if (t < sd) sd = t;
+        t = sd_capsule(px4, py4, 23, 28, 34, 40, 5); if (t < sd) sd = t;
+        t = sd_capsule(px4, py4, 34, 40, 23, 52, 5); if (t < sd) sd = t;
+        t = sd_capsule(px4, py4, 43, 50, 57, 50, 5); if (t < sd) sd = t;
     }
     return sd;
 }

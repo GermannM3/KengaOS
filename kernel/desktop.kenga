@@ -75,9 +75,9 @@ fn draw_view_window(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
     fb_blend_rect(x + 6, y + 14, w, h, 0x000000, 30);
     /* glass body: translucent LIGHT panel over the wallpaper (reference:
        rgba(22,28,48,.78) -> brighter than the bg, so it reads as glass) */
-    fb_blend_rrect(x, y, w, h, 22, 0x161c30, 190);
+    fb_blend_rrect_grad(x, y, w, h, 22, 0x161c30, 0x0a0e1a, 199);
     /* titlebar: lighter glass, rounded TOP corners only */
-    fb_blend_rrect_top(x, y, w, 44, 22, 0x2a3450, 90);
+    fb_blend_rrect_top(x, y, w, 44, 22, 0xffffff, 10);
     fb_blend_rect(x + 22, y + 43, w - 44, 1, 0xffffff, 20);
     /* hairline border: only along the STRAIGHT edges (never across corners) */
     fb_blend_rect(x + 22, y, w - 44, 1, 0xffffff, 30);
@@ -110,20 +110,23 @@ fn draw_dock(w: i64, h: i64, cur: i64) -> i64 {
     let dh: i64 = 5 * 52 + 20;
     let dx: i64 = 12;
     let dy: i64 = (h - dh) / 2;
-    /* glass dock bar with rounded corners (reference: r22, glass) */
-    fb_blend_rrect(dx, dy, dw, dh, 22, 0x161c30, 170);
-    fb_blend_rect(dx, dy, dw, 1, 0xffffff, 26);
+    /* glass dock bar: reference .glass gradient + r18 */
+    fb_blend_rrect_grad(dx, dy, dw, dh, 18, 0x161c30, 0x0a0e1a, 196);
+    fb_blend_rect(dx + 18, dy, dw - 36, 1, 0xffffff, 20);
     /* dock icons: vector SDF, active highlighted */
     let i: i64 = 0;
     while i < 5 {
         let iy: i64 = dy + 10 + i * 52;
         let active: i64 = 0;
         if cur == i { active = 1; }
+        /* .dock-btn: 44x44 r12; active = white .1 + 1px border .14 */
+        fb_blend_rrect(dx + 10, iy, 44, 44, 12, 0xffffff, 26);
         if active == 1 {
-            fb_glow(dx + 32, iy + 22, 24, HILITE, 70);
-            fb_blend_rrect(dx + 8, iy - 2, 48, 48, 16, HILITE, 235);
-        } else {
-            fb_blend_rrect(dx + 10, iy, 44, 44, 15, 0xffffff, 13);
+            fb_blend_rrect(dx + 10, iy, 44, 44, 12, 0xffffff, 26);
+            fb_blend_rect(dx + 12, iy, 40, 1, 0xffffff, 36);
+            fb_blend_rect(dx + 12, iy + 43, 40, 1, 0xffffff, 36);
+            fb_blend_rect(dx + 10, iy + 12, 1, 20, 0xffffff, 36);
+            fb_blend_rect(dx + 53, iy + 12, 1, 20, 0xffffff, 36);
         }
         /* icons: vector SDF, anti-aliased (agents/model/files/system) */
         let ic_col: i64 = NEON;
@@ -133,9 +136,10 @@ fn draw_dock(w: i64, h: i64, cur: i64) -> i64 {
             /* hover-ish hairline on top of the glass square */
             fb_blend_rect(dx + 16, iy + 1, 32, 1, 0xffffff, 22);
         }
-        /* running indicator dot */
+        /* running indicator: 4px cyan dot, bottom center (reference .run) */
         if n > 0 {
-            fb_disc(dx + dw / 2, iy + 47, 2, NEON);
+            fb_glow(dx + 32, iy + 40, 5, NEON, 90);
+            fb_disc(dx + 32, iy + 40, 2, NEON);
         }
         i = i + 1;
     }
@@ -198,7 +202,7 @@ fn draw_log(w: i64, h: i64, sb: i64, tb: i64, stb: i64) -> i64 {
     let ly: i64 = h - lh - 12;
     /* glass panel */
     fb_blend_rect(lx + 3, ly + 6, lw, lh, 0x000000, 40);
-    fb_blend_rrect(lx, ly, lw, lh, 22, 0x161c30, 180);
+    fb_blend_rrect_grad(lx, ly, lw, lh, 22, 0x161c30, 0x0a0e1a, 196);
     fb_blend_rect(lx + 22, ly, lw - 44, 1, 0xffffff, 26);
     /* header: blinking dot + title */
     fb_glow(lx + 14, ly + 14, 4, C_GREEN, 160);
@@ -226,7 +230,7 @@ fn draw_input_bar(w: i64, h: i64, sb: i64, tb: i64, stb: i64) -> i64 {
     let bx: i64 = 108;
     let by: i64 = h - 52;
     fb_blend_rect(bx + 2, by + 5, bw, 36, 0x000000, 36);
-    fb_blend_rrect(bx, by, bw, 36, 18, 0x161c30, 180);
+    fb_blend_rrect_grad(bx, by, bw, 36, 18, 0x161c30, 0x0a0e1a, 196);
     fb_blend_rect(bx, by, bw, 1, 0xffffff, 26);
     fb_text_aa(bx + 14, by + 10, C_GREEN, 0x1a2030, "> ");
     let il: i64 = fb_text_aa(bx + 30, by + 10, C_TEXT, 0x1a2030, ui_input_str());
@@ -277,10 +281,10 @@ fn draw_windows() -> i64 {
             /* soft shadow (3 blend layers, like the reference) */
             fb_blend_rect(wx + 3, wy + 8, ww, wh, 0x000000, 46);
             fb_blend_rect(wx + 6, wy + 14, ww, wh, 0x000000, 30);
-            /* glass body: translucent LIGHT panel (reference glass) */
-            fb_blend_rrect(wx, wy, ww, wh, 22, 0x161c30, 190);
+            /* glass body: reference .glass gradient */
+            fb_blend_rrect_grad(wx, wy, ww, wh, 22, 0x161c30, 0x0a0e1a, 199);
             /* titlebar: lighter glass, rounded TOP corners only */
-            fb_blend_rrect_top(wx, wy, ww, 44, 22, 0x2a3450, 90);
+            fb_blend_rrect_top(wx, wy, ww, 44, 22, 0xffffff, 10);
             fb_blend_rect(wx + 22, wy + 43, ww - 44, 1, 0xffffff, 20);
             /* hairline border: straight edges only */
             fb_blend_rect(wx + 22, wy, ww - 44, 1, 0xffffff, 30);
@@ -343,7 +347,7 @@ fn draw_terminal(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
     let C_TEXT: i64 = 0xe6edf3;
     let C_DIM: i64 = 0x8fb3d9;
     let C_GREEN: i64 = 0x22d3ee;
-    fb_blend_rrect(x, y, w, h, 14, C_BG, 235);
+    fb_blend_rrect(x, y, w, h, 14, 0x080b14, 89);
     /* prompt line */
     dtext(x + 12, y + 10, C_GREEN, C_BG, "kenga@os");
     dtext(x + 96, y + 10, C_DIM, C_BG, "~");

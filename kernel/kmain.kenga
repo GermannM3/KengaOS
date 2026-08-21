@@ -52,6 +52,7 @@ import "desktop.kenga";
 @intrinsic fn fb_icon(x: i64, y: i64, type: i64, color: i64) -> i64;
 @intrinsic fn fb_disc(x: i64, y: i64, r: i64, color: i64) -> i64;
 @intrinsic fn fb_blend_rrect_top(x: i64, y: i64, w: i64, h: i64, r: i64, color: i64, alpha: i64) -> i64;
+@intrinsic fn fb_blend_rrect_grad(x: i64, y: i64, w: i64, h: i64, r: i64, c0: i64, c1: i64, alpha: i64) -> i64;
 
 /* GUI bridge (desktop.kenga) */
 @intrinsic fn kbd_init() -> i64;
