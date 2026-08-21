@@ -56,6 +56,14 @@ static int64_t   next_pid = 1;
 static int64_t   logger_pid = 0;
 static int64_t   agent_pid = 0;
 
+static void reap_finished(void) {
+    for (int i = 0; i < MAX_PROC; i++)
+        if (procs[i].active && !k_sched_task_alive(procs[i].task)) {
+            procs[i].active = 0;
+            procs[i].qh = procs[i].qt = 0;
+        }
+}
+
 static void lg_uart(const char* s) { for (; *s; s++) __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)*s), "Nd"((uint16_t)0x3F8)); }
 
 /* Scheduler identities are private task handles; IPC is a PID-based public
@@ -69,6 +77,8 @@ static int64_t current_pid(void) {
 }
 
 int64_t k_proc_spawn(const char* name, void (*entry)(void), uint64_t caps) {
+    if (!name || !entry || (caps & ~CAP_ALL)) return 0;
+    reap_finished();
     int64_t parent = 0;
     uint64_t me = k_sched_current();
     for (int j = 0; j < MAX_PROC; j++)
@@ -90,11 +100,13 @@ int64_t k_proc_spawn(const char* name, void (*entry)(void), uint64_t caps) {
 
 /* Capability helpers. */
 int64_t k_proc_caps(int64_t pid) {
+    reap_finished();
     for (int i = 0; i < MAX_PROC; i++)
         if (procs[i].active && procs[i].pid == pid) return (int64_t)procs[i].caps;
     return 0;
 }
 int64_t k_proc_set_caps(int64_t pid, int64_t caps) {
+    reap_finished();
     kf_proc_t* caller = cur_proc();
     if (caller && !(caller->caps & CAP_MEM)) return 0;
     if ((uint64_t)caps & ~CAP_ALL) return 0;
@@ -105,6 +117,7 @@ int64_t k_proc_set_caps(int64_t pid, int64_t caps) {
 
 /* Send a message to the process with the given pid. */
 int64_t k_ipc_send(int64_t pid, const char* data) {
+    reap_finished();
     kf_proc_t* caller = cur_proc();
     if (caller && !(caller->caps & CAP_IPC)) return 0;
     if (!data) return 0;
@@ -159,6 +172,7 @@ int64_t k_ipc_poll(void) {
 /* Live IPC backlog length for a pid (0 if unknown). Used by the desktop
    Agents view to show per-agent message queue occupancy. */
 int64_t k_proc_qlen(int64_t pid) {
+    reap_finished();
     for (int i = 0; i < MAX_PROC; i++)
         if (procs[i].active && procs[i].pid == pid) {
             int n = (procs[i].qh - procs[i].qt + IPC_QLEN) % IPC_QLEN;
@@ -168,6 +182,7 @@ int64_t k_proc_qlen(int64_t pid) {
 }
 
 int64_t k_proc_count(void) {
+    reap_finished();
     int n = 0;
     for (int i = 0; i < MAX_PROC; i++) if (procs[i].active) n++;
     return n;
