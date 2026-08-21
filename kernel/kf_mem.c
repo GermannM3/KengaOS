@@ -43,6 +43,10 @@ int64_t k_mem_region_type(int64_t i) { return (i >= 0 && i < mm_count) ? (int64_
 #define FRAME_BITS   (FRAME_MAX / PAGE_SIZE)
 #define FRAME_BYTES  ((FRAME_BITS + 7) / 8)
 static uint8_t  fbmap[FRAME_BYTES];
+/* A free bit alone cannot distinguish a reserved frame from a frame that was
+   allocated and then freed. Keep ownership metadata so k_mem_pfree cannot
+   accidentally release firmware/kernel/framebuffer memory. */
+static uint8_t  managedmap[FRAME_BYTES];
 static uint64_t free_frames = 0;
 
 static inline void bmap_set(uint64_t i) { fbmap[i >> 3] |= (uint8_t)(1u << (i & 7)); }
@@ -55,6 +59,7 @@ static void frame_add_range(uint64_t phys, uint64_t len) {
     for (uint64_t p = start; p + PAGE_SIZE <= end; p += PAGE_SIZE) {
         if (p < 0x100000ULL || p >= FRAME_MAX) continue;
         bmap_set(p / PAGE_SIZE);
+        managedmap[(p / PAGE_SIZE) >> 3] |= (uint8_t)(1u << ((p / PAGE_SIZE) & 7));
         free_frames++;
     }
 }
@@ -123,10 +128,13 @@ int64_t k_mem_palloc(void) {
 }
 
 int64_t k_mem_pfree(int64_t addr) {
+    if ((uint64_t)addr < hhdm) return 0;
     uint64_t phys = (uint64_t)addr - hhdm;
     if (phys % PAGE_SIZE || phys >= FRAME_MAX) return 0;
-    if (bmap_get(phys / PAGE_SIZE)) return 0;
-    bmap_set(phys / PAGE_SIZE);
+    uint64_t bit = phys / PAGE_SIZE;
+    if (!(managedmap[bit >> 3] & (uint8_t)(1u << (bit & 7)))) return 0;
+    if (bmap_get(bit)) return 0;
+    bmap_set(bit);
     free_frames++;
     return 1;
 }
@@ -136,6 +144,7 @@ int64_t k_mem_pages_free(void) { return (int64_t)free_frames; }
 /* Convert a kernel virtual (HHDM-mapped) address back to a physical one.
    Needed by DMA-capable drivers (UHCI frame lists live in physical memory). */
 int64_t k_mem_virt_to_phys(int64_t addr) {
+    if ((uint64_t)addr < hhdm) return 0;
     return (int64_t)((uint64_t)addr - hhdm);
 }
 
