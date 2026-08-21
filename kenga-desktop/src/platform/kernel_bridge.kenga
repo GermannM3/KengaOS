@@ -13,6 +13,7 @@ fn kd_agent_pid(idx: i64) -> i64 { return proc_pid_at(idx); }
 fn kd_agent_parent(idx: i64) -> i64 { return proc_parent_at(idx); }
 fn kd_agent_name(idx: i64) -> str { return proc_name_at(idx); }
 fn kd_agent_queue(pid: i64) -> i64 { return proc_qlen(pid); }
+fn kd_agent_pages(pid: i64) -> i64 { return proc_page_count(pid); }
 fn kd_memory_free_kb() -> i64 { return mem_pages_free() * 4; }
 fn kd_memory_total_kb() -> i64 { return mem_total_bytes() / 1024; }
 fn kd_mouse_x() -> i64 { return mouse_x(); }

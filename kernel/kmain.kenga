@@ -71,6 +71,7 @@ import "../kenga-desktop/src/platform/kernel_bridge.kenga";
 @intrinsic fn proc_parent_at(idx: i64) -> i64;
 @intrinsic fn proc_caps(pid: i64) -> i64;
 @intrinsic fn proc_qlen(pid: i64) -> i64;
+@intrinsic fn proc_page_count(pid: i64) -> i64;
 @intrinsic fn model_infer(a: i64, b: i64) -> i64;
 @intrinsic fn vfs_count() -> i64;
 @intrinsic fn vfs_name(idx: i64) -> str;
