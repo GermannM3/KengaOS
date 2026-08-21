@@ -317,6 +317,8 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "PROC READY" "$UART_LOG" || { echo "ERROR: PROC READY marker missing" >&2; ok=0; }
     grep -q "MEM READY" "$UART_LOG" || { echo "ERROR: MEM READY marker missing" >&2; ok=0; }
     grep -Eq "initrd files=[1-9][0-9]*" "$UART_LOG" || { echo "ERROR: initrd/VFS marker missing" >&2; ok=0; }
+    grep -q "model said predict" "$UART_LOG" || { echo "ERROR: model IPC round-trip missing" >&2; ok=0; }
+    grep -q "agent said" "$UART_LOG" || { echo "ERROR: agent IPC round-trip missing" >&2; ok=0; }
     if [[ $ok == 1 ]]; then
         echo "OK: kernel booted — BOOT/UART/FB markers present"
     else
