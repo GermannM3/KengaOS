@@ -72,6 +72,7 @@ int64_t k_yield_agent(void) { return (int64_t)k_task_yield(); }
 /* Build the initial k_task_yield frame so the first resume `ret`s into entry.
    Frame (from ctx): rbx,r12,r13,r14,r15,rbp,ret_addr. */
 uint64_t k_task_create(void (*entry)(void)) {
+    if (!entry) return 0;
     if (task_count >= MAX_TASKS || arena_used + STACK_SIZE > STACK_ARENA) return 0;
     uint8_t* stack = &stack_arena[arena_used];
     arena_used += STACK_SIZE;

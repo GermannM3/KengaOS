@@ -102,7 +102,10 @@ int64_t k_proc_spawn(const char* name, void (*entry)(void), uint64_t caps) {
         procs[i].active = 1;
         procs[i].caps = caps;
         procs[i].qh = procs[i].qt = 0;
-        procs[i].mem[0].key[0] = 0;
+        for (int m = 0; m < MEM_SLOTS; m++) {
+            procs[i].mem[m].key[0] = 0;
+            procs[i].mem[m].val[0] = 0;
+        }
         return procs[i].pid;
     }
     return 0;
