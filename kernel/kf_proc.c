@@ -56,6 +56,16 @@ static int64_t   agent_pid = 0;
 
 static void lg_uart(const char* s) { for (; *s; s++) __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)*s), "Nd"((uint16_t)0x3F8)); }
 
+/* Scheduler identities are private task handles; IPC is a PID-based public
+   interface. Keep that boundary explicit so replies cannot target a task
+   handle that happens to have the same numeric value as another PID. */
+static int64_t current_pid(void) {
+    uint64_t me = k_sched_current();
+    for (int i = 0; i < MAX_PROC; i++)
+        if (procs[i].active && procs[i].task == me) return procs[i].pid;
+    return 0;
+}
+
 int64_t k_proc_spawn(const char* name, void (*entry)(void), uint64_t caps) {
     int64_t parent = 0;
     uint64_t me = k_sched_current();
@@ -66,6 +76,7 @@ int64_t k_proc_spawn(const char* name, void (*entry)(void), uint64_t caps) {
         procs[i].parent = parent;
         procs[i].name = name;
         procs[i].task = k_task_create(entry);
+        if (!procs[i].task) return 0;
         procs[i].active = 1;
         procs[i].caps = caps;
         procs[i].qh = procs[i].qt = 0;
@@ -93,7 +104,7 @@ int64_t k_ipc_send(int64_t pid, const char* data) {
         int next = (procs[i].qh + 1) % IPC_QLEN;
         if (next == procs[i].qt) return 0;              /* queue full */
         int k = 0;
-        procs[i].q[procs[i].qh].from = k_sched_current();
+        procs[i].q[procs[i].qh].from = current_pid();
         for (; data && data[k] && k < MSG_MAX - 1; k++) procs[i].q[procs[i].qh].data[k] = data[k];
         procs[i].q[procs[i].qh].data[k] = 0;
         procs[i].qh = next;
@@ -120,6 +131,7 @@ int64_t k_ipc_recv(ipc_msg* out) {
 
 /* Receive a message into a string buffer (blocking). */
 int64_t k_ipc_recv_str(char* buf, int max) {
+    if (!buf || max <= 0) return 0;
     ipc_msg m;
     if (!k_ipc_recv(&m)) return 0;
     int k = 0;
@@ -153,9 +165,18 @@ int64_t k_proc_count(void) {
     return n;
 }
 
-int64_t k_proc_pid_at(int64_t idx) { return procs[idx].pid; }
-int64_t k_proc_parent_at(int64_t idx) { return procs[idx].parent; }
-const char* k_proc_name_at(int64_t idx) { return procs[idx].active ? procs[idx].name : ""; }
+int64_t k_proc_pid_at(int64_t idx) {
+    if (idx < 0 || idx >= MAX_PROC || !procs[idx].active) return 0;
+    return procs[idx].pid;
+}
+int64_t k_proc_parent_at(int64_t idx) {
+    if (idx < 0 || idx >= MAX_PROC || !procs[idx].active) return 0;
+    return procs[idx].parent;
+}
+const char* k_proc_name_at(int64_t idx) {
+    if (idx < 0 || idx >= MAX_PROC || !procs[idx].active) return "";
+    return procs[idx].name;
+}
 
 /* --- logger process: prints received messages to console + UART --- */
 static void logger_proc(void) {
