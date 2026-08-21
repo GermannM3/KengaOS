@@ -1,0 +1,199 @@
+// ═══════════════════════════════════════════════════════════════════════
+// kernel/design.kenga — дизайн-система KengaOS 0.6 "Aurora" на языке Kenga
+// ───────────────────────────────────────────────────────────────────────
+// ИНТЕГРАЦИЯ (пошагово):
+//
+// 1) Добавьте kernel/kf_design.c в сборку (см. заголовок того файла)
+//    и design.kenga — в список emit-c рядом с ui.kenga / desktop.kenga:
+//        kenga emit-c --freestanding kernel/design.kenga ...
+//
+// 2) В scripts/build.sh объект design.o добавьте в команду ld.lld.
+//
+// 3) В ui.kenga замените старую отрисовку chrome на вызовы ds_*:
+//        boot-экран:   ds_boot_frame(i, 11)   в цикле загрузки
+//        вход в gui:   ds_desktop_bg(0)       ОДИН раз
+//        каждый кадр:  ds_desktop_frame(hh, mm, ss, ram, cpu, up, side)
+//        каждое окно:  ds_window(x, y, w, h, focused)
+//    Старая логика (RTC, uptime, RAM-бар, IPC, event loop) остаётся —
+//    меняется только отрисовка.
+//
+// 4) Синтаксис: использованы только fn, if, арифметика и вызовы FFI.
+//    Если ваш kenga-компилятор требует иного (например, другой вид
+//    сравнений) — поправьте 3 if-а в ds_side_item / ds_window.
+//
+// 5) Координаты подобраны под 1280×800. Текст 8×8: x-позиции подписей
+//    подгоните +/- несколько пикселей под ваш шрифт.
+// ═══════════════════════════════════════════════════════════════════════
+
+// ── FFI: примитивы из kf_design.c ──────────────────────────────────────
+@intrinsic fn d_px(x: i64, y: i64, c: i64);
+@intrinsic fn d_px_a(x: i64, y: i64, c: i64, a: i64);
+@intrinsic fn d_rect(x: i64, y: i64, w: i64, h: i64, c: i64);
+@intrinsic fn d_rect_a(x: i64, y: i64, w: i64, h: i64, c: i64, a: i64);
+@intrinsic fn d_line(x0: i64, y0: i64, x1: i64, y1: i64, c: i64, a: i64);
+@intrinsic fn d_line_grad(x0: i64, y0: i64, x1: i64, y1: i64, c1: i64, c2: i64, a: i64);
+@intrinsic fn d_dot(cx: i64, cy: i64, r: i64, c: i64, a: i64);
+@intrinsic fn d_round(x: i64, y: i64, w: i64, h: i64, r: i64, c: i64, a: i64);
+@intrinsic fn d_round_border(x: i64, y: i64, w: i64, h: i64, r: i64, c: i64, a: i64);
+@intrinsic fn d_shadow(x: i64, y: i64, w: i64, h: i64);
+@intrinsic fn d_bar(x: i64, y: i64, w: i64, h: i64, pct: i64, fg: i64);
+@intrinsic fn d_glow(cx: i64, cy: i64, rad: i64, c: i64, amax: i64);
+@intrinsic fn d_wallpaper(mode: i64);
+@intrinsic fn d_logo(cx: i64, cy: i64, s: i64, a: i64);
+@intrinsic fn d_label(x: i64, y: i64, id: i64, c: i64);
+@intrinsic fn d_num(x: i64, y: i64, v: i64, pad: i64, c: i64);
+@intrinsic fn d_chip(x: i64, y: i64, label_id: i64, val: i64, val_c: i64);
+
+// ── палитра (синхронизирована с kf_design.c) ───────────────────────────
+fn c_bg() -> i64 { return 0x070b14; }
+fn c_glass() -> i64 { return 0x131b30; }
+fn c_text() -> i64 { return 0xe8ecf8; }
+fn c_dim() -> i64 { return 0x8f9ab5; }
+fn c_acc() -> i64 { return 0x8b7bff; }
+fn c_acc2() -> i64 { return 0x22d3ee; }
+fn c_ok() -> i64 { return 0x3ddc84; }
+fn c_warn() -> i64 { return 0xfebc2e; }
+fn c_err() -> i64 { return 0xff5f57; }
+
+// ── экран загрузки (рисовать в цикле boot: i = 0..10) ──────────────────
+fn ds_boot_frame(step: i64, total: i64) {
+    d_rect(0, 0, 1280, 800, c_bg());
+    d_glow(230, 160, 420, c_acc(), 36);
+    d_glow(1060, 660, 460, c_acc2(), 28);
+    d_logo(640, 330, 86, 255);
+    d_label(592, 452, 0, c_text());          // KENGAOS
+    d_label(560, 482, 14, c_dim());          // агент-нативная ос
+    d_bar(500, 530, 280, 6, step * 100 / total, c_acc());
+    d_label(568, 558, 13, c_dim());          // ЗАГРУЗКА ЯДРА
+}
+
+// фон рабочего стола — вызывать ОДИН раз (не в цикле кадров!)
+// mode: 0 = aurora, 1 = nebula
+fn ds_desktop_bg(mode: i64) {
+    d_wallpaper(mode);
+}
+
+// ── верхняя панель: часы + чипы CPU/RAM ────────────────────────────────
+fn ds_topbar(hh: i64, mm: i64, ss: i64, cpu: i64, ram: i64) {
+    d_rect_a(0, 0, 1280, 38, c_glass(), 200);
+    d_line(0, 38, 1280, 38, 0xffffff, 16);
+    d_logo(24, 19, 11, 255);
+    d_label(46, 15, 0, c_text());            // KENGAOS
+    d_label(112, 15, 11, c_dim());           // 0.6 aurora
+    // часы по центру
+    d_num(605, 15, hh, 2, c_text());
+    d_label(617, 15, 20, c_dim());
+    d_num(624, 15, mm, 2, c_text());
+    d_label(636, 15, 20, c_dim());
+    d_num(643, 15, ss, 2, c_text());
+    // статус-чипы справа
+    d_chip(1000, 9, 8, cpu, c_acc());        // CPU %
+    d_chip(1108, 9, 9, ram, c_acc2());       // RAM %
+}
+
+// ── сайдбар: Agents / Model / Files / System ───────────────────────────
+fn ds_side_item(i: i64, active: i64) {
+    // i: 0=Агенты 1=Модель 2=Файлы 3=Система
+    d_round(24, 258 + i * 56, 40, 40, 12, 0xffffff, 14);
+    d_label(38, 274 + i * 56, 15 + i, c_dim());       // буква А/М/Ф/С
+    if (active == i) {
+        d_round(24, 258 + i * 56, 40, 40, 12, c_acc(), 64);
+        d_round_border(24, 258 + i * 56, 40, 40, 12, c_acc2(), 120);
+        d_label(38, 274 + i * 56, 15 + i, c_text());
+        // подпись активной вкладки
+        d_round(84, 266 + i * 56, 116, 24, 12, c_glass(), 220);
+        d_round_border(84, 266 + i * 56, 116, 24, 12, c_acc(), 90);
+        d_label(96, 272 + i * 56, 1 + i, c_text());
+    }
+}
+
+fn ds_sidebar(active: i64) {
+    d_round(12, 246, 64, 248, 18, c_glass(), 205);
+    d_round_border(12, 246, 64, 248, 18, 0xffffff, 20);
+    ds_side_item(0, active);
+    ds_side_item(1, active);
+    ds_side_item(2, active);
+    ds_side_item(3, active);
+}
+
+// ── нижняя статус-панель + живой лог ───────────────────────────────────
+// tick — счётчик рефреша (для мигающей точки), up — uptime в секундах
+fn ds_statusbar(tick: i64, up: i64) {
+    d_rect_a(0, 766, 1280, 34, c_glass(), 200);
+    d_line(0, 766, 1280, 766, 0xffffff, 16);
+    if (tick / 25 * 25 == tick) {
+        d_dot(18, 783, 3, c_ok(), 255);
+    }
+    d_dot(18, 783, 3, c_ok(), 90);
+    d_label(30, 779, 5, c_dim());            // живой лог · ipc
+    d_label(1060, 779, 10, c_dim());         // аптайм
+    d_num(1118, 779, up / 3600, 2, c_text());
+    d_label(1130, 779, 20, c_dim());
+    d_num(1137, 779, up / 60 - up / 3600 * 60, 2, c_text());
+    d_label(1149, 779, 20, c_dim());
+    d_num(1156, 779, up - up / 60 * 60, 2, c_text());
+}
+
+// ── input-бар для чата с агентом (view "Агенты/Чат") ───────────────────
+fn ds_inputbar(has_text: i64) {
+    d_round(240, 722, 800, 34, 14, c_glass(), 220);
+    d_round_border(240, 722, 800, 34, 14, 0xffffff, 24);
+    if (has_text == 0) {
+        d_label(256, 733, 6, c_dim());       // Спросить агента…
+    }
+    d_round(946, 727, 88, 24, 10, c_acc(), 215);
+    d_label(958, 733, 7, 0xffffff);          // Отправить
+}
+
+// ── хром окна агента (CAP_UI) ──────────────────────────────────────────
+// focused: 1 = окно в фокусе (акцентная рамка)
+fn ds_window(x: i64, y: i64, w: i64, h: i64, focused: i64) {
+    d_shadow(x, y, w, h);
+    d_round(x, y, w, h, 14, c_glass(), 235);
+    d_rect_a(x, y, w, 40, 0xffffff, 10);                 // тонировка тайтлбара
+    d_line(x, y + 40, x + w, y + 40, 0xffffff, 16);
+    d_dot(x + 18, y + 20, 5, c_err(), 255);              // закрыть
+    d_dot(x + 36, y + 20, 5, c_warn(), 255);             // свернуть
+    d_dot(x + 54, y + 20, 5, c_ok(), 255);               // развернуть
+    d_round_border(x, y, w, h, 14, 0xffffff, 26);
+    if (focused == 1) {
+        d_round_border(x - 1, y - 1, w + 2, h + 2, 15, c_acc(), 96);
+    }
+}
+
+// заголовок внутри окна (id текста из таблицы LBL в kf_design.c)
+fn ds_window_title(x: i64, y: i64, title_id: i64) {
+    d_label(x + 72, y + 16, title_id, c_text());
+}
+
+// ── пузыри чата ────────────────────────────────────────────────────────
+fn ds_bubble_agent(x: i64, y: i64, w: i64, h: i64) {
+    d_round(x, y, w, h, 12, 0xffffff, 26);
+}
+fn ds_bubble_user(x: i64, y: i64, w: i64, h: i64) {
+    d_round(x, y, w, h, 12, c_acc(), 110);
+}
+
+// ── полный кадр рабочего стола (вызывать в event loop desktop.kenga) ───
+fn ds_desktop_frame(hh: i64, mm: i64, ss: i64, ram: i64, cpu: i64, up: i64, side: i64, tick: i64) {
+    ds_topbar(hh, mm, ss, cpu, ram);
+    ds_sidebar(side);
+    ds_statusbar(tick, up);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// ПРИМЕР вставки в ui.kenga (псевдо-каркас, имена ваших функций могут
+// отличаться — подставьте свои rtc_uptime()/ram_used() и т.п.):
+//
+//   fn ui_draw(hh: i64, mm: i64, ss: i64, ram: i64, up: i64, side: i64) {
+//       ds_desktop_frame(hh, mm, ss, ram, 12, up, side, tick_count());
+//       ds_inputbar(0);
+//       ds_window(300, 120, 620, 420, 1);
+//       ds_window_title(300, 120, 1);          // "Агенты"
+//   }
+//
+//   в цикле загрузки (вместо старого boot-экрана):
+//       ds_boot_frame(i, 11);
+//   при первом входе в desktop:
+//       ds_desktop_bg(0);
+// ═══════════════════════════════════════════════════════════════════════

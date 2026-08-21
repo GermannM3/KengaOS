@@ -190,6 +190,14 @@ if [[ -f "$KERNEL_DIR/kf_gui.c" ]]; then
     eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_gui.c\" -o \"$BUILD_DIR/kf_gui.o\""
 fi
 
+log "4o/7" "Compiling kf_design.c (Aurora design primitives) ($CC)"
+if [[ -f "$KERNEL_DIR/kf_design.c" ]]; then
+    eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_design.c\" -o \"$BUILD_DIR/kf_design.o\""
+fi
+if [[ -f "$KERNEL_DIR/kf_design_adapter.c" ]]; then
+    eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_design_adapter.c\" -o \"$BUILD_DIR/kf_design_adapter.o\""
+fi
+
 log "5/7" "Linking kengaos.elf ($LD)"
 OBJS=("$BUILD_DIR/start.o" "$BUILD_DIR/kmain.o")
 if [[ -f "$BUILD_DIR/kf_mem.o" ]]; then OBJS+=("$BUILD_DIR/kf_mem.o"); fi
@@ -210,6 +218,8 @@ if [[ -f "$BUILD_DIR/kf_usb.o" ]]; then OBJS+=("$BUILD_DIR/kf_usb.o"); fi
 if [[ -f "$BUILD_DIR/kf_wallpaper.o" ]]; then OBJS+=("$BUILD_DIR/kf_wallpaper.o"); fi
 if [[ -f "$BUILD_DIR/kf_font_aa.o" ]]; then OBJS+=("$BUILD_DIR/kf_font_aa.o"); fi
 if [[ -f "$BUILD_DIR/kf_gui.o" ]]; then OBJS+=("$BUILD_DIR/kf_gui.o"); fi
+if [[ -f "$BUILD_DIR/kf_design.o" ]]; then OBJS+=("$BUILD_DIR/kf_design.o"); fi
+if [[ -f "$BUILD_DIR/kf_design_adapter.o" ]]; then OBJS+=("$BUILD_DIR/kf_design_adapter.o"); fi
 $LD -n -nostdlib -T "$KERNEL_DIR/linker.ld" "${OBJS[@]}" -o "$BUILD_DIR/kengaos.elf"
 ls -la "$BUILD_DIR/kengaos.elf"
 
