@@ -1,7 +1,7 @@
 fn main() {
     var event = Some(1)
     match event {
-        Foo => { var z = event }
+        Events::MouseClick { x, y, button } => { var z = x }
         _ => { return }
     }
 }
