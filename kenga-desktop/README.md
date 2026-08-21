@@ -68,6 +68,14 @@ GLASS_ALPHA     = 0.78 (прозрачность glassmorphism)
 
 ## Архитектура
 
+### Текущий KengaOS backend
+
+Desktop подключается к ядру через `src/platform/kernel_bridge.kenga`. Этот
+контракт изолирует desktop/mobile UI от конкретных kernel intrinsic: агенты,
+IPC-ввод, память, uptime и pointer events идут через него. Текущий freestanding
+компилятор уже собирает этот bridge и native framebuffer desktop; `.kg`-слои
+ниже являются переносимым UI-слоем и портируются на тот же контракт.
+
 ```
 ┌─────────────────────────────────────────────────────┐
 │                    main.kg                          │

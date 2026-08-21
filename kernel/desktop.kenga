@@ -45,7 +45,7 @@ fn draw_desktop(st: DesktopState) -> i64 {
     let m: DesktopMetrics = dmetrics(W, H);
     draw_wallpaper(W, H);
     ui_chrome(W, H, m.sb, m.tb, m.stb,
-              proc_count(), time_uptime_ms() / 1000, mouse_x(), mouse_y(), st.cur_app);
+              kd_agent_count(), kd_uptime() / 1000, kd_mouse_x(), kd_mouse_y(), st.cur_app);
     draw_command_center(W, H, st);
     /* floating input bar (chat) at the bottom */
     draw_input_bar(W, H, m.sb, m.tb, m.stb);
@@ -94,15 +94,15 @@ fn draw_command_center(w: i64, h: i64, st: DesktopState) -> i64 {
     fb_text_aa(hx + 24, hy + 24, text, panel, "LIVE AGENT GRAPH");
     fb_text_aa(hx + hw - 122, hy + 24, cyan, panel, "4 RUNNING");
     fb_blend_rect(hx + 20, hy + 54, hw - 40, 1, 0xffffff, 18);
-    let n: i64 = proc_count();
+    let n: i64 = kd_agent_count();
     let i: i64 = 0;
     while i < n && i < 8 {
         let ry: i64 = hy + 76 + i * 36;
-        if proc_pid_at(i) == st.sel_pid { fb_blend_rrect(hx + 18, ry - 5, hw - 36, 28, 10, violet, 70); }
+        if kd_agent_pid(i) == st.sel_pid { fb_blend_rrect(hx + 18, ry - 5, hw - 36, 28, 10, violet, 70); }
         fb_disc(hx + 34, ry + 8, 4, green);
-        dtext(hx + 52, ry, text, panel, proc_name_at(i));
+        dtext(hx + 52, ry, text, panel, kd_agent_name(i));
         dtext(hx + hw - 122, ry, dim, panel, "PID");
-        dtext(hx + hw - 88, ry, cyan, panel, proc_pid_at(i));
+        dtext(hx + hw - 88, ry, cyan, panel, kd_agent_pid(i));
         i = i + 1;
     }
     fb_text_aa(hx + 24, hy + hh - 34, dim, panel, "select an agent to inspect memory, model and capabilities");
@@ -291,7 +291,7 @@ fn draw_input_bar(w: i64, h: i64, sb: i64, tb: i64, stb: i64) -> i64 {
     fb_blend_rrect_grad(bx, by, bw, 36, 18, 0x161c30, 0x0a0e1a, 196);
     fb_blend_rect(bx, by, bw, 1, 0xffffff, 26);
     fb_text_aa(bx + 14, by + 10, C_GREEN, 0x1a2030, "> ");
-    let il: i64 = fb_text_aa(bx + 30, by + 10, C_TEXT, 0x1a2030, ui_input_str());
+    let il: i64 = fb_text_aa(bx + 30, by + 10, C_TEXT, 0x1a2030, kd_input_text());
     fb_text_aa(bx + 30 + il, by + 10, C_ACCENT, 0x1a2030, "_");
     /* send button */
     fb_blend_rrect(bx + bw - 100, by + 5, 92, 26, 13, C_ACCENT, 220);
@@ -425,7 +425,7 @@ fn draw_terminal(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
     }
     /* live prompt with the input bar content */
     dtext(x + 12, y + 44 + rows * 22, C_GREEN, C_BG, ">");
-    dtext(x + 26, y + 44 + rows * 22, C_TEXT, C_BG, ui_input_str());
+    dtext(x + 26, y + 44 + rows * 22, C_TEXT, C_BG, kd_input_text());
     return 0;
 }
 
@@ -438,21 +438,21 @@ fn draw_agents(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
     let C_GREEN: i64 = 0x22d3ee;
     let C_PANEL2: i64 = 0x1a2030;
     dtext(x, y, C_TEXT, C_BG, "Agents (process tree)");
-    let n: i64 = proc_count();
+    let n: i64 = kd_agent_count();
     let row: i64 = y + 28;
     let i: i64 = 0;
     while i < n && i < 20 {
         let flag: i64 = 0;
-        if proc_pid_at(i) == st.sel_pid { flag = 1; }
+        if kd_agent_pid(i) == st.sel_pid { flag = 1; }
         let bg: i64 = C_BG;
         if flag == 1 { bg = C_HILITE; }
         fb_hrect(x, row, w, 20, bg);
-        dtext(x + 6, row + 4, C_ACCENT, bg, proc_pid_at(i));
-        dtext(x + 40, row + 4, C_TEXT, bg, proc_name_at(i));
+        dtext(x + 6, row + 4, C_ACCENT, bg, kd_agent_pid(i));
+        dtext(x + 40, row + 4, C_TEXT, bg, kd_agent_name(i));
         dtext(x + 120, row + 4, C_DIM, bg, "p:");
-        dtext(x + 134, row + 4, C_DIM, bg, proc_parent_at(i));
+        dtext(x + 134, row + 4, C_DIM, bg, kd_agent_parent(i));
         dtext(x + 200, row + 4, C_DIM, bg, "q:");
-        dtext(x + 214, row + 4, C_DIM, bg, proc_qlen(proc_pid_at(i)));
+        dtext(x + 214, row + 4, C_DIM, bg, kd_agent_queue(kd_agent_pid(i)));
         row = row + 20;
         i = i + 1;
     }
@@ -465,8 +465,8 @@ fn draw_agents(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
         dtext(x + 12, dy + 28, C_TEXT, C_PANEL2, "PID  " + st.sel_pid);
         let j: i64 = 0;
         while j < n {
-            if proc_pid_at(j) == st.sel_pid {
-                dtext(x + 12, dy + 48, C_TEXT, C_PANEL2, "Name " + proc_name_at(j));
+            if kd_agent_pid(j) == st.sel_pid {
+                dtext(x + 12, dy + 48, C_TEXT, C_PANEL2, "Name " + kd_agent_name(j));
                 dtext(x + 12, dy + 68, C_TEXT, C_PANEL2, "Caps " + proc_caps(st.sel_pid));
             }
             j = j + 1;
@@ -539,13 +539,13 @@ fn draw_system(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
     let C_GREEN: i64 = 0x22d3ee;
     dtext(x, y, C_TEXT, C_BG, "System");
     dtext(x + 8, y + 24, C_TEXT, C_BG, "CPU  " + hw_cpu_brand_str());
-    dtext(x + 8, y + 44, C_TEXT, C_BG, "RAM free " + mem_pages_free());
-    dtext(x + 8, y + 64, C_TEXT, C_BG, "Uptime " + time_uptime_ms() / 1000);
+    dtext(x + 8, y + 44, C_TEXT, C_BG, "RAM free " + kd_memory_free_kb());
+    dtext(x + 8, y + 64, C_TEXT, C_BG, "Uptime " + kd_uptime() / 1000);
     /* live RAM bar, computed in Kenga: total = sum of usable memmap regions
        (type 0), used = total - free. Nothing here touches C logic. */
     let total: i64 = mem_total_kb();
     let used: i64 = 0;
-    if total > 0 { used = total - mem_pages_free() * 4; }
+    if total > 0 { used = total - kd_memory_free_kb(); }
     let barw: i64 = 300;
     let barx: i64 = x + 8;
     let bary: i64 = y + 88;
@@ -590,13 +590,13 @@ fn handle_click(st: DesktopState, mx: i64, my: i64) -> DesktopState {
     let cy: i64 = 72;
     if mx >= cx + 18 && mx < cx + 238 && my >= cy + 82 && my < H - 100 {
         let idx: i64 = (my - (cy + 82)) / 36;
-        if idx >= 0 && idx < proc_count() { st.sel_pid = proc_pid_at(idx); }
+        if idx >= 0 && idx < kd_agent_count() { st.sel_pid = kd_agent_pid(idx); }
         return st;
     }
     /* input bar send button: submit the chat line to the agent */
     let bw: i64 = W - 108 - 360;
     if mx >= 108 + bw - 100 && mx < 108 + bw - 8 && my >= H - 52 + 5 && my < H - 52 + 31 {
-        ui_input_submit();
+        kd_input_submit();
         return st;
     }
     return st;
@@ -627,14 +627,14 @@ fn init_screen() -> i64 {
     dtext(500, 440, C_NEON, C_BG, "KengaOS 0.6 ready");
     /* progress bar */
     fb_hrect(360, 460, 560, 6, 0x131a2b);
-    let boot_at: i64 = time_uptime_ms();
+    let boot_at: i64 = kd_uptime();
     let spins: i64 = 0;
     while 1 {
         if kbd_pending() == 1 {
             let c: i64 = kbd_read();
             if c == 10 { return 0; }
         }
-        let el: i64 = time_uptime_ms() - boot_at;
+        let el: i64 = kd_uptime() - boot_at;
         if el > 2000 { return 0; }
         let pct: i64 = el * 100 / 2000;
         if pct > 100 { pct = 100; }
@@ -659,14 +659,14 @@ fn lock_screen() -> i64 {
     dtext(540, 300, C_NEON, C_BG, hw_rtc_time_str());
     dtext(520, 330, C_DIM, C_BG, "KengaOS 0.6 · GermannM3");
     dtext(470, 420, C_ACC, C_BG, "click or Enter to enter");
-    let boot_at: i64 = time_uptime_ms();
+    let boot_at: i64 = kd_uptime();
     let spins: i64 = 0;
     while 1 {
         if kbd_pending() == 1 {
             let c: i64 = kbd_read();
             if c == 10 { return 0; }
         }
-        let el: i64 = time_uptime_ms() - boot_at;
+        let el: i64 = kd_uptime() - boot_at;
         if el > 2500 { return 0; }
         spins = spins + 1;
         if spins > 20000000 { return 0; }
@@ -692,8 +692,8 @@ fn desktop_main() -> i64 {
     let last_my: i64 = my;
     let mprev: i64 = 0;
     let tick: i64 = 0;
-    let last_up: i64 = time_uptime_ms() / 1000;
-    let last_n: i64 = proc_count();
+    let last_up: i64 = kd_uptime() / 1000;
+    let last_n: i64 = kd_agent_count();
     let s: DesktopState = st;
     /* first frame through the back buffer */
     fb_begin_frame();
@@ -701,8 +701,8 @@ fn desktop_main() -> i64 {
     cur_draw(mx, my);
     fb_end_frame();
     while 1 {
-        mouse_poll();   /* USB tablet poll (no-op for PS/2) */
-        let bx: i64 = mouse_buttons();
+        kd_poll_mouse();   /* platform input adapter */
+        let bx: i64 = kd_mouse_buttons();
         let cmx: i64 = mouse_x();
         let cmy: i64 = mouse_y();
         let clicked: i64 = 0;
@@ -710,8 +710,8 @@ fn desktop_main() -> i64 {
         let released: i64 = 0;
         if bx == 0 && mprev != 0 { released = 1; }
         /* live refresh: redraw when uptime tick or agent count changes */
-        let now_up: i64 = time_uptime_ms() / 1000;
-        let now_n: i64 = proc_count();
+        let now_up: i64 = kd_uptime() / 1000;
+        let now_n: i64 = kd_agent_count();
         let live: i64 = 0;
         if now_up != last_up { live = 1; }
         if now_n != last_n { live = 1; }
@@ -740,10 +740,10 @@ fn desktop_main() -> i64 {
             } else {
                 let chg: i64 = 0;
                 if c == 10 || c == 13 {
-                    ui_input_submit();
+                    kd_input_submit();
                     chg = 1;
                 } else {
-                    chg = ui_input_putc(c);
+                    chg = kd_input_putc(c);
                 }
                 if chg == 1 {
                     fb_begin_frame();

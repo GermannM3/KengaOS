@@ -1,0 +1,25 @@
+/* Kenga Desktop platform contract.
+ *
+ * This is the current-kernel adapter for the portable desktop layer. The
+ * .kg sources in this directory describe the next UI API; this small module
+ * keeps the OS-specific boundary in Kenga while that API is being ported to
+ * the freestanding compiler. A future mobile target can provide the same
+ * surface with different hardware bindings.
+ */
+
+fn kd_uptime() -> i64 { return time_uptime_ms(); }
+fn kd_agent_count() -> i64 { return proc_count(); }
+fn kd_agent_pid(idx: i64) -> i64 { return proc_pid_at(idx); }
+fn kd_agent_parent(idx: i64) -> i64 { return proc_parent_at(idx); }
+fn kd_agent_name(idx: i64) -> str { return proc_name_at(idx); }
+fn kd_agent_queue(pid: i64) -> i64 { return proc_qlen(pid); }
+fn kd_memory_free_kb() -> i64 { return mem_pages_free() * 4; }
+fn kd_memory_total_kb() -> i64 { return mem_total_bytes() / 1024; }
+fn kd_mouse_x() -> i64 { return mouse_x(); }
+fn kd_mouse_y() -> i64 { return mouse_y(); }
+fn kd_mouse_buttons() -> i64 { return mouse_buttons(); }
+fn kd_poll_mouse() -> i64 { return mouse_poll(); }
+fn kd_input_putc(c: i64) -> i64 { return ui_input_putc(c); }
+fn kd_input_text() -> str { return ui_input_str(); }
+fn kd_input_clear() -> i64 { return ui_input_clear(); }
+fn kd_input_submit() -> i64 { return ui_input_submit(); }
