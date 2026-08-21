@@ -55,8 +55,13 @@ scripts\build.cmd           # Windows (MSYS2 / Git Bash)
 Запуск в QEMU:
 
 ```bash
-qemu-system-x86_64 -M q35 -cdrom build/kengaos.iso -serial stdio
+qemu-system-x86_64 -M q35 -cdrom build/kengaos.iso -m 256M \
+  -device usb-tablet -serial stdio
 ```
+
+Параметр `-device usb-tablet` обязателен для полноценной мыши в desktop:
+KengaOS получает абсолютные координаты курсора через USB-tablet, поэтому окна
+можно перетаскивать без захвата мыши окном QEMU.
 
 ---
 
