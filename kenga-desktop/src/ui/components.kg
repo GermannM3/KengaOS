@@ -517,10 +517,10 @@ impl TerminalWindow {
     }
     
     fn handle_key(&mut self, key: int) {
-        if key == Keys::ENTER {
+        if key == KEY_ENTER {
             self.execute_command()
             self.current_command = ""
-        } else if key == Keys::BACKSPACE {
+        } else if key == KEY_BACKSPACE {
             if self.current_command.len() > 0 {
                 self.current_command = self.current_command[0..-1]
             }

@@ -235,13 +235,13 @@ impl EventSystem {
     fn get_modifiers(&self) -> int {
         var mods = 0
         
-        if self.key_states[Keys::CTRL_LEFT] || self.key_states[Keys::CTRL_RIGHT] {
+        if self.key_states[KEY_CTRL_LEFT] || self.key_states[KEY_CTRL_RIGHT] {
             mods = mods | 1
         }
-        if self.key_states[Keys::SHIFT_LEFT] || self.key_states[Keys::SHIFT_RIGHT] {
+        if self.key_states[KEY_SHIFT_LEFT] || self.key_states[KEY_SHIFT_RIGHT] {
             mods = mods | 2
         }
-        if self.key_states[Keys::ALT_LEFT] || self.key_states[Keys::ALT_RIGHT] {
+        if self.key_states[KEY_ALT_LEFT] || self.key_states[KEY_ALT_RIGHT] {
             mods = mods | 4
         }
         
@@ -269,38 +269,33 @@ impl EventSystem {
 // KEY CODES
 // ============================================================
 
-struct Keys {
-    const ENTER = 13
-    const BACKSPACE = 8
-    const TAB = 9
-    const ESCAPE = 27
-    const SPACE = 32
-    
-    const CTRL_LEFT = 157
-    const CTRL_RIGHT = 158
-    const SHIFT_LEFT = 42
-    const SHIFT_RIGHT = 54
-    const ALT_LEFT = 56
-    const ALT_RIGHT = 184
-    
-    const F1 = 59
-    const F2 = 60
-    const F3 = 61
-    const F4 = 62
-    const F5 = 63
-    const F6 = 64
-    const F7 = 65
-    const F8 = 66
-    const F9 = 67
-    const F10 = 68
-    const F11 = 87
-    const F12 = 88
-    
-    const ARROW_UP = 72
-    const ARROW_DOWN = 80
-    const ARROW_LEFT = 75
-    const ARROW_RIGHT = 77
-}
+const KEY_ENTER = 13
+const KEY_BACKSPACE = 8
+const KEY_TAB = 9
+const KEY_ESCAPE = 27
+const KEY_SPACE = 32
+const KEY_CTRL_LEFT = 157
+const KEY_CTRL_RIGHT = 158
+const KEY_SHIFT_LEFT = 42
+const KEY_SHIFT_RIGHT = 54
+const KEY_ALT_LEFT = 56
+const KEY_ALT_RIGHT = 184
+const KEY_F1 = 59
+const KEY_F2 = 60
+const KEY_F3 = 61
+const KEY_F4 = 62
+const KEY_F5 = 63
+const KEY_F6 = 64
+const KEY_F7 = 65
+const KEY_F8 = 66
+const KEY_F9 = 67
+const KEY_F10 = 68
+const KEY_F11 = 87
+const KEY_F12 = 88
+const KEY_ARROW_UP = 72
+const KEY_ARROW_DOWN = 80
+const KEY_ARROW_LEFT = 75
+const KEY_ARROW_RIGHT = 77
 
 // Export
 export EventSystem
@@ -308,4 +303,3 @@ export Event
 export EventType
 export MouseEvent
 export KeyEvent
-export Keys

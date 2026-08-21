@@ -201,10 +201,10 @@ impl Desktop {
                     }
                 }
                 Events::KeyPress { key, modifiers } => {
-                    if key == Keys::ESCAPE && self.launcher.is_visible {
+                    if key == KEY_ESCAPE && self.launcher.is_visible {
                         self.launcher.hide()
                     }
-                    if key == Keys::F1 {
+                    if key == KEY_F1 {
                         self.launcher.toggle()
                     }
                 }
@@ -312,7 +312,7 @@ impl Desktop {
     
     fn handle_key_press(&mut self, e: Events::KeyEvent) {
         // Global shortcuts
-        if e.key == Keys::F1 {
+        if e.key == KEY_F1 {
             self.launcher.toggle()
         }
         
