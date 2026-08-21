@@ -49,6 +49,8 @@ typedef struct {
     mem_slot     mem[MEM_SLOTS];   /* per-agent living memory */
 } kf_proc_t;
 
+static kf_proc_t* cur_proc(void);
+
 static kf_proc_t procs[MAX_PROC];
 static int64_t   next_pid = 1;
 static int64_t   logger_pid = 0;
@@ -93,6 +95,9 @@ int64_t k_proc_caps(int64_t pid) {
     return 0;
 }
 int64_t k_proc_set_caps(int64_t pid, int64_t caps) {
+    kf_proc_t* caller = cur_proc();
+    if (caller && !(caller->caps & CAP_MEM)) return 0;
+    if ((uint64_t)caps & ~CAP_ALL) return 0;
     for (int i = 0; i < MAX_PROC; i++)
         if (procs[i].active && procs[i].pid == pid) { procs[i].caps = (uint64_t)caps; return 1; }
     return 0;
@@ -100,6 +105,9 @@ int64_t k_proc_set_caps(int64_t pid, int64_t caps) {
 
 /* Send a message to the process with the given pid. */
 int64_t k_ipc_send(int64_t pid, const char* data) {
+    kf_proc_t* caller = cur_proc();
+    if (caller && !(caller->caps & CAP_IPC)) return 0;
+    if (!data) return 0;
     for (int i = 0; i < MAX_PROC; i++) if (procs[i].active && procs[i].pid == pid) {
         int next = (procs[i].qh + 1) % IPC_QLEN;
         if (next == procs[i].qt) return 0;              /* queue full */
@@ -273,10 +281,11 @@ static void agent_proc(void) {
                     /* caps=0xN only (name defaults to 'agent') */
                     const char* hx = name + 5; uint64_t v = 0;
                     while ((*hx>='0'&&*hx<='9')||(*hx>='a'&&*hx<='f')) { v <<= 4; v |= (*hx<='9')?(*hx-'0'):(*hx-'a'+10); hx++; }
-                    child_caps = v;
+                    child_caps = v & me->caps;
                     name = "agent";
                 }
                 if (!*name) name = "agent";
+                child_caps &= me->caps;
                 int64_t child = k_proc_spawn(name, agent_proc, child_caps);
                 pre = "spawned pid ";
                 for (; *pre && k < MSG_MAX - 1; k++) reply[k] = *pre++;
