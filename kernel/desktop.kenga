@@ -46,12 +46,26 @@ fn draw_desktop(st: DesktopState) -> i64 {
     draw_wallpaper(W, H);
     ui_chrome(W, H, m.sb, m.tb, m.stb,
               proc_count(), time_uptime_ms() / 1000, mouse_x(), mouse_y(), st.cur_app);
-    /* main view framed as a glass window (reference: big Agents window) */
-    let vx: i64 = 108;
-    let vy: i64 = m.tb + 18;
-    let vw: i64 = W - 108 - 30;
-    let vh: i64 = H - m.tb - 18 - 90;
-    draw_view_window(vx, vy, vw, vh, st);
+    /* Reference composition: one large translucent shell behind a compact,
+       luminous central card. The old layout stretched Agents to nearly the
+       whole screen, which made the real framebuffer UI unlike primer.jpg. */
+    let sx: i64 = W * 11 / 100;
+    let sy: i64 = H * 29 / 100;
+    let sw: i64 = W * 78 / 100;
+    let sh: i64 = H * 48 / 100;
+    fb_blend_rect(sx + 6, sy + 14, sw, sh, 0x000000, 48);
+    fb_blend_rrect_grad(sx, sy, sw, sh, 22, 0x202b52, 0x0b1020, 178);
+    fb_blend_rect(sx + 22, sy, sw - 44, 1, 0xffffff, 28);
+    fb_text_aa(sx + 34, sy + 28, 0xe6edf3, 0x1a2030, "Kenga");
+
+    /* quiet secondary glass cards behind the hero card */
+    let cx: i64 = W * 25 / 100;
+    let cy: i64 = H * 40 / 100;
+    let cw: i64 = W * 50 / 100;
+    let ch: i64 = H * 44 / 100;
+    fb_blend_rrect_grad(cx - 92, cy + 28, 170, 190, 16, 0x26365f, 0x111a31, 132);
+    fb_blend_rrect_grad(cx + cw - 78, cy + 62, 155, 170, 16, 0x26365f, 0x111a31, 132);
+    draw_view_window(cx, cy, cw, ch, st);
     /* floating input bar (chat) at the bottom */
     draw_input_bar(W, H, m.sb, m.tb, m.stb);
     /* live log floating bottom-right */
