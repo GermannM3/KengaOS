@@ -15,16 +15,26 @@ static int      vfs_count = 0;
      u32 file_count, then per file: u32 name_len, name, u32 size, data. */
 static uint8_t* rd_base = 0;
 
+static uint32_t rd_u32(const uint8_t* p) {
+    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
+           ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
+}
+
 int64_t k_vfs_init_rd(int64_t addr, int64_t size) {
     rd_base = (uint8_t*)(uintptr_t)addr;
     if (!rd_base || size < 4) return 0;
-    uint32_t count = *(uint32_t*)rd_base;
+    uint8_t* end = rd_base + (uint64_t)size;
+    if (end < rd_base) return 0;
+    uint32_t count = rd_u32(rd_base);
     uint8_t* p = rd_base + 4;
     vfs_count = 0;
     for (uint32_t i = 0; i < count && vfs_count < VFS_MAX; i++) {
-        uint32_t nlen = *(uint32_t*)p; p += 4;
+        if ((uint64_t)(end - p) < 4) { vfs_count = 0; return 0; }
+        uint32_t nlen = rd_u32(p); p += 4;
+        if (nlen == 0 || (uint64_t)(end - p) < (uint64_t)nlen + 4u) { vfs_count = 0; return 0; }
         const char* name = (const char*)p; p += nlen;
-        uint32_t dlen = *(uint32_t*)p; p += 4;
+        uint32_t dlen = rd_u32(p); p += 4;
+        if ((uint64_t)(end - p) < dlen) { vfs_count = 0; return 0; }
         const char* data = (const char*)p; p += dlen;
         vfs_file* f = &vfs_files[vfs_count];
         f->name = name;
@@ -54,6 +64,7 @@ const char* k_vfs_name(int64_t idx) {
 
 /* Find a file by name; returns 1 and fills content if found. */
 int64_t k_vfs_cat(const char* name, char* out, int max) {
+    if (!name || !out || max <= 0) return 0;
     for (int i = 0; i < vfs_count; i++) {
         const char* a = name; const char* b = vfs_files[i].name;
         while (*a && *a == *b) { a++; b++; }
