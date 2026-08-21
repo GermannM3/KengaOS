@@ -552,11 +552,9 @@ impl Color {
 
 impl Framebuffer {
     fn new(width: int, height: int, format: int) -> Self {
-        let bytes_per_pixel = match format {
-            PF_RGBA8888 => 4,
-            PF_RGB565 => 2,
-            PF_ARGB8888 => 4,
-            _ => 4
+        var bytes_per_pixel = 4
+        if format == PF_RGB565 {
+            bytes_per_pixel = 2
         }
         
         let pitch = width * bytes_per_pixel
@@ -591,11 +589,13 @@ fn clamp(value: float, min_val: float, max_val: float) -> float {
 }
 
 fn max(a: int, b: int) -> int {
-    return if a > b { a } else { b }
+    if a > b { return a }
+    return b
 }
 
 fn min(a: int, b: int) -> int {
-    return if a < b { a } else { b }
+    if a < b { return a }
+    return b
 }
 
 fn sqrt(x: float) -> float {

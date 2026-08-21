@@ -236,13 +236,13 @@ impl EventSystem {
         var mods = 0
         
         if self.key_states[Keys::CTRL_LEFT] || self.key_states[Keys::CTRL_RIGHT] {
-            mods |= 1
+            mods = mods | 1
         }
         if self.key_states[Keys::SHIFT_LEFT] || self.key_states[Keys::SHIFT_RIGHT] {
-            mods |= 2
+            mods = mods | 2
         }
         if self.key_states[Keys::ALT_LEFT] || self.key_states[Keys::ALT_RIGHT] {
-            mods |= 4
+            mods = mods | 4
         }
         
         return mods

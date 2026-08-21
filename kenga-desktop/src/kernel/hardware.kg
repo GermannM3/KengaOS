@@ -1,17 +1,13 @@
-// Portable hardware contract for Kenga Desktop.
-// Desktop and mobile targets provide the same surface with different drivers.
-
-struct MouseState {
-    x: int
-    y: int
-    buttons: int
-}
-
-@intrinsic fn get_mouse_state() -> MouseState
-@intrinsic fn get_key_state(key: int) -> bool
-@intrinsic fn key_to_char(key: int) -> u32
-@intrinsic fn get_time_ms() -> u64
-@intrinsic fn get_power_button_state() -> bool
-@intrinsic fn framebuffer_width() -> int
-@intrinsic fn framebuffer_height() -> int
-@intrinsic fn framebuffer_pitch() -> int
+// Host-independent hardware ABI declarations for the native desktop target.
+fn has_gpu_acceleration() -> bool { return false }
+fn gpu_init_double_buffer(a: int, b: int, c: int) {}
+fn gpu_clear(a: int, b: int, c: int) {}
+fn gpu_swap_buffers() {}
+fn wait_for_vsync() {}
+fn display_framebuffer(a: int) {}
+fn load_file(path: str) -> int { return 0 }
+fn get_time_ms() -> int { return 0 }
+fn get_key_state(key: int) -> bool { return false }
+fn key_to_char(key: int) -> int { return 0 }
+fn get_power_button_state() -> bool { return false }
+fn get_mouse_state() -> int { return 0 }

@@ -269,7 +269,8 @@ impl Dock {
         }
         
         // Draw icon (simplified - would use actual icons)
-        let icon_color = if button.is_active { 0xFFFFFF } else { 0xC3CDF0 }
+        var icon_color = 0xC3CDF0
+        if button.is_active { icon_color = 0xFFFFFF }
         renderer.draw_text(button.icon[0..1].to_uppercase(), x + 16, y + 28, FONT_INTER, 18, icon_color)
         
         // Running indicator
@@ -368,7 +369,8 @@ impl Window {
         }
         
         // Shadow
-        let shadow_alpha = if focused { 100 } else { 60 }
+        var shadow_alpha = 60
+        if focused { shadow_alpha = 100 }
         renderer.draw_shadow(self.x + 5, self.y + 30, self.width, self.height, 60, shadow_alpha)
         
         // Window frame
@@ -530,36 +532,28 @@ impl TerminalWindow {
     fn execute_command(&mut self) {
         let cmd = self.current_command.trim()
         
-        match cmd {
-            "help" => {
+        if cmd == "help" {
                 self.add_line("Available commands:", 0xFFFFFF)
                 self.add_line("  help    - Show this help", 0xCFD8F2)
                 self.add_line("  ver     - Show version", 0xCFD8F2)
                 self.add_line("  mem     - Show memory info", 0xCFD8F2)
                 self.add_line("  clear   - Clear terminal", 0xCFD8F2)
                 self.add_line("  demo    - Run demo", 0xCFD8F2)
-            }
-            "ver" => {
+        } else if cmd == "ver" {
                 self.add_line("KengaOS 0.5 - Next Generation OS", 0x7EE7A3)
-            }
-            "mem" => {
+        } else if cmd == "mem" {
                 self.add_line("Total: 16384 MB", 0xCFD8F2)
                 self.add_line("Used: 6234 MB", 0xCFD8F2)
                 self.add_line("Free: 10150 MB", 0xCFD8F2)
-            }
-            "clear" => {
+        } else if cmd == "clear" {
                 self.lines = []
                 self.line_count = 0
                 self.prompt()
-            }
-            "demo" => {
+        } else if cmd == "demo" {
                 self.add_line("Running demo...", 0x22D3EE)
                 self.add_line("Done!", 0x7EE7A3)
-            }
-            "" => {}
-            _ => {
+        } else if cmd != "" {
                 self.add_line("Command not found: " + cmd, 0xFF8F8F)
-            }
         }
         
         if cmd != "clear" {
@@ -817,7 +811,8 @@ impl BootScreen {
         // Boot logs
         let log_y = 540
         for i in 0..self.log_count {
-            let color = if self.logs[i].starts_with("[OK]") { 0x7EE7D0 } else { 0xA8B0D0 }
+            var color = 0xA8B0D0
+            if self.logs[i].starts_with("[OK]") { color = 0x7EE7D0 }
             renderer.draw_text(self.logs[i], 960 - 300, log_y + (i * 18), FONT_JETBRAINS, 11, color)
         }
     }
