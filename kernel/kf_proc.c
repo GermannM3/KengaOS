@@ -64,6 +64,16 @@ static void reap_finished(void) {
         }
 }
 
+static kf_proc_t* active_at(int64_t idx) {
+    if (idx < 0) return 0;
+    for (int i = 0; i < MAX_PROC; i++)
+        if (procs[i].active) {
+            if (idx == 0) return &procs[i];
+            idx--;
+        }
+    return 0;
+}
+
 static void lg_uart(const char* s) { for (; *s; s++) __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)*s), "Nd"((uint16_t)0x3F8)); }
 
 /* Scheduler identities are private task handles; IPC is a PID-based public
@@ -137,6 +147,7 @@ int64_t k_ipc_send(int64_t pid, const char* data) {
 /* Blocking receive: yield until a message arrives for the calling process.
    Returns 1 with the message copied into *out (data + from). */
 int64_t k_ipc_recv(ipc_msg* out) {
+    if (!out) return 0;
     uint64_t me = k_sched_current();
     for (;;) {
         for (int i = 0; i < MAX_PROC; i++) {
@@ -189,16 +200,16 @@ int64_t k_proc_count(void) {
 }
 
 int64_t k_proc_pid_at(int64_t idx) {
-    if (idx < 0 || idx >= MAX_PROC || !procs[idx].active) return 0;
-    return procs[idx].pid;
+    kf_proc_t* p = active_at(idx);
+    return p ? p->pid : 0;
 }
 int64_t k_proc_parent_at(int64_t idx) {
-    if (idx < 0 || idx >= MAX_PROC || !procs[idx].active) return 0;
-    return procs[idx].parent;
+    kf_proc_t* p = active_at(idx);
+    return p ? p->parent : 0;
 }
 const char* k_proc_name_at(int64_t idx) {
-    if (idx < 0 || idx >= MAX_PROC || !procs[idx].active) return "";
-    return procs[idx].name;
+    kf_proc_t* p = active_at(idx);
+    return p ? p->name : "";
 }
 
 /* --- logger process: prints received messages to console + UART --- */
