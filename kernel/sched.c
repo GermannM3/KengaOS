@@ -29,6 +29,8 @@ static uint64_t  next_id = 1;
 static uint8_t   stack_arena[STACK_ARENA];
 static uint64_t  arena_used = 0;
 
+static void task_trampoline(void);
+
 /* --- UART --- */
 static void s_putc(char c) { __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)c), "Nd"((uint16_t)0x3F8)); }
 
@@ -48,6 +50,22 @@ uint64_t k_sched_yield(uint64_t current_ctx) {
 /* Current running task index (used by IPC to find the calling process). */
 uint64_t k_sched_current(void) { return current; }
 
+/* A task entry is allowed to return.  Returning directly would execute a
+   garbage return address on the private stack, so terminate it inside the
+   scheduler and yield to the next runnable task. */
+static void task_trampoline(void) {
+    void (*entry)(void) = tasks[current].entry;
+    if (entry) entry();
+    tasks[current].state = 1;
+    for (;;) k_task_yield();
+}
+
+int64_t k_sched_task_alive(uint64_t id) {
+    for (uint64_t i = 1; i < task_count; i++)
+        if (tasks[i].id == id) return tasks[i].state == 0;
+    return 0;
+}
+
 /* Wrapper so Kenga (emit-c, i64-only) can yield: k_task_yield returns uint64_t. */
 int64_t k_yield_agent(void) { return (int64_t)k_task_yield(); }
 
@@ -63,12 +81,12 @@ uint64_t k_task_create(void (*entry)(void)) {
        so -O2 SSE (movaps) doesn't #GP on a misaligned stack operand. */
     uint64_t* f = (uint64_t*)(top - 8 * 8);
     f[0] = 0;                        /* rbx */
-    f[1] = 0;                        /* r12 */
+    f[1] = (uint64_t)(uintptr_t)entry; /* r12: trampoline argument */
     f[2] = 0;                        /* r13 */
     f[3] = 0;                        /* r14 */
     f[4] = 0;                        /* r15 */
     f[5] = 0;                        /* rbp */
-    f[6] = (uint64_t)(uintptr_t)entry; /* return address -> task entry */
+    f[6] = (uint64_t)(uintptr_t)task_trampoline;
     uint64_t idx = task_count;
     tasks[idx].ctx   = (uint64_t)(uintptr_t)f;
     tasks[idx].entry = entry;

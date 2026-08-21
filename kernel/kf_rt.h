@@ -140,6 +140,7 @@ int64_t k_desktop_main(void);
 uint64_t k_task_create(void (*entry)(void));
 uint64_t k_task_yield(void);
 uint64_t k_sched_current(void);
+int64_t k_sched_task_alive(uint64_t id);
 int64_t k_yield_agent(void);
 
 /* Processes + IPC (kernel/kf_proc.c). */
