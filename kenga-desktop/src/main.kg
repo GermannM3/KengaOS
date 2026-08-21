@@ -2,10 +2,10 @@
 // Written in Kenga language
 // Native renderer for desktop UI
 
-import "graphics/renderer.kg" as Renderer
-import "ui/components.kg" as Components
-import "system/events.kg" as Events
-import "system/wm.kg" as WindowManager
+import "graphics/renderer.kg" as Renderer;
+import "ui/components.kg" as Components;
+import "system/events.kg" as Events;
+import "system/wm.kg" as WindowManager;
 
 // ============================================================
 // CONSTANTS - Design System Values from HTML reference

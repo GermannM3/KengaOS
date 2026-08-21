@@ -2,8 +2,8 @@
 // Low-level rendering engine for desktop UI
 // Implements double buffering, hardware acceleration, and effects
 
-import "kernel/hardware.kg" as Hardware
-import "kernel/memory.kg" as Memory
+import "kernel/hardware.kg" as Hardware;
+import "kernel/memory.kg" as Memory;
 
 // ============================================================
 // CONSTANTS

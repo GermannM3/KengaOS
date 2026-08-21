@@ -1,7 +1,7 @@
 // KengaOS Event System
 // Input handling and event dispatching
 
-import "kernel/hardware.kg" as Hardware
+import "kernel/hardware.kg" as Hardware;
 
 // ============================================================
 // EVENT TYPES

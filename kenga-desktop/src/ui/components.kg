@@ -1,8 +1,8 @@
 // KengaOS UI Components
 // Desktop environment UI elements matching HTML design reference
 
-import "graphics/renderer.kg" as Renderer
-import "system/events.kg" as Events
+import "graphics/renderer.kg" as Renderer;
+import "system/events.kg" as Events;
 
 // ============================================================
 // CONSTANTS - Design System Values
