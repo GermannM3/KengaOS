@@ -74,6 +74,26 @@ Agent-native десктоп KengaOS 0.5 (десктоп, окна и логик�
 
 ![KengaOS desktop](docs/desktop.png)
 
+### Визуальное направление
+
+Десктоп закреплён в стиле Aurora / glassmorphism: глубокий космический фон,
+фиолетово-циановые свечения, полупрозрачные окна, плавающий dock и
+agent-native рабочее пространство. В качестве визуального ориентира
+используется [`docs/ui-reference-primer.jpg`](docs/ui-reference-primer.jpg),
+а текущий рабочий результат показан на [`docs/desktop.png`](docs/desktop.png).
+
+Standalone HTML-preview дизайн-системы находится в
+[`docs/desktop-preview.html`](docs/desktop-preview.html) и открывается обычным
+браузером без сборки ядра.
+
+Управление desktop:
+
+- `1–4` — Agents, Model, Files, System;
+- `5` — Terminal;
+- мышь — выбор dock, перетаскивание окон и изменение z-order;
+- кнопка `x` — закрытие окна;
+- нижний input-bar — отправка сообщения активному агенту через IPC.
+
 ---
 
 ## Возможности
