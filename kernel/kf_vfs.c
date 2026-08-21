@@ -5,7 +5,7 @@
  */
 #include "kf_rt.h"
 
-typedef struct { const char* name; const char* content; uint64_t size; } vfs_file;
+typedef struct { char name[32]; const char* content; uint64_t size; } vfs_file;
 
 #define VFS_MAX 32
 static vfs_file vfs_files[VFS_MAX];
@@ -31,13 +31,15 @@ int64_t k_vfs_init_rd(int64_t addr, int64_t size) {
     for (uint32_t i = 0; i < count && vfs_count < VFS_MAX; i++) {
         if ((uint64_t)(end - p) < 4) { vfs_count = 0; return 0; }
         uint32_t nlen = rd_u32(p); p += 4;
-        if (nlen == 0 || (uint64_t)(end - p) < (uint64_t)nlen + 4u) { vfs_count = 0; return 0; }
-        const char* name = (const char*)p; p += nlen;
+        if (nlen == 0 || nlen >= sizeof(vfs_files[0].name) ||
+            (uint64_t)(end - p) < (uint64_t)nlen + 4u) { vfs_count = 0; return 0; }
+        const uint8_t* name = p; p += nlen;
         uint32_t dlen = rd_u32(p); p += 4;
         if ((uint64_t)(end - p) < dlen) { vfs_count = 0; return 0; }
         const char* data = (const char*)p; p += dlen;
         vfs_file* f = &vfs_files[vfs_count];
-        f->name = name;
+        for (uint32_t k = 0; k < nlen; k++) f->name[k] = (char)name[k];
+        f->name[nlen] = 0;
         f->content = data;
         f->size = dlen;
         vfs_count++;
