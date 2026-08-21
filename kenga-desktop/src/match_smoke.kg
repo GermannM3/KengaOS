@@ -1,0 +1,7 @@
+fn main() {
+    var event = Some(1)
+    match event {
+        Foo => { var z = event }
+        _ => { return }
+    }
+}
