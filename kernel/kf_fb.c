@@ -410,6 +410,41 @@ int64_t k_fb_blend_rrect(int64_t x0, int64_t y0, int64_t w, int64_t h,
     return 1;
 }
 
+int64_t k_fb_blend_rrect_top(int64_t x0, int64_t y0, int64_t w, int64_t h,
+                             int64_t r, int64_t color, int64_t alpha) {
+    /* rounded TOP corners only (window titlebars). The bottom edge is
+       straight: coverage is computed against a rect extended r px down. */
+    if (!fb_ok || w < 1 || h < 1 || r < 0 || alpha <= 0) return 0;
+    if (alpha > 255) alpha = 255;
+    if (x0 < 0) { w += x0; x0 = 0; }
+    if (y0 < 0) { h += y0; y0 = 0; }
+    if (x0 + w > (int64_t)fb_w) w = fb_w - x0;
+    if (y0 + h > (int64_t)fb_h) h = fb_h - y0;
+    if (w <= 0 || h <= 0) return 0;
+    uint32_t a = (uint32_t)alpha;
+    uint32_t fg = (uint32_t)color;
+    uint32_t fr = (fg >> 16) & 0xff, fgc = (fg >> 8) & 0xff, fbc = fg & 0xff;
+    int64_t rr = r; if (rr > w / 2) rr = w / 2; if (rr > h) rr = h;
+    int64_t cx4 = (x0 * 2 + w) * 2, cy4 = (y0 * 2 + h + rr) * 2;
+    int64_t hw4 = w * 2, hh4 = (h + rr) * 2, r4 = rr * 4;
+    uintptr_t base = fb_cur();
+    for (int64_t yy = 0; yy < h; yy++) {
+        uint32_t* row = (uint32_t*)(base + (uintptr_t)(y0 + yy) * fb_pitch + (uintptr_t)x0 * 4);
+        int64_t yedge = (yy < rr + 1);
+        for (int64_t xx = 0; xx < w; xx++) {
+            if (!yedge && xx >= rr + 1 && xx < w - rr - 1) {
+                fb_blend_px(row, xx, fr, fgc, fbc, a);
+                continue;
+            }
+            int cov = rrect_cov4(x0 + xx, y0 + yy, cx4, cy4, hw4, hh4, r4);
+            if (cov == 0) continue;
+            uint32_t ae = (a * (uint32_t)cov) >> 4;
+            fb_blend_px(row, xx, fr, fgc, fbc, ae);
+        }
+    }
+    return 1;
+}
+
 /* --- Vector icons (SDF union, anti-aliased, 20x20 box) ---
    type 0=agents 1=model 2=files 3=system. All geometry in quarter-px. */
 static int64_t sd_circle(int64_t px4, int64_t py4, int64_t cx4, int64_t cy4, int64_t r4) {

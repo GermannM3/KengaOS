@@ -76,14 +76,14 @@ fn draw_view_window(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
     /* glass body: translucent LIGHT panel over the wallpaper (reference:
        rgba(22,28,48,.78) -> brighter than the bg, so it reads as glass) */
     fb_blend_rrect(x, y, w, h, 22, 0x161c30, 190);
-    /* titlebar: slightly lighter glass */
-    fb_blend_rrect(x, y, w, 44, 22, 0x2a3450, 90);
-    fb_blend_rect(x, y + 43, w, 1, 0xffffff, 20);
-    /* 1px light border (stroke) */
-    fb_blend_rect(x, y, w, 1, 0xffffff, 30);
-    fb_blend_rect(x, y + h - 1, w, 1, 0xffffff, 30);
-    fb_blend_rect(x, y, 1, h, 0xffffff, 30);
-    fb_blend_rect(x + w - 1, y, 1, h, 0xffffff, 30);
+    /* titlebar: lighter glass, rounded TOP corners only */
+    fb_blend_rrect_top(x, y, w, 44, 22, 0x2a3450, 90);
+    fb_blend_rect(x + 22, y + 43, w - 44, 1, 0xffffff, 20);
+    /* hairline border: only along the STRAIGHT edges (never across corners) */
+    fb_blend_rect(x + 22, y, w - 44, 1, 0xffffff, 30);
+    fb_blend_rect(x + 22, y + h - 1, w - 44, 1, 0xffffff, 30);
+    fb_blend_rect(x, y + 22, 1, h - 44, 0xffffff, 30);
+    fb_blend_rect(x + w - 1, y + 22, 1, h - 44, 0xffffff, 30);
     /* traffic lights: AA discs (macOS style) */
     fb_disc(x + 18, y + 22, 5, C_RED);
     fb_disc(x + 38, y + 22, 5, C_YEL);
@@ -120,14 +120,19 @@ fn draw_dock(w: i64, h: i64, cur: i64) -> i64 {
         let active: i64 = 0;
         if cur == i { active = 1; }
         if active == 1 {
-            fb_blend_rrect(dx + 10, iy, 44, 44, 12, HILITE, 200);
+            fb_glow(dx + 32, iy + 22, 24, HILITE, 70);
+            fb_blend_rrect(dx + 8, iy - 2, 48, 48, 16, HILITE, 235);
         } else {
-            fb_blend_rrect(dx + 10, iy, 44, 44, 12, 0xffffff, 18);
+            fb_blend_rrect(dx + 10, iy, 44, 44, 15, 0xffffff, 13);
         }
         /* icons: vector SDF, anti-aliased (agents/model/files/system) */
         let ic_col: i64 = NEON;
         if active == 1 { ic_col = 0x0b0f1a; }
         fb_icon(dx + 22, iy + 12, i, ic_col);
+        if active != 1 {
+            /* hover-ish hairline on top of the glass square */
+            fb_blend_rect(dx + 16, iy + 1, 32, 1, 0xffffff, 22);
+        }
         /* running indicator dot */
         if n > 0 {
             fb_disc(dx + dw / 2, iy + 47, 2, NEON);
@@ -194,7 +199,7 @@ fn draw_log(w: i64, h: i64, sb: i64, tb: i64, stb: i64) -> i64 {
     /* glass panel */
     fb_blend_rect(lx + 3, ly + 6, lw, lh, 0x000000, 40);
     fb_blend_rrect(lx, ly, lw, lh, 22, 0x161c30, 180);
-    fb_blend_rect(lx, ly, lw, 1, 0xffffff, 26);
+    fb_blend_rect(lx + 22, ly, lw - 44, 1, 0xffffff, 26);
     /* header: blinking dot + title */
     fb_glow(lx + 14, ly + 14, 4, C_GREEN, 160);
     fb_hrect(lx + 11, ly + 11, 7, 7, C_GREEN);
@@ -274,20 +279,20 @@ fn draw_windows() -> i64 {
             fb_blend_rect(wx + 6, wy + 14, ww, wh, 0x000000, 30);
             /* glass body: translucent LIGHT panel (reference glass) */
             fb_blend_rrect(wx, wy, ww, wh, 22, 0x161c30, 190);
-            /* titlebar: slightly lighter glass */
-            fb_blend_rrect(wx, wy, ww, 44, 22, 0x2a3450, 90);
-            fb_blend_rect(wx, wy + 43, ww, 1, 0xffffff, 20);
-            /* 1px light border (stroke) */
-            fb_blend_rect(wx, wy, ww, 1, 0xffffff, 30);
-            fb_blend_rect(wx, wy + wh - 1, ww, 1, 0xffffff, 30);
-            fb_blend_rect(wx, wy, 1, wh, 0xffffff, 30);
-            fb_blend_rect(wx + ww - 1, wy, 1, wh, 0xffffff, 30);
+            /* titlebar: lighter glass, rounded TOP corners only */
+            fb_blend_rrect_top(wx, wy, ww, 44, 22, 0x2a3450, 90);
+            fb_blend_rect(wx + 22, wy + 43, ww - 44, 1, 0xffffff, 20);
+            /* hairline border: straight edges only */
+            fb_blend_rect(wx + 22, wy, ww - 44, 1, 0xffffff, 30);
+            fb_blend_rect(wx + 22, wy + wh - 1, ww - 44, 1, 0xffffff, 30);
+            fb_blend_rect(wx, wy + 22, 1, wh - 44, 0xffffff, 30);
+            fb_blend_rect(wx + ww - 1, wy + 22, 1, wh - 44, 0xffffff, 30);
             /* focused window: accent glow border */
             if top == 1 {
-                fb_blend_rect(wx - 1, wy - 1, ww + 2, 1, C_ACCENT, 96);
-                fb_blend_rect(wx - 1, wy + wh, ww + 2, 1, C_ACCENT, 96);
-                fb_blend_rect(wx - 1, wy - 1, 1, wh + 2, C_ACCENT, 96);
-                fb_blend_rect(wx + ww, wy - 1, 1, wh + 2, C_ACCENT, 96);
+                fb_blend_rect(wx + 22, wy - 1, ww - 44, 1, C_ACCENT, 96);
+                fb_blend_rect(wx + 22, wy + wh, ww - 44, 1, C_ACCENT, 96);
+                fb_blend_rect(wx - 1, wy + 22, 1, wh - 44, C_ACCENT, 96);
+                fb_blend_rect(wx + ww, wy + 22, 1, wh - 44, C_ACCENT, 96);
             }
             /* traffic lights: AA discs (macOS style) */
             fb_disc(wx + 18, wy + 22, 5, C_RED);
@@ -546,6 +551,12 @@ fn handle_click(st: DesktopState, mx: i64, my: i64) -> DesktopState {
             st.drag_ox = mx - ui_window_x(w);
             st.drag_oy = my - ui_window_y(w);
         }
+        return st;
+    }
+    /* input bar send button: submit the chat line to the agent */
+    let bw: i64 = W - 108 - 360;
+    if mx >= 108 + bw - 100 && mx < 108 + bw - 8 && my >= H - 52 + 5 && my < H - 52 + 31 {
+        ui_input_submit();
         return st;
     }
     /* main view window: app content coordinates */
