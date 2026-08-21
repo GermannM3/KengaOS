@@ -76,6 +76,12 @@ IPC-ввод, память, uptime и pointer events идут через нег�
 компилятор уже собирает этот bridge и native framebuffer desktop; `.kg`-слои
 ниже являются переносимым UI-слоем и портируются на тот же контракт.
 
+Платформенные контракты находятся в `src/kernel/hardware.kg` и
+`src/kernel/memory.kg`. Это единая форма target API; текущая freestanding
+реализация подключает уже доступные mouse/time/memory метрики через bridge,
+а низкоуровневые framebuffer и allocator bindings портируются следующим
+слоем без изменения компонентов UI.
+
 ```
 ┌─────────────────────────────────────────────────────┐
 │                    main.kg                          │

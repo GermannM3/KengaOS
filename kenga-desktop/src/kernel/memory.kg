@@ -1,0 +1,10 @@
+// Portable memory contract for Kenga Desktop.
+// UI owns transient buffers through this API; it never touches kernel heap
+// addresses directly.
+
+@intrinsic fn alloc(size: int) -> ptr<u8>
+@intrinsic fn free(ptr: ptr<u8>) -> bool
+@intrinsic fn memory_free_kb() -> int
+@intrinsic fn memory_total_kb() -> int
+@intrinsic fn copy(dst: ptr<u8>, src: ptr<u8>, size: int) -> bool
+@intrinsic fn zero(dst: ptr<u8>, size: int) -> bool
