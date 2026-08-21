@@ -1,6 +1,5 @@
 import "ui.kenga";
 import "desktop.kenga";
-import "design.kenga";
 
 @intrinsic fn kf_get_boot_info() -> i64;
 @intrinsic fn kf_get_framebuffer() -> i64;

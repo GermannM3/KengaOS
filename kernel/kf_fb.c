@@ -10,7 +10,6 @@
  */
 
 #include "kf_rt.h"
-extern void k_design_fb_sync(uintptr_t pixels, int w, int h, int pitch);
 
 /* --- global framebuffer state ------------------------------------------- */
 
@@ -66,7 +65,6 @@ int64_t k_fb_init(int64_t fb) {
         return 0;
     }
     fb_ok = 1;
-    k_design_fb_sync(fb_addr, (int)fb_w, (int)fb_h, (int)(fb_pitch / 4));
     return 1;
 }
 
@@ -86,7 +84,6 @@ static uintptr_t fb_cur(void) { return fb_target ? fb_target : fb_addr; }
 int64_t k_fb_begin_frame(void) {
     if (!fb_ok) return 0;
     fb_target = (uintptr_t)fb_back;
-    k_design_fb_sync(fb_target, (int)fb_w, (int)fb_h, (int)(fb_pitch / 4));
     return 1;
 }
 
@@ -97,7 +94,6 @@ int64_t k_fb_end_frame(void) {
     uint32_t* s = (uint32_t*)fb_target;
     for (uint64_t i = 0; i < n; i++) d[i] = s[i];
     fb_target = 0;
-    k_design_fb_sync(fb_addr, (int)fb_w, (int)fb_h, (int)(fb_pitch / 4));
     return 1;
 }
 

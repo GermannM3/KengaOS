@@ -538,12 +538,13 @@ static int64_t k_ui_open_window(const char* title, const char* text) {
     for (int i = 0; i < MAX_WINDOWS; i++) if (wins[i].active) open++;
     for (int i = 0; i < MAX_WINDOWS; i++) if (!wins[i].active) {
         int step = open % 4;
-        wins[i].x = 480 + step * 70;
-        wins[i].y = 120 + step * 60;
-        wins[i].w = 280; wins[i].h = 140;
-        if (wins[i].x + 280 > 930) wins[i].x = 930 - 280;    /* keep off the log */
-        if (wins[i].y + 140 > 640) wins[i].y = 640 - 140;    /* keep off the input bar */
+        /* Stagger system/agent windows across the desktop instead of
+           stacking every new window on the same center point. */
         wins[i].w = 320; wins[i].h = 200;
+        wins[i].x = 120 + (step % 3) * 350;
+        wins[i].y = 90 + (step / 3) * 190;
+        if (wins[i].x + wins[i].w > 940) wins[i].x = 940 - wins[i].w;
+        if (wins[i].y + wins[i].h > 650) wins[i].y = 650 - wins[i].h;
         wins[i].z = next_z++;
         wins[i].active = 1;
         int k = 0;
