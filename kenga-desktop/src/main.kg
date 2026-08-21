@@ -1,0 +1,449 @@
+// KengaOS Desktop Environment - Main Entry Point
+// Written in Kenga language
+// Native renderer for desktop UI
+
+import "graphics/renderer.kg" as Renderer
+import "ui/components.kg" as Components
+import "system/events.kg" as Events
+import "system/wm.kg" as WindowManager
+
+// ============================================================
+// CONSTANTS - Design System Values from HTML reference
+// ============================================================
+
+const COLOR_ACCENT = 0x8B7BFF      // #8b7bff
+const COLOR_ACCENT2 = 0x22D3EE     // #22d3ee
+const COLOR_BG = 0x04060B          // #04060b
+const COLOR_GLASS_BASE = 0x161C30  // Base for glass gradient
+const GLASS_ALPHA = 0.78
+
+const FONT_INTER = "Inter"
+const FONT_UNBOUNDED = "Unbounded"
+const FONT_JETBRAINS = "JetBrains Mono"
+
+const TOPBAR_HEIGHT = 38
+const DOCK_WIDTH = 64
+const WINDOW_MIN_WIDTH = 300
+const WINDOW_BAR_HEIGHT = 40
+
+// ============================================================
+// DESKTOP ENVIRONMENT STRUCT
+// ============================================================
+
+struct Desktop {
+    renderer: Renderer.Renderer
+    wm: WindowManager.WindowManager
+    events: Events.EventSystem
+    
+    wallpaper: Image
+    glow_effects: array<GlowEffect>
+    topbar: Components.TopBar
+    dock: Components.Dock
+    windows: array<Components.Window>
+    launcher: Components.Launcher
+    lock_screen: Components.LockScreen
+    boot_screen: Components.BootScreen
+    
+    is_booting: bool
+    is_locked: bool
+    is_shutdown: bool
+    
+    focused_window: int  // index
+    uptime_seconds: int
+    ram_usage: float
+    cpu_usage: float
+}
+
+// Glow effect for animated background
+struct GlowEffect {
+    x: float
+    y: float
+    radius: float
+    color: u32
+    drift_offset_x: float
+    drift_offset_y: float
+    animation_phase: float
+}
+
+// ============================================================
+// MAIN ENTRY POINT
+// ============================================================
+
+fn main() {
+    var desktop = Desktop::new()
+    
+    // Initialize system
+    desktop.init()
+    
+    // Start boot sequence
+    desktop.run_boot_sequence()
+    
+    // Main event loop
+    while !desktop.is_shutdown {
+        desktop.process_events()
+        desktop.update()
+        desktop.render()
+        
+        // Sync to refresh rate (typically 60fps)
+        Renderer.sync_to_vsync()
+    }
+    
+    // Shutdown sequence
+    desktop.shutdown()
+}
+
+// ============================================================
+// DESKTOP IMPLEMENTATION
+// ============================================================
+
+impl Desktop {
+    fn new() -> Self {
+        return Desktop {
+            renderer: Renderer::new(1920, 1080),
+            wm: WindowManager::new(),
+            events: Events::new(),
+            wallpaper: Image::load("/assets/wallpapers/default.jpg"),
+            glow_effects: [],
+            topbar: Components::TopBar::new(),
+            dock: Components::Dock::new(),
+            windows: [],
+            launcher: Components::Launcher::new(),
+            lock_screen: Components::LockScreen::new(),
+            boot_screen: Components::BootScreen::new(),
+            is_booting: true,
+            is_locked: false,
+            is_shutdown: false,
+            focused_window: -1,
+            uptime_seconds: 0,
+            ram_usage: 0.4,
+            cpu_usage: 0.25
+        }
+    }
+    
+    fn init(&mut self) {
+        // Initialize renderer with double buffering
+        self.renderer.init_double_buffer()
+        
+        // Load fonts
+        Renderer::load_font(FONT_INTER, "/fonts/Inter-Regular.ttf")
+        Renderer::load_font(FONT_UNBOUNDED, "/fonts/Unbounded-Regular.ttf")
+        Renderer::load_font(FONT_JETBRAINS, "/fonts/JetBrainsMono-Regular.ttf")
+        
+        // Initialize glow effects (2 animated orbs)
+        self.glow_effects.push(GlowEffect {
+            x: -0.12,
+            y: -0.18,
+            radius: 0.55,
+            color: COLOR_ACCENT,
+            drift_offset_x: 0.0,
+            drift_offset_y: 0.0,
+            animation_phase: 0.0
+        })
+        
+        self.glow_effects.push(GlowEffect {
+            x: -0.14,
+            y: -0.20,
+            radius: 0.55,
+            color: COLOR_ACCENT2,
+            drift_offset_x: 0.0,
+            drift_offset_y: 0.0,
+            animation_phase: 0.5
+        })
+        
+        // Setup event handlers
+        self.events.on_mouse_click(|e| self.handle_mouse_click(e))
+        self.events.on_key_press(|e| self.handle_key_press(e))
+        self.events.on_window_close(|id| self.close_window(id))
+    }
+    
+    fn run_boot_sequence(&mut self) {
+        let boot_logs = [
+            "[OK] Kernel initialized",
+            "[OK] Memory manager ready",
+            "[OK] Filesystem mounted",
+            "[OK] Graphics driver loaded",
+            "[OK] Input devices detected",
+            "[OK] Network stack ready",
+            "[OK] Desktop environment starting..."
+        ]
+        
+        var progress = 0.0
+        for log in boot_logs {
+            self.boot_screen.add_log(log)
+            progress += 1.0 / boot_logs.len() as float
+            self.boot_screen.set_progress(progress)
+            
+            self.render_boot_screen()
+            sleep_ms(150)  // Simulate boot timing
+        }
+        
+        // Fade out boot screen
+        for alpha in 1.0..0.0 step -0.05 {
+            self.boot_screen.set_alpha(alpha)
+            self.render()
+            sleep_ms(20)
+        }
+        
+        self.is_booting = false
+        self.boot_screen.set_visible(false)
+    }
+    
+    fn process_events(&mut self) {
+        // Poll for new events
+        while let Some(event) = self.events.poll() {
+            match event {
+                Events::MouseClick { x, y, button } => {
+                    if self.is_locked {
+                        self.lock_screen.handle_click(x, y)
+                    } else if self.launcher.is_visible {
+                        self.launcher.handle_click(x, y)
+                    } else {
+                        // Check window clicks
+                        self.wm.handle_click(x, y, &mut self.windows)
+                    }
+                }
+                Events::KeyPress { key, modifiers } => {
+                    if key == Keys::ESCAPE && self.launcher.is_visible {
+                        self.launcher.hide()
+                    }
+                    if key == Keys::F1 {
+                        self.launcher.toggle()
+                    }
+                }
+                Events::WindowDrag { id, dx, dy } => {
+                    self.wm.move_window(id, dx, dy, &mut self.windows)
+                }
+                _ => {}
+            }
+        }
+    }
+    
+    fn update(&mut self) {
+        // Update uptime
+        self.uptime_seconds += 1
+        
+        // Simulate RAM/CPU fluctuations
+        self.ram_usage = 0.3 + (sin(self.uptime_seconds as float * 0.1) * 0.15)
+        self.cpu_usage = 0.2 + (cos(self.uptime_seconds as float * 0.15) * 0.12)
+        
+        // Update topbar metrics
+        self.topbar.update_metrics(self.ram_usage, self.cpu_usage, self.uptime_seconds)
+        
+        // Update glow effect animations
+        for effect in &mut self.glow_effects {
+            effect.animation_phase += 0.02
+            // Drift animation using sine waves
+            effect.drift_offset_x = sin(effect.animation_phase) * 0.05
+            effect.drift_offset_y = cos(effect.animation_phase * 1.2) * 0.04
+        }
+        
+        // Update window states
+        for i in 0..self.windows.len() {
+            self.windows[i].update()
+        }
+    }
+    
+    fn render(&mut self) {
+        // Clear buffer
+        self.renderer.clear(COLOR_BG)
+        
+        // Render wallpaper
+        self.renderer.draw_image(&self.wallpaper, 0, 0, 1920, 1080)
+        
+        // Render glow effects with blur
+        for effect in &self.glow_effects {
+            let x = (effect.x + effect.drift_offset_x) * 1920.0
+            let y = (effect.y + effect.drift_offset_y) * 1080.0
+            self.renderer.draw_blurred_circle(
+                x as int, 
+                y as int, 
+                (effect.radius * 1000.0) as int,
+                effect.color,
+                90  // blur radius
+            )
+        }
+        
+        // Render vignette overlay
+        self.renderer.draw_vignette(1920, 1080)
+        
+        // Render UI components
+        if !self.is_locked {
+            self.topbar.render(&mut self.renderer)
+            self.dock.render(&mut self.renderer)
+            
+            // Render windows (sorted by z-order)
+            for i in 0..self.windows.len() {
+                self.windows[i].render(&mut self.renderer, i == self.focused_window)
+            }
+            
+            if self.launcher.is_visible {
+                self.launcher.render(&mut self.renderer)
+            }
+        } else {
+            self.lock_screen.render(&mut self.renderer)
+        }
+        
+        // Swap buffers (double buffering)
+        self.renderer.swap_buffers()
+    }
+    
+    fn render_boot_screen(&self) {
+        self.renderer.clear(COLOR_BG)
+        self.boot_screen.render(&mut self.renderer)
+        self.renderer.swap_buffers()
+    }
+    
+    fn handle_mouse_click(&mut self, e: Events::MouseEvent) {
+        // Handle dock clicks
+        if self.dock.contains_point(e.x, e.y) {
+            let app_id = self.dock.get_clicked_app(e.x, e.y)
+            if app_id >= 0 {
+                self.open_application(app_id)
+            }
+        }
+        
+        // Handle window focus
+        for i in 0..self.windows.len() {
+            if self.windows[i].contains_point(e.x, e.y) {
+                self.focused_window = i
+                self.wm.bring_to_front(i, &mut self.windows)
+                break
+            }
+        }
+    }
+    
+    fn handle_key_press(&mut self, e: Events::KeyEvent) {
+        // Global shortcuts
+        if e.key == Keys::F1 {
+            self.launcher.toggle()
+        }
+        
+        // Terminal-specific handling
+        if self.focused_window >= 0 {
+            let win = &mut self.windows[self.focused_window]
+            if win.is_terminal {
+                win.terminal_handle_key(e.key)
+            }
+        }
+    }
+    
+    fn open_application(&mut self, app_id: int) {
+        match app_id {
+            0 => self.open_terminal(),
+            1 => self.open_file_manager(),
+            2 => self.open_settings(),
+            3 => self.open_browser(),
+            _ => {}
+        }
+    }
+    
+    fn open_terminal(&mut self) {
+        let term = Components::TerminalWindow::new(
+            100, 100, 800, 500,
+            "Terminal",
+            true
+        )
+        self.windows.push(term.window)
+        self.focused_window = self.windows.len() - 1
+    }
+    
+    fn open_file_manager(&mut self) {
+        let fm = Components::FileManagerWindow::new(
+            200, 150, 900, 600,
+            "File Manager",
+            false
+        )
+        self.windows.push(fm.window)
+        self.focused_window = self.windows.len() - 1
+    }
+    
+    fn open_settings(&mut self) {
+        let settings = Components::SettingsWindow::new(
+            300, 200, 700, 550,
+            "Settings",
+            false
+        )
+        self.windows.push(settings.window)
+        self.focused_window = self.windows.len() - 1
+    }
+    
+    fn open_browser(&mut self) {
+        let browser = Components::BrowserWindow::new(
+            150, 100, 1000, 700,
+            "Browser",
+            false
+        )
+        self.windows.push(browser.window)
+        self.focused_window = self.windows.len() - 1
+    }
+    
+    fn close_window(&mut self, index: int) {
+        if index >= 0 && index < self.windows.len() {
+            self.windows.remove(index)
+            
+            if self.focused_window >= self.windows.len() {
+                self.focused_window = self.windows.len() - 1
+            }
+        }
+    }
+    
+    fn shutdown(&self) {
+        // Fade to black
+        for alpha in 1.0..0.0 step -0.05 {
+            self.renderer.set_global_alpha(alpha)
+            self.renderer.clear(0x000000)
+            self.renderer.swap_buffers()
+            sleep_ms(30)
+        }
+        
+        // Show power off message
+        self.renderer.clear(0x000000)
+        self.renderer.draw_text(
+            "Питание выключено",
+            960, 500,
+            FONT_JETBRAINS,
+            14,
+            0x333333
+        )
+        self.renderer.swap_buffers()
+        
+        // Wait for user to "turn on" again
+        loop {
+            if self.events.check_power_button() {
+                break
+            }
+            sleep_ms(100)
+        }
+    }
+}
+
+// ============================================================
+// HELPER FUNCTIONS
+// ============================================================
+
+fn sleep_ms(milliseconds: int) {
+    // Platform-specific sleep implementation
+    // This would call into the kernel's sleep function
+    asm {
+        mov rdi, milliseconds
+        syscall  // Call kernel sleep syscall
+    }
+}
+
+fn sin(x: float) -> float {
+    // Taylor series or lookup table implementation
+    // For performance, use precomputed lookup table
+    return Math::sin(x)
+}
+
+fn cos(x: float) -> float {
+    return Math::cos(x)
+}
+
+// Export for use by other modules
+export Desktop
+export COLOR_ACCENT
+export COLOR_ACCENT2
+export FONT_INTER
+export FONT_UNBOUNDED
+export FONT_JETBRAINS

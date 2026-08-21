@@ -1,0 +1,173 @@
+// KengaOS Window Manager
+// Window management, z-order, focus handling
+
+import "ui/components.kg" as Components
+
+// ============================================================
+// WINDOW MANAGER STRUCT
+// ============================================================
+
+struct WindowManager {
+    windows: array<int, 32>  // Window IDs
+    window_count: int
+    focused_index: int
+    next_window_id: int
+}
+
+impl WindowManager {
+    fn new() -> Self {
+        return WindowManager {
+            windows: [],
+            window_count: 0,
+            focused_index: -1,
+            next_window_id: 1
+        }
+    }
+    
+    fn create_window(&mut self, x: int, y: int, width: int, height: int, title: string) -> int {
+        let id = self.next_window_id
+        self.next_window_id += 1
+        
+        if self.window_count < 32 {
+            self.windows[self.window_count] = id
+            self.window_count += 1
+            self.focused_index = self.window_count - 1
+        }
+        
+        return id
+    }
+    
+    fn close_window(&mut self, index: int) {
+        if index >= 0 && index < self.window_count {
+            // Remove from array
+            for i in index..(self.window_count - 1) {
+                self.windows[i] = self.windows[i + 1]
+            }
+            self.window_count -= 1
+            
+            // Adjust focus
+            if self.focused_index >= self.window_count {
+                self.focused_index = self.window_count - 1
+            }
+        }
+    }
+    
+    fn bring_to_front(&mut self, index: int, windows: &mut array<Components.Window>) {
+        if index < 0 || index >= self.window_count {
+            return
+        }
+        
+        let window_id = self.windows[index]
+        
+        // Move to end of array (top of z-order)
+        for i in index..(self.window_count - 1) {
+            self.windows[i] = self.windows[i + 1]
+        }
+        self.windows[self.window_count - 1] = window_id
+        
+        self.focused_index = self.window_count - 1
+        
+        // Update focus state in window objects
+        for i in 0..self.window_count {
+            let win_index = self.find_window_by_id(window_id, windows)
+            if win_index >= 0 {
+                windows[win_index].is_focused = (i == self.focused_index)
+            }
+        }
+    }
+    
+    fn find_window_by_id(&self, id: int, windows: &array<Components.Window>) -> int {
+        for i in 0..windows.len() {
+            if windows[i].id == id {
+                return i
+            }
+        }
+        return -1
+    }
+    
+    fn handle_click(&mut self, x: int, y: int, windows: &mut array<Components.Window>) {
+        // Check windows from top to bottom
+        for i in (0..self.window_count).reverse() {
+            let win_id = self.windows[i]
+            let win_index = self.find_window_by_id(win_id, windows)
+            
+            if win_index >= 0 {
+                let window = &windows[win_index]
+                
+                if window.contains_point(x, y) {
+                    // Bring to front and focus
+                    self.bring_to_front(i, windows)
+                    
+                    // Check if clicking on title bar for dragging
+                    if window.contains_title_bar(x, y) {
+                        windows[win_index].start_drag(x, y)
+                    }
+                    
+                    return
+                }
+            }
+        }
+    }
+    
+    fn handle_drag(&mut self, x: int, y: int, windows: &mut array<Components.Window>) {
+        if self.focused_index >= 0 && self.focused_index < self.window_count {
+            let win_id = self.windows[self.focused_index]
+            let win_index = self.find_window_by_id(win_id, windows)
+            
+            if win_index >= 0 {
+                windows[win_index].drag(x, y)
+            }
+        }
+    }
+    
+    fn handle_drag_end(&mut self, windows: &mut array<Components.Window>) {
+        if self.focused_index >= 0 && self.focused_index < self.window_count {
+            let win_id = self.windows[self.focused_index]
+            let win_index = self.find_window_by_id(win_id, windows)
+            
+            if win_index >= 0 {
+                windows[win_index].end_drag()
+            }
+        }
+    }
+    
+    fn move_window(&mut self, id: int, dx: int, dy: int, windows: &mut array<Components.Window>) {
+        let win_index = self.find_window_by_id(id, windows)
+        
+        if win_index >= 0 {
+            windows[win_index].x += dx
+            windows[win_index].y += dy
+        }
+    }
+    
+    fn get_focused_window(&self, windows: &array<Components.Window>) -> Option<&Components.Window> {
+        if self.focused_index >= 0 && self.focused_index < self.window_count {
+            let win_id = self.windows[self.focused_index]
+            let win_index = self.find_window_by_id(win_id, windows)
+            
+            if win_index >= 0 {
+                return Some(&windows[win_index])
+            }
+        }
+        return None
+    }
+    
+    fn set_focused(&mut self, index: int, windows: &mut array<Components.Window>) {
+        if index >= 0 && index < self.window_count {
+            self.focused_index = index
+            
+            // Update focus state
+            for i in 0..self.window_count {
+                let win_id = self.windows[i]
+                let win_index = self.find_window_by_id(win_id, windows)
+                
+                if win_index >= 0 {
+                    windows[win_index].is_focused = (i == index)
+                }
+            }
+        }
+    }
+}
+
+// Export
+export WindowManager

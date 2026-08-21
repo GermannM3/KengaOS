@@ -1,0 +1,311 @@
+// KengaOS Event System
+// Input handling and event dispatching
+
+import "kernel/hardware.kg" as Hardware
+
+// ============================================================
+// EVENT TYPES
+// ============================================================
+
+enum EventType {
+    None,
+    MouseMove,
+    MouseClick,
+    MouseRelease,
+    MouseDoubleClick,
+    KeyPress,
+    KeyRelease,
+    WindowDrag,
+    WindowClose,
+    WindowMinimize,
+    WindowMaximize,
+    PowerMenuToggled,
+    AppLaunch,
+    SystemTick,
+    Resize
+}
+
+struct MouseEvent {
+    x: int
+    y: int
+    button: int  // 0=left, 1=right, 2=middle
+    modifiers: int
+}
+
+struct KeyEvent {
+    key: int
+    char_code: u32
+    modifiers: int
+    is_repeat: bool
+}
+
+struct WindowEvent {
+    window_id: int
+    dx: int
+    dy: int
+}
+
+union EventData {
+    mouse: MouseEvent
+    key: KeyEvent
+    window: WindowEvent
+}
+
+struct Event {
+    type: EventType
+    timestamp: u64
+    data: EventData
+}
+
+// ============================================================
+// EVENT SYSTEM
+// ============================================================
+
+struct EventSystem {
+    event_queue: array<Event, 64>
+    queue_head: int
+    queue_tail: int
+    mouse_x: int
+    mouse_y: int
+    mouse_buttons: int
+    key_states: array<bool, 256>
+    
+    // Callbacks
+    on_mouse_click_cb: ptr<fn(MouseEvent)>
+    on_key_press_cb: ptr<fn(KeyEvent)>
+    on_window_close_cb: ptr<fn(int)>
+}
+
+impl EventSystem {
+    fn new() -> Self {
+        return EventSystem {
+            event_queue: [],
+            queue_head: 0,
+            queue_tail: 0,
+            mouse_x: 0,
+            mouse_y: 0,
+            mouse_buttons: 0,
+            key_states: [],
+            on_mouse_click_cb: null,
+            on_key_press_cb: null,
+            on_window_close_cb: null
+        }
+    }
+    
+    fn poll(&mut self) -> Option<Event> {
+        if self.queue_head == self.queue_tail {
+            return None
+        }
+        
+        let event = self.event_queue[self.queue_head]
+        self.queue_head = (self.queue_head + 1) % 64
+        
+        return Some(event)
+    }
+    
+    fn push_event(&mut self, event: Event) {
+        let next_tail = (self.queue_tail + 1) % 64
+        
+        if next_tail == self.queue_head {
+            // Queue full, drop oldest event
+            self.queue_head = (self.queue_head + 1) % 64
+        }
+        
+        self.event_queue[self.queue_tail] = event
+        self.queue_tail = next_tail
+    }
+    
+    fn update(&mut self) {
+        // Poll hardware for input
+        self.poll_hardware()
+    }
+    
+    fn poll_hardware(&mut self) {
+        // Get mouse state from hardware
+        let mouse_state = Hardware::get_mouse_state()
+        let new_x = mouse_state.x
+        let new_y = mouse_state.y
+        let new_buttons = mouse_state.buttons
+        
+        // Mouse move event
+        if new_x != self.mouse_x || new_y != self.mouse_y {
+            self.push_event(Event {
+                type: EventType::MouseMove,
+                timestamp: Hardware::get_time_ms(),
+                data: EventData {
+                    mouse: MouseEvent {
+                        x: new_x,
+                        y: new_y,
+                        button: 0,
+                        modifiers: 0
+                    }
+                }
+            })
+            
+            self.mouse_x = new_x
+            self.mouse_y = new_y
+        }
+        
+        // Mouse click events
+        for i in 0..3 {
+            let old_button = (self.mouse_buttons >> i) & 1
+            let new_button = (new_buttons >> i) & 1
+            
+            if old_button == 0 && new_button == 1 {
+                self.push_event(Event {
+                    type: EventType::MouseClick,
+                    timestamp: Hardware::get_time_ms(),
+                    data: EventData {
+                        mouse: MouseEvent {
+                            x: new_x,
+                            y: new_y,
+                            button: i,
+                            modifiers: self.get_modifiers()
+                        }
+                    }
+                })
+                
+                // Call callback if set
+                if self.on_mouse_click_cb != null {
+                    let cb = self.on_mouse_click_cb as fn(MouseEvent)
+                    cb(MouseEvent { x: new_x, y: new_y, button: i, modifiers: 0 })
+                }
+            } else if old_button == 1 && new_button == 0 {
+                self.push_event(Event {
+                    type: EventType::MouseRelease,
+                    timestamp: Hardware::get_time_ms(),
+                    data: EventData {
+                        mouse: MouseEvent {
+                            x: new_x,
+                            y: new_y,
+                            button: i,
+                            modifiers: 0
+                        }
+                    }
+                })
+            }
+        }
+        
+        self.mouse_buttons = new_buttons
+        
+        // Keyboard events
+        for i in 0..256 {
+            let key_state = Hardware::get_key_state(i)
+            
+            if key_state && !self.key_states[i] {
+                // Key pressed
+                self.push_event(Event {
+                    type: EventType::KeyPress,
+                    timestamp: Hardware::get_time_ms(),
+                    data: EventData {
+                        key: KeyEvent {
+                            key: i,
+                            char_code: Hardware::key_to_char(i),
+                            modifiers: self.get_modifiers(),
+                            is_repeat: false
+                        }
+                    }
+                })
+                
+                // Call callback if set
+                if self.on_key_press_cb != null {
+                    let cb = self.on_key_press_cb as fn(KeyEvent)
+                    cb(KeyEvent { key: i, char_code: 0, modifiers: 0, is_repeat: false })
+                }
+            } else if !key_state && self.key_states[i] {
+                // Key released
+                self.push_event(Event {
+                    type: EventType::KeyRelease,
+                    timestamp: Hardware::get_time_ms(),
+                    data: EventData {
+                        key: KeyEvent {
+                            key: i,
+                            char_code: 0,
+                            modifiers: 0,
+                            is_repeat: false
+                        }
+                    }
+                })
+            }
+            
+            self.key_states[i] = key_state
+        }
+    }
+    
+    fn get_modifiers(&self) -> int {
+        var mods = 0
+        
+        if self.key_states[Keys::CTRL_LEFT] || self.key_states[Keys::CTRL_RIGHT] {
+            mods |= 1
+        }
+        if self.key_states[Keys::SHIFT_LEFT] || self.key_states[Keys::SHIFT_RIGHT] {
+            mods |= 2
+        }
+        if self.key_states[Keys::ALT_LEFT] || self.key_states[Keys::ALT_RIGHT] {
+            mods |= 4
+        }
+        
+        return mods
+    }
+    
+    fn on_mouse_click(&mut self, callback: fn(MouseEvent)) {
+        self.on_mouse_click_cb = callback as ptr<fn(MouseEvent)>
+    }
+    
+    fn on_key_press(&mut self, callback: fn(KeyEvent)) {
+        self.on_key_press_cb = callback as ptr<fn(KeyEvent)>
+    }
+    
+    fn on_window_close(&mut self, callback: fn(int)) {
+        self.on_window_close_cb = callback as ptr<fn(int)>
+    }
+    
+    fn check_power_button(&self) -> bool {
+        return Hardware::get_power_button_state()
+    }
+}
+
+// ============================================================
+// KEY CODES
+// ============================================================
+
+struct Keys {
+    const ENTER = 13
+    const BACKSPACE = 8
+    const TAB = 9
+    const ESCAPE = 27
+    const SPACE = 32
+    
+    const CTRL_LEFT = 157
+    const CTRL_RIGHT = 158
+    const SHIFT_LEFT = 42
+    const SHIFT_RIGHT = 54
+    const ALT_LEFT = 56
+    const ALT_RIGHT = 184
+    
+    const F1 = 59
+    const F2 = 60
+    const F3 = 61
+    const F4 = 62
+    const F5 = 63
+    const F6 = 64
+    const F7 = 65
+    const F8 = 66
+    const F9 = 67
+    const F10 = 68
+    const F11 = 87
+    const F12 = 88
+    
+    const ARROW_UP = 72
+    const ARROW_DOWN = 80
+    const ARROW_LEFT = 75
+    const ARROW_RIGHT = 77
+}
+
+// Export
+export EventSystem
+export Event
+export EventType
+export MouseEvent
+export KeyEvent
+export Keys
