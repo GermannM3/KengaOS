@@ -121,19 +121,19 @@ Standalone HTML-preview дизайн-системы находится в
 | Кириллица | есть | UTF-8 консоль + русский шрифт, русское приветствие |
 | Память | есть | Kernel heap + frame-аллокатор (bitmap, ~94 МБ фреймов) |
 | Процессы + IPC | есть | `k_proc_spawn`, `k_ipc_send`/`k_ipc_recv`, очереди сообщений |
-| Kenga-agent | есть | Агент — системная сущность: `spawn` (создаёт агентов, рекурсивно), живая память (`remember`/`recall`), capability-права, русский ответ |
+| Kenga-agent | есть | Агент — системная сущность: `spawn` (создаёт агентов, рекурсивно), живая память (`remember`/`recall`), capability-права с наследованием, русский ответ |
 | Agent-native модель | есть | Дерево процессов: `init` → системные агенты → пользовательские агенты (parent tracking) |
 | **Model Agent** | есть | Настоящая нейросеть (MLP, XOR) как системный процесс: `model a b` → предсказание через IPC + `CAP_MODEL_INFER` |
 | **GUI Desktop** | есть | Agent-native графическая среда, написана на Kenga (desktop.kenga): сайдбар (Agents/Model/Files/System), верхняя/статус панели, init-экран → desktop, живой рефрешь (часы RTC, uptime, RAM-бар), клавиатурное управление (1–4) |
-| **Окна (CAP_UI)** | есть | Агенты с `CAP_UI` создают свои окна через IPC (`ui <title>|<text>`), окна перетаскиваются, закрываются [x], z-order; researcher открывает своё окно при старте |
+| **Окна (CAP_UI)** | есть | Агенты с `CAP_UI` могут создавать окна через IPC (`ui <title>|<text>`); основной Command Center не создаёт legacy floating windows |
 | **Agent chat** | есть | Клавиатурный ввод в input-бар → IPC агенту → ответ в собственном окне агента |
 | **Живой лог** | есть | Панель событий агентов (IPC-трафик) над input-баром |
 | VFS + initrd | есть | Виртуальная ФС + initrd через Limine (git-лог, инфо хоста) |
 | Таймер / uptime | есть | PIT 100 Гц, команда `time` |
 | Аппаратура | есть | CPUID (`cpuinfo`), RTC (`date`), память (`mmap`) |
 | Power | есть | `reboot`, `poweroff` |
-| CI/CD | есть | Автосборка ISO + smoke-тест в QEMU |
-| Release | есть | Мультиплатформенный (7 таргетов) |
+| CI/CD | есть | Автосборка ISO + QEMU smoke-тест с проверкой boot, VFS и IPC round-trip |
+| Developer preview | готовится | Рабочий x86_64 ISO; paging-изоляция, сеть и persistent storage ещё в roadmap |
 
 ---
 
@@ -144,7 +144,7 @@ Standalone HTML-preview дизайн-системы находится в
 - Прерывный (timer-driven) планировщик (сейчас — кооперативный)
 - Потоки и IPC-каналы
 
-Фаза 3 — процессы и память:
+Фаза 3 — процессы и память (частично реализовано в developer-preview):
 - Процессы с изоляцией адресного пространства (paging)
 - Buddy-аллокатор для kernel heap
 - Прерывный (timer-driven) планировщик
