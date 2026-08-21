@@ -54,6 +54,7 @@ static inline void bmap_clr(uint64_t i) { fbmap[i >> 3] &= (uint8_t)~(1u << (i &
 static inline int  bmap_get(uint64_t i) { return (fbmap[i >> 3] >> (i & 7)) & 1; }
 
 static void frame_add_range(uint64_t phys, uint64_t len) {
+    if (len > ~0ULL - phys) return;
     uint64_t start = (phys + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
     uint64_t end = (phys + len) & ~(PAGE_SIZE - 1);
     for (uint64_t p = start; p + PAGE_SIZE <= end; p += PAGE_SIZE) {
@@ -77,6 +78,7 @@ int64_t k_mem_init(void) {
         uint64_t* e = entries[i];          /* base@0, length@8, type@16 */
         uint64_t base = e[0], len = e[1], type = e[2];
         record_region(base, len, type);
+        if (len > ~0ULL - base) continue;
         if (type != 0) continue;           /* usable only */
         kf_mem_total += len;
         if (base < 0x100000ULL) continue;
@@ -87,6 +89,7 @@ int64_t k_mem_init(void) {
     uint64_t start = (best_base + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1);
     uint64_t end = (best_base + best_len) & ~(PAGE_SIZE - 1);
     if (start >= end) return 0;
+    if (hhdm > ~0ULL - start) return 0;
 
     /* Heap arena: capped to 16 MiB; the rest goes to the frame free-list. */
     const uint64_t HEAP_MAX = 16u * 1024 * 1024;
@@ -102,6 +105,7 @@ int64_t k_mem_init(void) {
         uint64_t base = e[0], len = e[1], type = e[2];
         if (type != 0) continue;
         if (base < 0x100000ULL) continue;
+        if (len > ~0ULL - base) continue;
         if (base >= start && base + len <= heap_end) continue;
         uint64_t r0 = base, r1 = base + len;
         if (r0 < start) frame_add_range(r0, start - r0);
