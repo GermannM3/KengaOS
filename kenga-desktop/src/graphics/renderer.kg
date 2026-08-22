@@ -453,10 +453,6 @@ impl Renderer {
         
         // Parse font metrics and glyphs
         var font = Font::parse(font_data, name)
-        if !font.is_valid {
-            return false
-        }
-        
         self.fonts.push(font)
         return true
     }
@@ -591,6 +587,12 @@ fn clamp(value: float, min_val: float, max_val: float) -> float {
 fn max(a: int, b: int) -> int {
     if a > b { return a }
     return b
+}
+
+struct Image {
+    data: ptr<u32>
+    width: int
+    height: int
 }
 
 fn min(a: int, b: int) -> int {
