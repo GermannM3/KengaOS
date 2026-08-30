@@ -97,9 +97,8 @@ static void lba48_setup(u64 lba, u16 count) {
 
 int pioide_read(u64 lba, u16 count, void *buf) {
     if (!n_sectors || !count || count > 8) return -1;
-    int ext = lba >= (1ULL << 28);
     lba48_setup(lba, count);
-    outb(ATA_STAT, ext ? 0x24 : 0x20);
+    outb(ATA_STAT, 0x24);
     if (wait_bsy()) return -2;
     /* QEMU/реальное железо: после снятия BSY данные уже в FIFO;
        читаем как IDENTIFY (без DRQ-покорности, оно надёжнее). */
@@ -129,9 +128,8 @@ int pioide_read(u64 lba, u16 count, void *buf) {
 
 int pioide_write(u64 lba, u16 count, const void *buf) {
     if (!n_sectors || !count || count > 8) return -1;
-    int ext = lba >= (1ULL << 28);
     lba48_setup(lba, count);
-    outb(ATA_STAT, ext ? 0x34 : 0x30);
+    outb(ATA_STAT, 0x34);
     if (wait_bsy()) return -2;
     const u16 *src = (const u16 *)buf;
     for (u32 s = 0; s < count; s++) {

@@ -507,32 +507,45 @@ kprintf("[%s] disk: write=%d read=%d %s\r\n",
                 same ? "verify ok" : "VERIFY FAIL");
         g_disk_ok = (w == 0 && r == 0 && same);
         {
-            /* прямой тест: паттерн в LBA 5 — проверяется на хосте */
+            /* LBA-диагностика: 0, 5, 100 — разные паттерны */
             static u8 z0[512];
-            for (int i = 0; i < 512; i++) z0[i] = (u8)(0x5A + i);
-            int tw = 0;
-            if (ahci_sectors()) tw = ahci_write(5, 1, z0);
-            else tw = pioide_write(5, 1, z0);
-            kprintf("[%s] disk: lba0-write=%d\r\n", tw == 0 ? "OK" : "!!", tw);
+            u32 test_lba[3] = {0, 5, 100};
+            for (int t = 0; t < 3; t++) {
+                for (int i2 = 0; i2 < 512; i2++) z0[i2] = (u8)(t * 0x10 + 0x30 + i2);
+                int tw2 = 0;
+                if (ahci_sectors()) tw2 = ahci_write(test_lba[t], 1, z0);
+                else tw2 = pioide_write(test_lba[t], 1, z0);
+                kprintf("[%s] disk: lba-selftest %u -> %d\r\n", tw2 == 0 ? "OK" : "!!", test_lba[t], tw2);
+            }
         }
-    }
-
-    /* 12.6 FAT32 поверх диска: самотест записи в файл */
-    if (g_disk_ok) {
         int fm = fat32_init();
+
         g_fat_ok = fm;
+
         if (fm) {
+
             static const char msg[] = "hello from kengaos disk!\r\n";
+
             static u8 rbuf[64];
+
             i32 wr = fat32_write("README.TXT", (const u8 *)msg, sizeof(msg));
+
             i32 rd = fat32_read("README.TXT", rbuf, sizeof(rbuf));
+
             int same = rd > 0 && kmemcmp(rbuf, msg, (u32)rd) == 0;
+
             kprintf("[%s] fat32: write=%d read=%d %s\r\n",
+
                     (wr > 0 && same) ? "OK" : "!!", wr, rd,
+
                     same ? "verify ok" : "VERIFY FAIL");
+
             g_fat_ok = (wr > 0 && same);
+
             fat32_list();
+
         }
+
     }
 
     /* 13. Клавиатура и мышь */
