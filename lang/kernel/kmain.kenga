@@ -1,0 +1,108 @@
+# ============================================================
+# KengaOS — kmain.kenga
+# Главная точка входа ядра, переписанная на Kenga.
+#
+# Зависит от M0 (freestanding), M2 (asm!), M5 (repr(C)).
+# Это целевой файл миграции из kernel/kmain.c.
+#
+# Порядок инициализации тот же, что в C-версии:
+#   1. UART
+#   2. i18n
+#   3. Framebuffer
+#   4. Memory (buddy)
+#   5. GDT, IDT, PIT
+#   6. Keyboard
+#   7. Scheduler
+#   8. Shell
+# ============================================================
+
+import "libc.kenga"
+import "i18n.kenga"
+import "drivers/fb.kenga"
+
+# Константы KengaOS
+let KENGAOS_VERSION = "0.0.1"
+let KENGAOS_CODENAME = "Заря"
+let UART_COM1 = 0x3F8
+
+# === UART (header-only в C; в Kenga нужен M1 для mmio) ===
+
+fn uart_init(port: i64) -> () {
+    # mmio_write<u8>(port + 1, 0x00)   # disable IRQ
+    # mmio_write<u8>(port + 3, 0x80)   # DLAB
+    # mmio_write<u8>(port + 0, 0x01)   # divisor low
+    # mmio_write<u8>(port + 1, 0x00)   # divisor high
+    # mmio_write<u8>(port + 3, 0x03)   # 8N1
+    # mmio_write<u8>(port + 2, 0xC7)   # FIFO
+    # mmio_write<u8>(port + 4, 0x0B)   # DTR+RTS+OUT2
+}
+
+fn uart_putc(port: i64, c: u8) -> () {
+    # while (mmio_read<u8>(port + 5) & 0x20) == 0 { }
+    # mmio_write<u8>(port + 0, c)
+}
+
+# === Boot sequence ===
+
+fn boot_banner() -> () {
+    fb_set_text_color(FB_COLOR_CYAN, FB_COLOR_BLACK)
+    fb_puts("=== KENGA OS ===")
+    fb_set_text_color(FB_COLOR_WHITE, FB_COLOR_BLACK)
+}
+
+fn boot_log() -> () {
+    # kprintf в Kenga пока нет — используем fb_puts + itoa
+    fb_puts(i18n_str(0))   # STR_BOOT_STARTING
+    fb_puts("Version: ")
+    fb_puts(KENGAOS_VERSION)
+    fb_puts("\n")
+}
+
+# === Shell (упрощённый) ===
+
+fn shell_print_prompt() -> () {
+    fb_set_text_color(FB_COLOR_GREEN, FB_COLOR_BLACK)
+    fb_puts(i18n_str(12))   # STR_SHELL_PROMPT
+    fb_set_text_color(FB_COLOR_WHITE, FB_COLOR_BLACK)
+}
+
+fn shell_run() -> () {
+    shell_print_prompt()
+    # Главный цикл shell:
+    #   char c = kbd_getc()
+    #   if c == '\n' { process_command(); print_prompt() }
+    #   else { append_to_buffer(c) }
+    #
+    # Для этого нужны:
+    #   - kbd_getc (IRQ1 handler, тоже M1 + M2)
+    #   - строковый буфер (можно через list)
+    #   - парсер команд
+}
+
+# === kmain ===
+
+fn kmain() -> i64 {
+    uart_init(UART_COM1)
+    i18n_set_lang(LANG_RU)
+    # fb_init(...) — нужен Limine response, передаётся через регистр
+    boot_banner()
+    boot_log()
+    # gdt_init() — asm! для lgdt
+    # idt_init() — asm! для lidt
+    # pit_init(1000) — IRQ registration
+    # buddy_init(...)
+    # sched_init()
+    # kbd_init()
+    shell_run()
+    return 0
+}
+
+# === Пока main() для lite-теста ===
+
+fn main() -> i64 {
+    # В lite-режиме ядро не запустится — нужен freestanding.
+    # Здесь только smoke-test импортов.
+    i18n_set_lang(LANG_RU)
+    println(i18n_str(0))
+    return 0
+}

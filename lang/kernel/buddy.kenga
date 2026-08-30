@@ -1,0 +1,74 @@
+# ============================================================
+# KengaOS — buddy.kenga
+# Buddy page allocator на Kenga.
+#
+# Зависит от M0 (freestanding), M1 (mmio_*), M5 (repr(C)).
+# Не может быть запущен в lite-режиме как обычная программа,
+# потому что управляет физической памятью — это код ядра.
+#
+# Это эталонная реализация, в которую переносится kernel/mem/buddy.c
+# построчно. Когда lower_c получит --freestanding, этот файл
+# компилируется в C99 и линкуется с ядром.
+# ============================================================
+
+let PAGE_SIZE = 4096
+let PAGE_SHIFT = 12
+let MAX_ORDER = 10
+
+# Структура: блок в free-list
+# struct block { next: *block, prev: *block }
+# Когда Kenga получит struct — переписать.
+
+# Free-list'ы для каждого order
+# В lite-режиме нет массива указателей — пока заглушка.
+let free_lists: [i64] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+let mem_base = 0
+let mem_size = 0
+let mem_num_pages = 0
+
+fn buddy_init(base: i64, size: i64) -> () {
+    mem_base = base
+    mem_size = size
+    mem_num_pages = size >> PAGE_SHIFT
+
+    # Разбить память на блоки максимального order
+    let idx = 0
+    while idx < mem_num_pages {
+        let order = MAX_ORDER
+        while order > 0 {
+            let block_pages = 1 << order
+            let block_mask = block_pages - 1
+            if (idx & block_mask) != 0 {
+                order = order - 1
+                continue
+            }
+            if idx + block_pages > mem_num_pages {
+                order = order - 1
+                continue
+            }
+            break
+        }
+        # free_list_push(order, mem_base + (idx << PAGE_SHIFT))
+        # ... (нужна реальная аллокация через mmio_write)
+        idx = idx + (1 << order)
+    }
+}
+
+# Утилита: минимальный order для npages
+fn buddy_min_order(npages: i64) -> i64 {
+    let order = 0
+    while (1 << order) < npages {
+        order = order + 1
+    }
+    return order
+}
+
+fn main() -> i64 {
+    println(buddy_min_order(1))    # 0
+    println(buddy_min_order(2))    # 1
+    println(buddy_min_order(3))    # 2
+    println(buddy_min_order(5))    # 3
+    println(buddy_min_order(1024)) # 10
+    return 0
+}

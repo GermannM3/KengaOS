@@ -1,0 +1,164 @@
+АГЕНТ-ИНСТРУКЦИИ: KengaOS
+==========================
+
+СТАТУС (2026-08): KengaOS выделен в ОТДЕЛЬНЫЙ репозиторий
+  https://github.com/GermannM3/KengaOS   (публичный, ветка main)
+  kenga-lang подключается как git submodule, ПИН на f900390
+  (в main kenga-lang: hex/binary литералы, emit-c --freestanding,
+   портовые интринсики asm_inb/asm_outb, битовые операции, слабый kf_alloc,
+   фикс bootstrap: mkdir minds перед selftest kenga-lite).
+  CI (push) — зелёный; Release (workflow_dispatch) — зелёный:
+  ISO + 7 toolchain-таргетов (linux/windows/macos x2/android x2/ios).
+  Для Android в release.yml вручную ставится NDK r27c (CC_*/AR_*_linux_android).
+  publish срабатывает только по тегу.
+
+ЛОКАЛЬНЫЕ ПУТИ
+==============
+  D:\KengaOS\                       — рабочая зона
+  D:\KengaOS\kengaos-repo\          — клон репозитория KengaOS (это рабочая копия)
+  D:\KengaOS\kenga-lang\            — git-репо kenga-lang (submodule снаружи, отдельно)
+  D:\KengaOS\kernel\                — исходники ядра (отсюда копируются в kengaos-repo\kernel)
+  D:\KengaOS\scripts\               — локальные build.sh / build.cmd (синхронизированы с repo)
+  D:\KengaOS\build\                 — артефакты локальной сборки
+  D:\KengaOS\tools\msys64\          — MSYS2: clang (clang64), qemu (mingw64), xorriso (usr)
+  D:\KengaOS\kenga-os\              — эталонное ядро (limine.h и пр.)
+
+ПОЧЕМУ ОТДЕЛЬНЫЙ РЕПО (не ветка kenga-lang)
+============================================
+  Компиляторные фичи коммитятся в MAIN kenga-lang (не в ветку kengaos).
+  Ядро живёт в GermannM3/KengaOS; компилятор — pinned submodule kenga-lang@0e258c2.
+
+  СТРУКТУРА РЕПО KengaOS
+  =====================
+  kernel/    kmain.kenga, kf_fb.c, kf_alloc.c, start.S, linker.ld, limine.cfg, kf_rt.h
+  scripts/   build.sh / build.cmd (7 шагов, QEMU smoke с гейтом по UART-маркерам)
+  docs/      banner.png (стилизованный баннер README), boot-fb.png (реальный скрин
+             экрана загрузки ядра), screenshot-boot-menu.png (меню Limine)
+  .github/workflows/  ci.yml (ISO+smoke), release.yml (toolchain desktop/mobile + ISO + publish)
+
+СБОРКА / ЗАПУСК
+===============
+  ./scripts/build.sh          (Linux/macOS; на Windows через Git Bash + MSYS2 в PATH)
+  scripts\build.cmd           (Windows)
+  QEMU smoke: qemu-system-x86_64 -M q35 -cdrom build/kengaos.iso -serial stdio
+  Скрин меню: timeout в limine.cfg > 0, -display gtk + QMP screendump, конвертация PIL.
+
+ОСОБЕННОСТИ РЕАЛИЗАЦИИ (важно не сломать)
+==========================================
+  1) UART 16550 — ПОРТЫ I/O (asm_outb/asm_inb), НЕ mmio! mmio_write8(0x3F8) → page fault.
+  2) kf_alloc — СИЛЬНЫЙ символ в ядре (kf_alloc.c, bump-аллокатор); weak-хук в рантайме
+     emit-c подхватывает его. Если сильный символ пропадёт — k_die("oom").
+  3) Limine 12.6.0: .limine_requests ПЕРВЫМ PT_LOAD, секция "aw", все секции по 4K.
+     Запросы: bootloader_info, framebuffer, hhdm. ID запросов начинаются с
+     LIMINE_COMMON_MAGIC (0xc7b1dd30df4c8b88, 0x0a82e883a194f07b)! Ошибочные 4 qword
+     → Limine не регистрирует запрос ("Requests count" < ожидаемого).
+  4) ld.lld -flavor gnu -m elf_x86_64; clang --target=x86_64-elf -nostdinc -include kf_rt.h;
+     clang требует export TEMP/TMP/TMPDIR.
+  5) boot_info: kf_get_boot_info() (FFI через kf_rt.h), framebuffer — kf_get_framebuffer().
+  6) ФРЕЙМБУФЕР: Limine даёт ФИЗИЧЕСКИЙ адрес (0xfd000000), identity-mapped на раннем
+     загрузке → пишем напрямую (как эталон kenga-os), БЕЗ прибавления HHDM.
+  7) ФФИ emit-c: `@intrinsic fn fb_x(...)` → C-символ `k_fb_x`; `str` → `const char*`.
+  8) СКРИНШОТ ЯДРА: QEMU `-display none`/`vnc`/egl-headless НЕ композитит VBE
+     linear-framebuffer (всё чёрное). Надёжно: limine.cfg `timeout: 0` (иначе таймер
+     меню в headless флейков и гость виснет на меню) + QMP `pmemsave` физ. адреса
+     0xfd000000 (4096000 байт = 1280×800×4) → конвертация BGRA→RGB.
+     Скрипт: qmp_pmemsave.py в temp/opencode. Курсор в центре = px(640,400)=(245,241,235)
+     (XOR-инверсия фона 0x0a0e14).
+  9) Kenga: нет ключевого слова `const` на верхнем уровне (ошибка "expected 'fn'").
+     Используй локальные `let` внутри функции. `itoa` есть только в compiler-исходниках,
+     в freestanding-программе недоступен — избегай форматирования чисел в UART.
+
+ROADMAP
+=======
+  M1 (ГОТОВО): загрузка через Limine, UART hello, kf_alloc, oops/panic, CI+smoke, скрин меню.
+  M2 (ДАЛЬШЕ): GDT/IDT/PIT, прерывания/исключения, планировщик+IPC, framebuffer-консоль
+               + PS/2, buddy/paging/syscalls, shell + агент-демон.
+
+ПРОБЕЛЫ / СЛЕДУЮЩИЕ ЗАДАЧИ (к живому UI, по шагам с commit+push)
+=================================================
+  ШАГ 1 ✓ (сделан): framebuffer + 8x8 шрифт + экран загрузки ядра.
+  ШАГ 2 ✓ (сделан): PS/2 мышь (polling 0x60/0x64, init ACK=0xFA) + XOR-курсор.
+     Живое движение проверяется ИНТЕРАКТИВНО: qemu ... -display gtk (input-send-event
+     в headless не доходит до PS/2). Курсор рендерится в центре — подтверждено pmemsave.
+  ШАГ 3 ✓ (сделан, M2.1): GDT + IDT + исключения + panic.
+     ВАЖНО: Limine даёт ядру CS=0x28 (НЕ 0x08)! IDT-гейты должны использовать
+     текущий CS (kernel cs=0x28), иначе прерывание → #GP → тройной фолт.
+     64-битная IDT-запись = 16 байт (lo/sel/ist/flags/mid/hi/zero), а не 8!
+     IDT-самотест: int3 → "INT3 CAUGHT" (iretq, не паникует) — CI-гейт.
+  ШАГ 4 ✓ (сделан, M2.2): round-robin планировщик (multitasking) — КООПЕРАТИВНЫЙ
+     через k_task_yield (asm, ret-переход, без iretq-фрейма). SSE включён в
+     k_intr_init (enable_sse: CR4.OSFXSR), иначе xorps -> #UD.
+     ВАЖНО: прерывная (timer-driven) версия с ручным iretq-фреймом НЕ заработала;
+     оставлен кооперативный, прерывный — отдельная задача.
+  ШАГ 5 ✓ (сделан, M2.3): PS/2 клавиатура (IRQ1→вектор 33, kf_kbd.c ring buffer)
+     + framebuffer-консоль (kf_fb.c: k_fb_con_*, скроллинг) + shell (kf_shell.c,
+     C — в Kenga нет chr() для построения строк). Команды: help/info/clear/echo/tasks.
+     IRQ-обработка в intr.c: векторы 32-47 → EOI + dispatch (не panic).
+     ТЕСТ ВВОДА: QMP `human-monitor-command sendkey info ret` (HMP sendkey надёжнее,
+     чем input-send-event для Enter). Проверка консоли — pmemsave 0xfd000000.
+  ШАГ 6 ✓ (сделан, M2.4): физическая память + kernel heap.
+     kf_mem.c: Limine memmap -> самый большой usable-регион (base>=1MB, ядро Limine
+     помечает reserved отдельно — скипать НЕ надо!) -> HHDM-адрес = heap (~62MB).
+     kf_alloc (сильный символ) теперь аллоцирует из heap; ДО mem_init — fallback-арена
+     (8KB), иначе ранний emit-c рантайм падает (kf_alloc=0). Команда shell 'mem'.
+     ВАЖНО: memmap response.entries — массив УКАЗАТЕЛЕЙ на записи (entries[i]->base/length/type),
+     не массив записей (это была причина mem_init=FAIL).
+  ШАГ 7 ✓ (M2.5): процессы + IPC (kf_proc.c). k_ipc_send/k_ipc_recv, per-proc queues.
+     IPC подтверждён (LOGGER: hello). ФИКС: lg_uart объявлен ПОСЛЕ k_ipc_send/recv ->
+     сборка падала, бинарник ломался -> казалось, что IPC/консоль сломаны.
+  ШАГ 8 ✓ (M2.6): init + kenga-agent через IPC (двусторонний round-trip).
+     k_proc_init = "init": спавнит logger + agent. agent получает msg и отвечает
+     отправителю (k_ipc_send(m.from,...)). Shell: 'ask <text>' -> агент -> reply.
+     ВАЖНО: shell теперь спавнится через k_proc_spawn (не k_task_create), иначе его
+     нет в procs[] и k_ipc_recv не находит себя (round-trip зависал).
+     КРИТИЧНЫЙ ФИКС (#GP при старте): задачи входят через `ret`, rsp%16==0, а обычный
+     вызов функции даёт rsp%16==8. Из-за этого rbp смещён на 8, и SSE `movaps` (из -O2)
+     даёт #GP. ФИКС: в sched.c k_task_create фрейм строится на (top - 8*8) вместо
+     (top - 8*7), чтобы стартовый rsp%16==8 (как после call).
+  ИЗВЕСТНАЯ ПРОБЛЕМА: framebuffer-консоль — динамический вывод (эхо/команды) нестабилен
+     в headless-capture, con_buf верен. Ввод QEMU sendkey капризный. Интерактивная
+     проверка: qemu -display gtk -serial stdio. ЛОГОТИП: docs/logo.png (юзерский).
+     README: БЕЗ смайликов и ИИ-стиля (## **).
+  ДАЛЬШЕ (запушено):
+    - M2.7 frame-аллокатор (bitmap, ~138MB)  [f4ec9d2]
+    - M2.8 VFS ls/cat  [c901c30]
+    - M2.9 initrd через Limine (git-лог/host/исходники)  [98455d7]
+    - M3.1 PIT-таймер + uptime (time)  [375a816]
+    - M3.2 cpuinfo (CPUID) + date (RTC, реальное время) + mmap  [e6f71e1]
+    - M3.3 reboot + poweroff (проверено: QEMU выходит)  [2cec710]
+    - M3.4 git-версия из initrd на boot-экране  [dcfd7de]
+    - M3.5 info (cpu/mem/uptime) + ver  [1c27261]
+  НЕ ЗАШЛО (откачено, нужен интерактивный дебаг/GDB):
+    - Прерывный планировщик: iretq-свитч в новую задачу виснет (та же проблема M2.2).
+    - Buddy-аллокатор: краш в buddy_init с неуловимым #PF (не смог отладить вслепую).
+  PIT сейчас: только счётчик тиков + uptime (БЕЗ контекст-свитча).
+  КОМАНДЫ SHELL: help info ver demo clear echo mem ps agents log ask spawn remember
+    recall tasks ls cat time cpuinfo date mmap reboot poweroff
+  ЖИВАЯ ОС (M4.x): агент создаёт агентов (spawn), живая память (remember/recall),
+    русский ответ агента, кириллица в консоли (UTF-8 + русский 8x8 шрифт).
+  GUI DESKTOP (M5.1, KengaOS 0.4): agent-native графическая среда вместо терминала.
+    kf_mouse.c (IRQ12), kf_gui.c: init-экран 'KENGAOS [ENTER]' -> desktop (или 2с авто).
+    Сайдбар: Agents/Model/Files/System. Верхняя панель (агенты/uptime), статус-бар (мышь).
+    Agents: дерево + выбор агента (детали PID/parent/caps). Model: ввод 0/1 + Inference ->
+    MLP предсказание. Files: VFS список. System: CPU/RAM/uptime. Мышка двигает курсор, клики.
+    ВАЖНО: в k_gui_init НУЖЕН sti + k_kbd_init + k_proc_init (без sti hlt спит вечно).
+    Консольный shell заморожен как baseline (fallback). Скриншот: docs/desktop.png.
+  MODEL AGENT (M5.0): настоящая нейросеть (MLP 2-2-1, XOR) как системный процесс.
+    kf_model.c (init из kenga_net.kenga: w1=[0.9,-0.8,0.8,-0.9] и т.д. — со случайным
+    init XOR НЕ сходится, все 1), модель в k_proc_init (pid 4), команда 'model a b'
+    -> предсказание через IPC + CAP_MODEL_INFER. XOR:00=0 01=1 10=1 11=0.
+  CAPS: CAP_IPC/SPAWN/POWER/MEM/MODEL_INFER/MODEL_LOAD/MODEL_TRAIN. 'caps <pid> [v]' — выдать/отозвать.
+  ДЕРЕВО: agents показывает pid/parent/caps: init(0)->logger(1),agent(2),shell(3),model(4); agent->bob(5).
+  УТРЕННЯЯ ПРОВЕРКА: qemu -M q35 -cdrom build/kengaos.iso -m 128 -display gtk -serial stdio
+    команда 'demo' — авто-прогон фич; 'spawn bob' + 'agents'; 'ask 4 hi'; 'ask hi' (русский ответ)
+  ШАГ 3: окна/панели/кнопки (композитор поверх фреймбуфера), живой интерфейс.
+  ШАГ 4: GDT/IDT/PIT + прерывания (нужны для PS/2 IRQ и таймера анимаций).
+  ШАГ 5: планировщик + IPC, приложения (терминал, файловый менеджер).
+  ШАГ 6: ARM (Raspberry Pi) — кросс-компиляция; телефон только после сообщества.
+  - Self-host emit/lower_c.kenga: дописать mmio/asm/atomic/--freestanding или убрать обещания.
+  - Синхронизация kernel\kengaos-repo\kernel с D:\KengaOS\kernel при правках.
+
+БЕЗОПАСНОСТЬ
+===========
+  НЕ коммитить секреты/токены. Токен GitHub, вставлявшийся в чат, отозвать/ротировать
+  (временный файл gh_token.txt уже удалён).

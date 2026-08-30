@@ -1,0 +1,89 @@
+# ============================================================
+# KengaOS — i18n.kenga
+# Интернационализация на Kenga.
+#
+# Зависит от M0 (--freestanding) и M5 (repr(C) для совместимости с C-ядром).
+#
+# Структура mirrors kernel/i18n/i18n.c — те же string IDs, те же языки.
+# ============================================================
+
+# Идентификаторы языков
+let LANG_RU = 0
+let LANG_EN = 1
+let LANG_COUNT = 2
+
+# Идентификаторы строк (должны совпадать с kernel/i18n/i18n.h)
+let STR_BOOT_STARTING = 0
+let STR_BOOT_VERSION = 1
+let STR_BOOT_CODENAME = 2
+let STR_LANGUAGE_NAME = 10
+let STR_SHELL_PROMPT = 12
+let STR_COUNT = 27
+
+# Текущий язык (глобальное состояние)
+let current_lang = LANG_RU
+
+fn i18n_set_lang(lang: i64) -> i64 {
+    let old = current_lang
+    if lang >= 0 and lang < LANG_COUNT {
+        current_lang = lang
+    }
+    return old
+}
+
+fn i18n_get_lang() -> i64 {
+    return current_lang
+}
+
+# Lookup строки по ID и языку.
+# В Kenga 3.13 нет массива массивов, поэтому используем if/elif.
+# Когда появится M6 (union), можно будет сделать как в C.
+fn i18n_str_ru(id: i64) -> [u8] {
+    if id == STR_BOOT_STARTING { return "KengaOS загружается..." }
+    if id == STR_BOOT_VERSION { return "Версия: " }
+    if id == STR_BOOT_CODENAME { return "Кодовое имя: " }
+    if id == STR_LANGUAGE_NAME { return "Русский" }
+    if id == STR_SHELL_PROMPT { return "kenga> " }
+    return "<?>"
+}
+
+fn i18n_str_en(id: i64) -> [u8] {
+    if id == STR_BOOT_STARTING { return "KengaOS booting..." }
+    if id == STR_BOOT_VERSION { return "Version: " }
+    if id == STR_BOOT_CODENAME { return "Codename: " }
+    if id == STR_LANGUAGE_NAME { return "English" }
+    if id == STR_SHELL_PROMPT { return "kenga> " }
+    return "<?>"
+}
+
+fn i18n_str(id: i64) -> [u8] {
+    if current_lang == LANG_RU {
+        return i18n_str_ru(id)
+    }
+    if current_lang == LANG_EN {
+        return i18n_str_en(id)
+    }
+    return "<?>"
+}
+
+# Парсинг кода языка: "ru" → 0, "en" → 1
+fn i18n_parse_lang_code(code: [u8]) -> i64 {
+    if code[0] == 'r' and code[1] == 'u' and code[2] == 0 {
+        return LANG_RU
+    }
+    if code[0] == 'e' and code[1] == 'n' and code[2] == 0 {
+        return LANG_EN
+    }
+    return -1
+}
+
+fn main() -> i64 {
+    println(i18n_str(STR_BOOT_STARTING))
+    println(i18n_str(STR_LANGUAGE_NAME))
+
+    i18n_set_lang(LANG_EN)
+    println(i18n_str(STR_BOOT_STARTING))
+    println(i18n_str(STR_LANGUAGE_NAME))
+
+    return 0
+}

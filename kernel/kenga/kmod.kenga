@@ -1,0 +1,19 @@
+// kmod.kenga — первый нативный модуль KengaOS на языке Кэнга.
+// Компилируется kenga emit-c --freestanding и линкуется в ядро.
+//
+// Доказывает две вещи:
+//   1) битовые операции языка работают в ring 0 (магия 0x5A);
+//   2) порт-ввод/вывод через интринсики asm_inb/asm_outb читает
+//      реальные железки — тут CMOS RTC (секунды).
+
+fn kmod_selftest() -> i64 {
+  let magic: i64 = 0x5A;
+  asm_outb(0x70, 0x00);            // CMOS register 0 = seconds
+  let sec: i64 = asm_inb(0x71);
+  let packed: i64 = (magic << 8) | sec;
+  return packed;
+}
+
+fn main() -> i64 {
+  return kmod_selftest();
+}

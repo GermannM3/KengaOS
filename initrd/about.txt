@@ -1,0 +1,34 @@
+О проекте KengaOS
+=================
+
+KengaOS — операционная система, ядро которой в конечном счёте
+будет написано на языке программирования Kenga.
+
+Текущая версия (0.0.4) использует C как стартовую заглушку.
+По мере развития lower_c (генератора C из Kenga) модули будут
+переписаны на Kenga.
+
+Стратегия миграции — в docs/ROADMAP.md.
+
+Что уже работает:
+  - Загрузка через Limine (UEFI + BIOS)
+  - Framebuffer с UTF-8 (русский + английский)
+  - PS/2 клавиатура с RU/US раскладками
+  - Buddy page allocator
+  - Round-robin планировщик потоков
+  - Initrd (этот файл!) как read-only FS
+  - Spinlock и Semaphore
+  - Shell с командами: help, info, ls, cat, lang, layout, threads, mem, spawn, exec, reboot
+  - User mode (ring 3) с изоляцией памяти
+  - VMM: 4-level paging, отдельные address space
+  - Syscall (SYSCALL/SYSRET): exit, write, yield, get_pid
+  - ELF loader для user-программ
+  - hello.elf — тестовая user-программа (запуск: exec hello.elf)
+
+Что в планах:
+  - Запись на диск (FAT32 R/W)
+  - Сеть
+  - Multi-core (SMP)
+  - Kenga-нативное ядро (v0.3+)
+
+(c) Kenga AI / GermannM3. MIT License.

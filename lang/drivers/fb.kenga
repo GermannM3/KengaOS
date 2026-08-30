@@ -1,0 +1,123 @@
+# ============================================================
+# KengaOS — framebuffer.kenga
+# Драйвер framebuffer на Kenga.
+#
+# Зависит от M0 (freestanding), M1 (mmio_*), M5 (repr(C)).
+#
+# Этот модуль будет перенесён в kernel/drivers/fb.c построчно.
+# Особенности:
+#   - Запись по физическому адресу, данному Limine
+#   - Поддержка 32/24/16-bpp
+#   - UTF-8 декодер для кириллицы
+#   - Шрифт 8x16
+# ============================================================
+
+# Цвета (RGB 0xRRGGBB)
+let FB_COLOR_BLACK   = 0x000000
+let FB_COLOR_WHITE   = 0xFFFFFF
+let FB_COLOR_RED     = 0xFF0000
+let FB_COLOR_GREEN   = 0x00FF00
+let FB_COLOR_BLUE    = 0x0000FF
+let FB_COLOR_CYAN    = 0x00FFFF
+let FB_COLOR_YELLOW  = 0xFFFF00
+
+let FONT_WIDTH = 8
+let FONT_HEIGHT = 16
+
+# Состояние драйвера (пока как глобальные переменные)
+let fb_addr = 0       # физический адрес framebuffer
+let fb_width = 0
+let fb_height = 0
+let fb_pitch = 0
+let fb_bpp = 0
+let cursor_col = 0
+let cursor_row = 0
+
+# Конвертировать RGB → формат framebuffer
+# (упрощённо: только 32-bpp, как у UEFI GOP по умолчанию)
+fn fb_pack(rgb: i64) -> i64 {
+    let r = (rgb >> 16) & 0xFF
+    let g = (rgb >> 8) & 0xFF
+    let b = rgb & 0xFF
+    return (255 << 24) | (r << 16) | (g << 8) | b
+}
+
+# Записать пиксель
+# В freestanding Kenga это будет:
+#   mmio_write<u32>(fb_addr + y*fb_pitch + x*4, fb_pack(color))
+fn fb_put_pixel(x: i64, y: i64, color: i64) -> () {
+    let offset = y * fb_pitch + x * 4
+    let packed = fb_pack(color)
+    # mmio_write<u32>(fb_addr + offset, packed)
+    # ^^^ нужно M1 (mmio) в lower_c
+}
+
+# Заполнить прямоугольник
+fn fb_fill_rect(x: i64, y: i64, w: i64, h: i64, color: i64) -> () {
+    let dy = 0
+    while dy < h {
+        let dx = 0
+        while dx < w {
+            fb_put_pixel(x + dx, y + dy, color)
+            dx = dx + 1
+        }
+        dy = dy + 1
+    }
+}
+
+# Очистить экран
+fn fb_clear(color: i64) -> () {
+    fb_fill_rect(0, 0, fb_width, fb_height, color)
+    cursor_col = 0
+    cursor_row = 0
+}
+
+# === UTF-8 decoder ===
+# Читает многобайтные последовательности и возвращает codepoint.
+# Возвращает -1 если последовательность не завершена.
+let utf8_pending = 0
+let utf8_codepoint = 0
+
+fn utf8_decode_byte(b: u8) -> i64 {
+    if b < 0x80 {
+        utf8_pending = 0
+        utf8_codepoint = 0
+        return b
+    }
+    if (b & 0xE0) == 0xC0 {
+        utf8_pending = 1
+        utf8_codepoint = b & 0x1F
+        return -1
+    }
+    if (b & 0xF0) == 0xE0 {
+        utf8_pending = 2
+        utf8_codepoint = b & 0x0F
+        return -1
+    }
+    if (b & 0xF8) == 0xF0 {
+        utf8_pending = 3
+        utf8_codepoint = b & 0x07
+        return -1
+    }
+    if (b & 0xC0) == 0x80 and utf8_pending > 0 {
+        utf8_codepoint = (utf8_codepoint << 6) | (b & 0x3F)
+        utf8_pending = utf8_pending - 1
+        if utf8_pending == 0 {
+            let cp = utf8_codepoint
+            utf8_codepoint = 0
+            return cp
+        }
+        return -1
+    }
+    # невалидный байт
+    utf8_pending = 0
+    return '?'
+}
+
+# Демонстрация
+fn main() -> i64 {
+    println(fb_pack(0xFF0000))   # 0xFFFF0000 (BGRA8)
+    println(fb_pack(0x00FF00))   # 0xFF00FF00
+    println(fb_pack(0x0000FF))   # 0xFF0000FF
+    return 0
+}

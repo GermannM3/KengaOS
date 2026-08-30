@@ -1,0 +1,79 @@
+# ============================================================
+# KengaOS — libc.kenga
+# Минимальная libc-замена, написанная на Kenga.
+#
+# Этот файл — задел на будущее. Сейчас ядро использует kernel/lib/libc.c.
+# Когда lower_c получит --freestanding флаг (M0), этот файл можно будет
+# откомпилировать и слинковать с ядром как C99.
+#
+# Соответствие функций:
+#   kstrlen    → kenga_strlen
+#   kstrcmp    → kenga_strcmp
+#   kmemset    → kenga_memset
+#   kmemcpy    → kenga_memcpy
+#   kprintf    → пока на C (требует varargs, которых нет в Kenga 3.13)
+# ============================================================
+
+fn kenga_strlen(s: [u8]) -> i64 {
+    let n = 0
+    while s[n] != 0 {
+        n = n + 1
+    }
+    return n
+}
+
+fn kenga_strcmp(a: [u8], b: [u8]) -> i64 {
+    let i = 0
+    while a[i] != 0 and a[i] == b[i] {
+        i = i + 1
+    }
+    return a[i] - b[i]
+}
+
+fn kenga_strncmp(a: [u8], b: [u8], n: i64) -> i64 {
+    let i = 0
+    while i < n and a[i] != 0 and a[i] == b[i] {
+        i = i + 1
+    }
+    if i == n {
+        return 0
+    }
+    return a[i] - b[i]
+}
+
+fn kenga_memset(p: [u8], v: u8, n: i64) -> () {
+    let i = 0
+    while i < n {
+        p[i] = v
+        i = i + 1
+    }
+}
+
+fn kenga_memcpy(dst: [u8], src: [u8], n: i64) -> () {
+    let i = 0
+    while i < n {
+        dst[i] = src[i]
+        i = i + 1
+    }
+}
+
+fn kenga memcmp(a: [u8], b: [u8], n: i64) -> i64 {
+    let i = 0
+    while i < n {
+        if a[i] != b[i] {
+            return a[i] - b[i]
+        }
+        i = i + 1
+    }
+    return 0
+}
+
+# === Тесты (запускаются в lite-режиме) ===
+
+fn main() -> i64 {
+    let s = "hello"
+    println(kenga_strlen(s))         # 5
+    println(kenga_strcmp("abc", "abc"))   # 0
+    println(kenga_strcmp("abc", "abd"))   # -1
+    return 0
+}

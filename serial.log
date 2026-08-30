@@ -1,0 +1,139 @@
+[2J[H
+[2;27H[38;2;0;170;170mLimine 12.6.0 (x86-64, BIOS)[0m
+
+
+
+[12;1H                                   [7m KengaOS [27m
+[4;22H[38;2;0;170;0mARROWS[0m Select    [38;2;0;170;0mENTER[0m Boot    [38;2;0;170;0mE[0m Edit[6;34H[38;2;0;170;0mB[0m Blank Entry[13;1H
+
+[23;26H[2K[38;2;0;170;0mBooting automatically in [38;2;85;255;85m5[38;2;0;170;0m...[0m[23;26H[2K[38;2;0;170;0mBooting automatically in [38;2;85;255;85m4[38;2;0;170;0m...[0m[23;26H[2K[38;2;0;170;0mBooting automatically in [38;2;85;255;85m3[38;2;0;170;0m...[0m[23;26H[2K[38;2;0;170;0mBooting automatically in [38;2;85;255;85m2[38;2;0;170;0m...[0m[23;26H[2K[38;2;0;170;0mBooting automatically in [38;2;85;255;85m1[38;2;0;170;0m...[0m[2J[Hlimine: Loading executable `boot():/boot/kernel.elf`...
+limine: Loading module `boot():/boot/initrd.tar`...
+
+[KengaOS UART]
+KengaOS загружается...
+Версия: 0.0.5
+Кодовое имя: Заря
+Загружено: Limine 12.6.0
+Память: 260300 КБ доступно
+[OK] GDT загружен
+[OK] IDT загружен
+[OK] Таймер запущен (1000 Гц)
+[OK] VMM инициализирован (paging, HHDM=0xffff800000000000)
+[OK] Buddy allocator инициализирован
+[OK] Планировщик инициализирован (round-robin, 10 мс)
+[OK] Syscall (SYSCALL/SYSRET) инициализирован
+[OK] initrd загружен: 5 файлов
+[mse] init ack=FA/FA imr=EF
+KengaOS готова.
+[ui] move mx=640 my=400
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[mse] st=3D b=28
+[mse] st=3D b=1E
+[mse] st=3D b=EC
+[mse] st=3D b=00
+[ui] move mx=670 my=676
+[mse] st=3D b=28
+[mse] st=3D b=1E
+[mse] st=3D b=EC
+[mse] st=3D b=00
+[ui] move mx=700 my=800
+[mse] st=3D b=28
+[mse] st=3D b=1E
+[mse] st=3D b=EC
+[mse] st=3D b=00
+[ui] move mx=730 my=800
+[mse] st=3D b=28
+[mse] st=3D b=1E
+[mse] st=3D b=EC
+[mse] st=3D b=00
+[ui] move mx=760 my=800
+[mse] st=3D b=28
+[mse] st=3D b=1E
+[mse] st=3D b=EC
+[mse] st=3D b=00
+[ui] move mx=790 my=800
+[mse] st=3D b=28
+[mse] st=3D b=1E
+[mse] st=3D b=EC
+[mse] st=3D b=00
+[ui] move mx=820 my=800
+[mse] st=3D b=28
+[mse] st=3D b=1E
+[mse] st=3D b=EC
+[mse] st=3D b=00
+[ui] move mx=850 my=800
+[mse] st=3D b=28
+[mse] st=3D b=1E
+[mse] st=3D b=EC
+[mse] st=3D b=00
+[ui] move mx=880 my=800
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[mse] st=3D b=18
+[mse] st=3D b=D8
+[mse] st=3D b=19
+[mse] st=3D b=00
+[ui] move mx=584 my=775
+[mse] st=3D b=18
+[mse] st=3D b=D8
+[mse] st=3D b=19
+[mse] st=3D b=00
+[ui] move mx=288 my=750
+[mse] st=3D b=18
+[mse] st=3D b=D8
+[mse] st=3D b=19
+[mse] st=3D b=00
+[ui] move mx=0 my=725
+
+[mse] st=3D b=18
+[mse] st=3D b=D8
+[mse] st=3D b=19
+[mse] st=3D b=00
+[ui] move mx=0 my=700
+
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive
+[ui] alive

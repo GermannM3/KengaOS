@@ -1,0 +1,24 @@
+Команды shell KengaOS
+=====================
+
+  help       — этот список
+  info       — информация о системе
+  ls         — список файлов в initrd
+  cat <file> — вывести содержимое файла
+  lang <ru|en> — сменить язык интерфейса
+  layout     — переключить раскладку клавиатуры (US/RU)
+              (или F12 в runtime)
+  threads    — список потоков
+  mem        — статистика памяти (buddy allocator)
+  spawn      — запустить 2 демо-потока
+  exec <file> — запустить user-программу (ring 3)
+                например: exec hello.elf
+  reboot     — перезагрузка
+
+Примеры:
+  ls
+  cat README.txt
+  exec hello.elf
+  lang en
+  layout
+  spawn

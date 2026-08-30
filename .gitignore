@@ -1,0 +1,4 @@
+build/
+archive/build-old/
+*.o
+*.ppmdump
