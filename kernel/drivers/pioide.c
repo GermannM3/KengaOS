@@ -75,24 +75,28 @@ int pioide_init(void) {
 u64 pioide_sectors(void) { return n_sectors; }
 
 static void lba48_setup(u64 lba, u16 count) {
+    /* КАНОНИЧЕСКИЙ ПОРЯДОК: 0x1F3=LBA low, 0x1F4=mid, 0x1F5=high.
+       Раньше 0x1F3/0x1F5 были перепутаны — LBA 0 писал (нули совпадают),
+       LBA>0 превращался в lba*65536 и отбивался за пределами диска. */
     if (lba < (1ULL << 28)) {
-        /* LBA28: проще и совместимо */
-        outb(ATA_SEXC, (u8)(count & 0xFF));
-        outb(ATA_LBAH, (u8)lba);
-        outb(ATA_LBAM, (u8)(lba >> 8));
-        outb(ATA_LBAL, (u8)(lba >> 16));
+        /* LBA28 */
         outb(ATA_DEV, (u8)(dev | 0xE0 | ((lba >> 24) & 0x0F)));
+        outb(ATA_SEXC, (u8)(count & 0xFF));
+        outb(ATA_LBAL, (u8)lba);
+        outb(ATA_LBAM, (u8)(lba >> 8));
+        outb(ATA_LBAH, (u8)(lba >> 16));
         return;
     }
-    outb(ATA_DEV, (u8)(dev | 0x40 | ((lba >> 24) & 0x0F)));   /* LBA, старшие 4 */
+    /* LBA48 */
+    outb(ATA_DEV, (u8)(dev | 0x40));
     outb(ATA_SEXC, (u8)(count >> 8));
-    outb(ATA_LBAH, (u8)(lba >> 32));   /* 39:32 */
-    outb(ATA_LBAM, (u8)(lba >> 40));   /* 47:40 */
-    outb(ATA_LBAL, (u8)(lba >> 48));   /* 55:48 (обязателен, 0) */
+    outb(ATA_LBAL, (u8)(lba >> 24));
+    outb(ATA_LBAM, (u8)(lba >> 32));
+    outb(ATA_LBAH, (u8)(lba >> 40));
     outb(ATA_SEXC, (u8)(count & 0xFF));
-    outb(ATA_LBAH, (u8)lba);           /* 7:0 */
+    outb(ATA_LBAL, (u8)lba);
     outb(ATA_LBAM, (u8)(lba >> 8));
-    outb(ATA_LBAL, (u8)(lba >> 16));   /* 23:16 */
+    outb(ATA_LBAH, (u8)(lba >> 16));
 }
 
 int pioide_read(u64 lba, u16 count, void *buf) {
