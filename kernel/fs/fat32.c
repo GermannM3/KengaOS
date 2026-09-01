@@ -279,12 +279,27 @@ i32 fat32_write(const char *name, const u8 *data, u32 len) {
     /* проще: создать/заменить запись — найдём слот в корне */
     u32 nclusters = 0;
     if (!root_load(dirbuf, &nclusters)) return -2;
+    uart_puts(UART_COM1, "[f32w] nc=");
+    char nc8[12]; u32 v8 = nclusters, t8 = 0; char tmp8[12];
+    if (!v8) tmp8[t8++] = 48;
+    while (v8) { tmp8[t8++] = 48 + v8 % 10; v8 /= 10; }
+    for (u32 i = 0; i < t8; i++) nc8[i] = tmp8[t8 - 1 - i];
+    nc8[t8] = 0;
+    uart_puts(UART_COM1, nc8);
+    uart_puts(UART_COM1, " fd=");
+    { u32 vv = first_data_sector, tt = 0; char tb[12];
+      if (!vv) tb[tt++] = 48;
+      while (vv) { tb[tt++] = 48 + vv % 10; vv /= 10; }
+      for (u32 i = 0; i < tt; i++) nc8[i] = tb[tt - 1 - i];
+      nc8[tt] = 0; uart_puts(UART_COM1, nc8); }
+    uart_puts(UART_COM1, CRLF);
 
     u32 clusters_needed = (len + sectors_per_cluster * bytes_per_sector - 1) /
                           (sectors_per_cluster * bytes_per_sector);
     /* 2) выделить кластеры */
     u32 *chain = (u32 *)fatbuf;   /* reuse: не больше 1024 кластеров (4KB) */
     if (clusters_needed > 1024) return -3;
+    uart_puts(UART_COM1, CRLF);
     u32 base_cl = 0;
     for (u32 c = 0; c < clusters_needed; c++) {
         u32 cl = alloc_cluster();
@@ -306,6 +321,7 @@ i32 fat32_write(const char *name, const u8 *data, u32 len) {
         done += chunk;
     }
     /* 4) создать/обновить entry в корне */
+    uart_puts(UART_COM1, CRLF);
     u8 target[11];
     if (name_8_3(name, target)) return -6;
     u32 slot = 0;
@@ -318,7 +334,20 @@ i32 fat32_write(const char *name, const u8 *data, u32 len) {
             if (e == 0x00) break;
         }
     }
-    if (!found_slot) { return -7; }  /* корень полон — v1 */
+    if (!found_slot) {
+        uart_puts(UART_COM1, "[fat32] no slot nc=");
+        char nb[12]; u32 v = nclusters, t = 0; char tmp2[12];
+        if (!v) tmp2[t++] = 48;
+        while (v) { tmp2[t++] = 48 + v % 10; v /= 10; }
+        for (u32 i = 0; i < t; i++) nb[i] = tmp2[t - 1 - i];
+        nb[t] = 0;
+        uart_puts(UART_COM1, nb);
+        uart_puts(UART_COM1, " d0=");
+        uart_putc(UART_COM1, "0123456789ABCDEF"[dirbuf[0] >> 4]);
+        uart_putc(UART_COM1, "0123456789ABCDEF"[dirbuf[0] & 0xF]);
+        uart_puts(UART_COM1, CRLF);
+        return -7;  /* корень полон — v1 */
+    }
     u8 *ent = dirbuf + slot;
     for (int i = 0; i < 32; i++) ent[i] = 0;
     kmemcpy(ent, target, 11);

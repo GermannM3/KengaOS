@@ -509,7 +509,7 @@ kprintf("[%s] disk: write=%d read=%d %s\r\n",
         {
             /* LBA-диагностика: 0, 5, 100 — разные паттерны */
             static u8 z0[512];
-            u32 test_lba[3] = {0, 5, 100};
+            u32 test_lba[3] = {4000, 4001, 4002};
             for (int t = 0; t < 3; t++) {
                 for (int i2 = 0; i2 < 512; i2++) z0[i2] = (u8)(t * 0x10 + 0x30 + i2);
                 int tw2 = 0;
