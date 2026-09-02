@@ -155,19 +155,6 @@ static uint32_t last_event_code;
 static uint32_t last_event_ctrl;   /* slot id командного completion — ctrl[31:24] */
 static uint8_t  got_transfer, got_command;
 
-static void events_poll(void) {
-    for (int n = 0; n < 32; n++) {
-        trb_t* e = ev_ring + ev_i;
-        if ((e->ctrl & TRB_CYCLE) != ev_cycle) return;
-        last_event_param = (uint64_t)e->p[0] | ((uint64_t)e->p[1] << 32);
-        uint32_t type = (e->ctrl >> TRB_TYPE_SHIFT) & 0x3F;
-        last_event_code = (e->status >> 24) & 0xFF;
-        if (type == TRB_CMD_CMPL) got_command = 1;
-        if (type == TRB_TRANSFER_EV) got_transfer = 1;
-        ev_i++;
-        if (ev_i == 64) { ev_i = 0; ev_cycle ^= 1; }
-    }
-}
 
 /* сдвинуть ERDP после поллинга */
 static void erdp_sync(void) {
@@ -575,7 +562,7 @@ int64_t k_usb_init(void) {
     ctrl_xfer(0x80, 0x06, 0x0200, 0, cfgbuf, total, 1);
 
     /* walk: HID boot tablet */
-    int ep_in = 0, ep_mps = 8, ep_int = 10;
+    int ep_in = 0, ep_mps = 8;
     uint8_t if_cls = 0, if_sub = 0, if_proto = 0;
     for (int off = 0; off + 1 < total;) {
         uint8_t len = cfgbuf[off], type = cfgbuf[off + 1];
@@ -589,7 +576,7 @@ int64_t k_usb_init(void) {
             if ((addr & 0x80) && (attr & 3) == 3) {
                 ep_in = addr & 0x0F;
                 ep_mps = (int)(cfgbuf[off + 4] | (cfgbuf[off + 5] << 8));
-                ep_int = cfgbuf[off + 6];
+                /* bInterval не используем: интервал задан экспонентой в ctx */
             }
         }
         off += len;
