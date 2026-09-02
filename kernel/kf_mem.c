@@ -39,7 +39,7 @@ int64_t k_mem_region_len(int64_t i) { return (i >= 0 && i < mm_count) ? (int64_t
 int64_t k_mem_region_type(int64_t i) { return (i >= 0 && i < mm_count) ? (int64_t)mm_type[i] : -1; }
 
 /* --- physical frame allocator (4 KiB bitmap, safe) --- */
-#define FRAME_MAX    (512u * 1024 * 1024)
+#define FRAME_MAX    (4096ULL * 1024 * 1024)  /* aarch64 QEMU virt: RAM с 0x40000000; 4GB cap */
 #define FRAME_BITS   (FRAME_MAX / PAGE_SIZE)
 #define FRAME_BYTES  ((FRAME_BITS + 7) / 8)
 static uint8_t  fbmap[FRAME_BYTES];

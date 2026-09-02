@@ -1,4 +1,3 @@
-```
 # Dependencies
 node_modules/
 
@@ -96,3 +95,12 @@ tmp/
 package-lock.json
 yarn.lock
 ```
+# Local toolchain (msys64/limine builds) — outside the repo
+/tools/
+
+# Archived legacy clones and duplicates (kept on disk, not in the repo)
+/legacy/
+
+# Session/tool artifacts
+/.zcode/
+/.mimocode/

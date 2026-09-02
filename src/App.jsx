@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
-import { ICONS, APPS } from './Dock';
-import Window from './Window';
-import TerminalWindow from './TerminalWindow';
+import { ICONS, APPS } from './components/Dock.jsx';
+import Window from './components/Window.jsx';
+import TerminalWindow from './components/TerminalWindow.jsx';
+import BootScreen from './components/BootScreen.jsx';
+import Wallpaper from './components/Wallpaper.jsx';
+import TopBar from './components/TopBar.jsx';
+import Dock from './components/Dock.jsx';
+import Launcher from './components/Launcher.jsx';
 
 const App = () => {
   const [booted, setBooted] = useState(false);
@@ -81,14 +86,8 @@ const App = () => {
   };
 
   if (!booted) {
-    const BootScreen = require('./components/BootScreen').default;
     return <BootScreen onComplete={handleBootComplete} />;
   }
-
-  const Wallpaper = require('./components/Wallpaper').default;
-  const TopBar = require('./components/TopBar').default;
-  const Dock = require('./components/Dock').default;
-  const Launcher = require('./components/Launcher').default;
 
   return (
     <div id="desktop" className="relative w-full h-full overflow-hidden">

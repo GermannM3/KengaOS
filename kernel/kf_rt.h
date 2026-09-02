@@ -301,8 +301,27 @@ static inline void mmio_write64(uintptr_t a, uint64_t v) { MMIO_WRITE(uint64_t, 
 
 #define K_ASM(arch, code) __asm__ __volatile__(code)
 
+/* Арх-хуки halt/cli/sti: x86 — hlt/cli/sti, aarch64 — wfi/DAIF. */
+#if defined(__aarch64__)
+static inline void kf_halt(void) { __asm__ __volatile__("wfi"); }
+static inline void kf_cli(void)  { __asm__ __volatile__("msr daifset, #2"); }
+static inline void kf_sti(void)  { __asm__ __volatile__("msr daifclr, #2"); }
+
+/* aarch64 арх-хуки (каталог kernel/aarch64). Sed-слой build-a64.sh
+   переписывает x86-asm в сгенерированном/адаптированном C на эти вызовы. */
+void k_arch_hlt(void);
+void k_arch_irq_enable(void);
+void k_arch_irq_disable(void);
+void k_arch_halt_forever(void);
+void k_arch_io_outb(uint16_t port, uint8_t v);
+uint8_t k_arch_io_inb(uint16_t port);
+void k_arch_uart_init(void);
+void k_arch_uart_putc(char c);
+void k_arch_uart_puts(const char* s);
+#else
 static inline void kf_halt(void) { __asm__ __volatile__("hlt"); }
 static inline void kf_cli(void)  { __asm__ __volatile__("cli"); }
 static inline void kf_sti(void)  { __asm__ __volatile__("sti"); }
+#endif
 
 #endif
