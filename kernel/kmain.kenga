@@ -24,6 +24,8 @@ import "../kenga-desktop/src/platform/kernel_bridge.kenga";
 @intrinsic fn vfs_init_rd(addr: i64, size: i64) -> i64;
 @intrinsic fn vfs_version_addr() -> i64;
 @intrinsic fn timer_init() -> i64;
+@intrinsic fn disk_init() -> i64;
+@intrinsic fn disk_sectors() -> i64;
 @intrinsic fn time_uptime_ms() -> i64;
 @intrinsic fn cpu_vendor(buf: i64, max: i64) -> i64;
 @intrinsic fn cpu_brand(buf: i64, max: i64) -> i64;
@@ -279,6 +281,13 @@ fn main() -> i64 {
     kf_puti(mem_pages_free() * 4);
     uart_putc(10);
     kp_msg("KengaOS", "MEM READY");
+    /* PIO-IDE диск (единое ядро: порт из legacy C-ядра) */
+    let dok: i64 = disk_init();
+    uart_puts("disk_init=");
+    if dok == 1 { uart_puts("ok sec="); kf_puti(disk_sectors()); }
+    else { uart_puts("FAIL"); }
+    uart_putc(10);
+
 
     let pf: i64 = mem_palloc();
     if pf != 0 {

@@ -67,7 +67,7 @@ fi
 
 # C-only flags: no libc, but clang's freestanding headers. -include kf_rt.h is
 # NOT applied to start.S (a C header would break asm preprocessing).
-CFLAGS_C="$CFLAGS -nostdinc -I$KERNEL_DIR -include kf_rt.h"
+CFLAGS_C="$CFLAGS -nostdinc -I$KERNEL_DIR -I$KERNEL_DIR/crt -include kf_rt.h"
 if command -v clang >/dev/null 2>&1 && [[ "$CC" == *clang* ]]; then
     RESDIR="$(clang -print-resource-dir)"
     CFLAGS_C="$CFLAGS_C -isystem \"$RESDIR/include\""
@@ -195,6 +195,11 @@ if [[ -f "$KERNEL_DIR/kf_design.c" ]]; then
     eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_design.c\" -o \"$BUILD_DIR/kf_design.o\""
 fi
 
+
+log "4d/7" "Compiling kf_disk.c (PIO-IDE disk) ($CC)"
+if [[ -f "$KERNEL_DIR/kf_disk.c" ]]; then
+    eval "$CC -c $CFLAGS_C \"$KERNEL_DIR/kf_disk.c\" -o \"$BUILD_DIR/kf_disk.o\""
+fi
 log "5/7" "Linking kengaos.elf ($LD)"
 OBJS=("$BUILD_DIR/start.o" "$BUILD_DIR/kmain.o")
 if [[ -f "$BUILD_DIR/kf_mem.o" ]]; then OBJS+=("$BUILD_DIR/kf_mem.o"); fi
@@ -216,6 +221,7 @@ if [[ -f "$BUILD_DIR/kf_wallpaper.o" ]]; then OBJS+=("$BUILD_DIR/kf_wallpaper.o"
 if [[ -f "$BUILD_DIR/kf_font_aa.o" ]]; then OBJS+=("$BUILD_DIR/kf_font_aa.o"); fi
 if [[ -f "$BUILD_DIR/kf_gui.o" ]]; then OBJS+=("$BUILD_DIR/kf_gui.o"); fi
 if [[ -f "$BUILD_DIR/kf_design.o" ]]; then OBJS+=("$BUILD_DIR/kf_design.o"); fi
+if [[ -f "$BUILD_DIR/kf_disk.o" ]]; then OBJS+=("$BUILD_DIR/kf_disk.o"); fi
 $LD -n -nostdlib -T "$KERNEL_DIR/linker.ld" "${OBJS[@]}" -o "$BUILD_DIR/kengaos.elf"
 ls -la "$BUILD_DIR/kengaos.elf"
 
