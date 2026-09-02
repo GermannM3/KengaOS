@@ -225,14 +225,14 @@ static int ctrl_xfer(uint8_t bmReqType, uint8_t bReq, uint16_t wV, uint16_t wI,
                                   | ((uint64_t)s[4] << 32) | ((uint64_t)s[5] << 40)
                                   | ((uint64_t)s[6] << 48) | ((uint64_t)s[7] << 56),
                                   8, TRB_SETUP, 0);
-    ep0_ring[ep0_i ? ep0_i - 1 : 62].ctrl |= TRB_IDT;
+    ep0_ring[ep0_i ? ep0_i - 1 : 62].ctrl |= TRB_IDT | (1u << 4);   /* CH: цепочка продолжается */
     (void)setup_pa;
 
     uint64_t expect = 0;
     if (buf && len) {
         /* DMA-безопасный буфер всегда rep_buf (стек/статика не hhdm-линейны) */
         if (!dir_in) { uint8_t* d = (uint8_t*)buf; for (uint16_t i = 0; i < len; i++) rep_buf[i] = d[i]; }
-        uint32_t dflags = (dir_in ? (1u << 16) : 0) | (1u << 5) | (1u << 2);   /* DIR + IOC + ISP */
+        uint32_t dflags = (dir_in ? (1u << 16) : 0) | (1u << 5) | (1u << 2) | (1u << 4);   /* DIR + IOC + ISP + CH */
         ring_push(ep0_ring, ep0_ring_pa, &ep0_i, &ep0_cycle, rep_buf_pa, len, TRB_DATA, dflags);
     }
     expect = ring_push(ep0_ring, ep0_ring_pa, &ep0_i, &ep0_cycle, 0, 0, TRB_STATUS, 0);
@@ -522,11 +522,11 @@ int64_t k_usb_init(void) {
     slot[1] = (uint32_t)(port + 1) << 16;                    /* root hub port (QEMU: >>16) */
     slot[2] = (1u << 27) | (speed << 20);                    /* ctx entries=1, speed */
     volatile uint32_t* ep0 = inctx + csz_d * 2;
-    ep0[2] = (3u << 27) | (EP_TYPE_CTRL << 3);
-    ep0[3] = (speed == 3 ? 64u : 8u) << 16;                  /* MPS: HS=64, FS/LS=8 */
-    ep0[4] = (uint32_t)ep0_ring_pa | 1;
-    ep0[5] = (uint32_t)(ep0_ring_pa >> 32);
-    ep0[6] = 8u << 16;                                       /* avg TRB len */
+    /* 0.96-раскладка QEMU (32B, CSZ=0): dw1 = type|mps, dw2/3 = dequeue+DCS */
+    ep0[0] = 0;
+    ep0[1] = (EP_TYPE_CTRL << 3) | ((speed == 3 ? 64u : 8u) << 16);
+    ep0[2] = (uint32_t)ep0_ring_pa | 1;                      /* DCS=1 */
+    ep0[3] = (uint32_t)(ep0_ring_pa >> 32);
 
     got_command = 0;
     ring_push(cmd_ring, cmd_ring_pa, &cmd_i, &cmd_cycle, inctx_pa, 0, TRB_ADDRESS_DEV, (uint32_t)usb_slot << 24);
@@ -558,8 +558,13 @@ int64_t k_usb_init(void) {
 
     /* 11. дескрипторы */
     uint8_t ddev[18];
-    for (int a = 0; a < 3; a++) { code = ctrl_xfer(0x80, 0x06, 0x0100, 0, ddev, 18, 1); if (code == 0) break; }
-    if (code != 0) { ulog("usb: getdev fail\n"); return 0; }
+    for (int a = 0; a < 3; a++) { code = ctrl_xfer(0x80, 0x06, 0x0100, 0, ddev, 18, 1); if (code == ER_SUCCESS) break; }
+    if (code != ER_SUCCESS) {
+        ulog("usb: getdev fail code=");
+        ulog_hx((uint64_t)code);
+        ulog("\n");
+        return 0;
+    }
     uint16_t mps0 = ddev[7];
 
     uint8_t dcfg[9];
@@ -591,22 +596,24 @@ int64_t k_usb_init(void) {
     }
     ulog("usb: hid cls/sub/proto="); ulog_hx((if_cls << 16) | (if_sub << 8) | if_proto);
     ulog(" ep="); ulog_hx((uint64_t)ep_in); ulog("\n");
-    if (if_cls != 3 || if_sub != 1 || if_proto != 2 || !ep_in) {
+    /* QEMU usb-tablet: class 3 (HID), subclass 0 (НЕ boot), один interrupt IN.
+       Отчёт у него boot-подобный: [btn, x16, y16]. */
+    if (if_cls != 3 || !ep_in) {
         ulog("usb: not a tablet\n"); return 0;
     }
     tab_present = 1;
 
-    /* SET_CONFIGURATION(1) + HID SET_PROTOCOL(boot) + SET_IDLE */
+    /* SET_CONFIGURATION(1). SET_PROTOCOL/SET_IDLE не шлём: QEMU-планшет
+       работает в report-протоколе по умолчанию, а class-запросы он
+       ставит в STALL и халтит EP0. */
     ctrl_xfer(0x00, 0x09, 0x0001, 0, 0, 0, 0);
-    ctrl_xfer(0x21, 0x0B, 0x0000, 0, 0, 0, 0);
-    ctrl_xfer(0x21, 0x0A, 0x0000, 0, 0, 0, 0);
 
     /* 12. EP0 MPS уточнить (bMaxPacketSize0) */
     inctx[0] = 0;
     inctx[1] = 3;
     slot[2] = (2u << 27) | (speed << 20);        /* ctx entries=2 */
     volatile uint32_t* ep0u = inctx + csz_d * 2;
-    ep0u[3] = (uint32_t)mps0 << 16;
+    ep0u[1] = (EP_TYPE_CTRL << 3) | ((uint32_t)mps0 << 16);
     got_command = 0;
     ring_push(cmd_ring, cmd_ring_pa, &cmd_i, &cmd_cycle, inctx_pa, 0, TRB_EVALUATE_CTX, (uint32_t)usb_slot << 24);
     DSB(); db[0] = 0;
@@ -622,12 +629,10 @@ int64_t k_usb_init(void) {
     inctx[1] = 1 | (1u << 3);                    /* add: slot + ep dci3 (dw1!) */
     slot[2] = (3u << 27) | (speed << 20);
     volatile uint32_t* epin = inctx + csz_d * 4; /* dci3 -> смещение (1+3)*csz */
-    epin[1] = (uint32_t)ep_int << 16;
-    epin[2] = (3u << 27) | (EP_TYPE_INT_IN << 3);
-    epin[3] = (uint32_t)ep_mps << 16;
-    epin[4] = (uint32_t)in_ring_pa | 1;
-    epin[5] = (uint32_t)(in_ring_pa >> 32);
-    epin[6] = 8u << 16;
+    epin[0] = 3u << 16;                                      /* интервал: 1<<3 = 8 мккадров */
+    epin[1] = (EP_TYPE_INT_IN << 3) | ((uint32_t)ep_mps << 16);
+    epin[2] = (uint32_t)in_ring_pa | 1;
+    epin[3] = (uint32_t)(in_ring_pa >> 32);
     got_command = 0;
     ring_push(cmd_ring, cmd_ring_pa, &cmd_i, &cmd_cycle, inctx_pa, 0, TRB_CONFIG_EP, (uint32_t)usb_slot << 24);
     DSB(); db[0] = 0;
@@ -684,6 +689,12 @@ int64_t k_usb_poll(void) {
         }
         ev_i++;
         if (ev_i == 64) { ev_i = 0; ev_cycle ^= 1; }
+    }
+    /* re-kick: NAK'нутые interrupt-IN QEMU повторяет только по новому
+       doorbell — звоним на каждый опрос десктопа */
+    if (processed == 0) {
+        DSB();
+        db[usb_slot] = 3;
     }
     return processed;
 }
