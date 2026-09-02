@@ -111,7 +111,9 @@ if [[ "$MODE" == "--headless" ]]; then
         echo "[a64-run] store test: install a/b через serial stdin"
         STORE_LOG="$BUILD_DIR/store-test.log"
         : > "$STORE_LOG"
-        printf 'install a\rinstall b\r' | timeout 40 "$QEMU" "${QEMU_ARGS[@]}" \
+        # ввод с задержкой: UART FIFO 16 байт — до загрузки десктопа байты теряются
+        { sleep 25; printf 'install a\r'; sleep 4; printf 'install b\r'; } \
+            | timeout 40 "$QEMU" "${QEMU_ARGS[@]}" \
             -display none -serial stdio > "$STORE_LOG" || true
         if grep -aq "PKG: installed" "$STORE_LOG"; then
             echo "[a64-run] STORE TEST OK"
