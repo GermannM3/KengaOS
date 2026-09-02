@@ -60,3 +60,5 @@ jobs:
 
       - name: QEMU smoke test (headless)
         run: ./scripts/run-a64.sh --headless
+      - name: Store install test (kpkg v1)
+        run: STORE_TEST=1 ./scripts/run-a64.sh --headless

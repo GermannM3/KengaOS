@@ -25,6 +25,74 @@ extern uint64_t k_sched_current(void);
 int64_t k_ui_register_window(const char* title, const char* text);
 int64_t k_ui_window_set_text(int64_t idx, const char* text);
 
+/* --- kpkg store (v1): окно со списком пакетов + install из input bar ---
+   Работает на обеих архитектурах: без тредов (окно регистрирует k_proc_init,
+   установка — перехват "install N" в k_ui_input_submit). */
+extern int64_t k_pkg_init(void);
+extern int64_t k_pkg_count(void);
+extern const char* k_pkg_name(int64_t i);
+extern const char* k_pkg_ver(int64_t i);
+extern const char* k_pkg_desc(int64_t i);
+extern int64_t k_pkg_installed(int64_t i);
+extern int64_t k_pkg_install(int64_t i);
+static int64_t store_widx = 0;
+static void lg_uart(const char* s);   /* определён ниже (uart-отладка) */
+
+static int store_text(char* out, int max) {
+    int k = 0;
+    const char* hdr = "Пакеты (install <номер>):\n";
+    while (*hdr && k < max - 1) out[k++] = *hdr++;
+    int n = (int)k_pkg_count();
+    for (int i = 0; i < n && k < max - 40; i++) {
+        out[k++] = '[';
+        out[k++] = (char)('a' + i);   /* буквы: цифры 1..5 заняты переключением приложений */
+        out[k++] = ']';
+        out[k++] = ' ';
+        const char* nm = k_pkg_name(i);
+        while (*nm && k < max - 1) out[k++] = *nm++;
+        out[k++] = ' ';
+        const char* vr = k_pkg_ver(i);
+        while (*vr && k < max - 1) out[k++] = *vr++;
+        if (k_pkg_installed(i)) {
+            const char* ok = " [установлен]";
+            while (*ok && k < max - 1) out[k++] = *ok++;
+        }
+        out[k++] = '\n';
+    }
+    out[k] = 0;
+    return k;
+}
+
+/* install <N> из input bar; возвращает 1, если команда распознана */
+static int store_install_cmd(const char* text) {
+    const char* pre = "install ";
+    int i = 0;
+    while (pre[i]) {
+        if (text[i] != pre[i]) return 0;
+        i++;
+    }
+    int64_t idx = -1;
+    if (text[i] >= 'a' && text[i] <= 'z') { idx = text[i] - 'a'; i++; }
+    else if (text[i] >= 'A' && text[i] <= 'Z') { idx = text[i] - 'A'; i++; }
+    else { return 1; }   /* "install" без буквы — просто игнор */
+    if (idx < 0 || idx >= k_pkg_count()) return 1;
+    k_pkg_install(idx);
+    lg_uart("PKG: installed ");
+    lg_uart(k_pkg_name(idx));
+    lg_uart("\n");
+    char st[300];
+    store_text(st, sizeof(st));
+    if (store_widx > 0) k_ui_window_set_text(store_widx - 1, st);
+    const char* nm = k_pkg_name(idx);
+    char log[64]; int k = 0;
+    const char* m = "установлен: ";
+    while (*m && k < 63) log[k++] = *m++;
+    while (*nm && k < 63) log[k++] = *nm++;
+    log[k] = 0;
+    k_ui_log(log);
+    return 1;
+}
+
 typedef struct {
     int64_t from;
     char    data[MSG_MAX];
@@ -598,6 +666,16 @@ int64_t k_proc_init(void) {
     model_pid = k_proc_spawn("model", model_proc, CAP_IPC|CAP_MODEL_INFER|CAP_MODEL_LOAD);
     researcher_pid = k_proc_spawn("researcher", researcher_proc,
                                   CAP_IPC|CAP_UI|CAP_MODEL_INFER);
+    {   /* Магазин пакетов (v1): окно со списком .kpkg из initrd.
+           На a64 тредов нет — окно регистрируется напрямую, без агента. */
+        static char st[300];
+        k_pkg_init();
+        lg_uart("PKG: count=");
+        lg_uart(dec(k_pkg_count()));
+        lg_uart("\n");
+        store_text(st, sizeof(st));
+        store_widx = k_ui_system_window("Магазин KengaOS", st);
+    }
     {   /* DIAG: verify XOR predictions + raw weights */
         lg_uart("XOR:00="); lg_uart(dec(k_model_infer(0,0)));
         lg_uart(" 01="); lg_uart(dec(k_model_infer(0,1)));
@@ -727,6 +805,7 @@ static char  g_input[64];
 static int   g_input_len = 0;
 
 int64_t k_ui_input_putc(int64_t c) {
+    lg_uart("KB:"); lg_uart(dec(c)); lg_uart(" ");
     if (c == '\b') {                    /* backspace */
         if (g_input_len > 0) g_input[--g_input_len] = 0;
         return 1;
@@ -742,9 +821,14 @@ int64_t k_ui_input_clear(void) { g_input_len = 0; g_input[0] = 0; return 1; }
 const char* k_ui_input_str(void) { return g_input; }
 int64_t k_ui_input_len(void) { return (int64_t)g_input_len; }
 
-/* Send the typed line to the system agent as a "chat" message, clear input. */
+/* Send the typed line to the system agent as a "chat" message, clear input.
+   "install <N>" перехватывается пакетной системой (v1 store). */
 int64_t k_ui_input_submit(void) {
     if (g_input_len == 0) return 0;
+    if (g_input[0] == 'i' && store_install_cmd(g_input)) {
+        g_input_len = 0; g_input[0] = 0;
+        return 1;
+    }
     char msg[80]; int k = 0;
     const char* pre = "chat ";
     for (; *pre && k < 79; k++) msg[k] = *pre++;

@@ -104,6 +104,22 @@ if [[ "$MODE" == "--headless" ]]; then
     grep -q  "MEM READY"         "$UART_LOG" || { echo "ERROR: MEM READY marker missing" >&2; ok=0; }
     grep -q  "PROC READY"        "$UART_LOG" || { echo "ERROR: PROC READY marker missing" >&2; ok=0; }
     [[ "$ok" == 1 ]] && echo "[a64-run] SMOKE OK" || { echo "[a64-run] SMOKE FAILED" >&2; exit 1; }
+
+    # --- Store v1 test (только Linux CI: stdio-пайпы на Windows QEMU не дают
+    #     ввод в serial) — установка пакетов через serial stdin ---
+    if [[ "${STORE_TEST:-0}" == "1" ]]; then
+        echo "[a64-run] store test: install a/b через serial stdin"
+        STORE_LOG="$BUILD_DIR/store-test.log"
+        : > "$STORE_LOG"
+        printf 'install a\rinstall b\r' | timeout 40 "$QEMU" "${QEMU_ARGS[@]}" \
+            -display none -serial stdio > "$STORE_LOG" || true
+        if grep -aq "PKG: installed" "$STORE_LOG"; then
+            echo "[a64-run] STORE TEST OK"
+        else
+            echo "ERROR: store install test failed (no PKG: installed marker)" >&2
+            exit 1
+        fi
+    fi
 else
     echo "[a64-run] booting QEMU virt (окно с десктопом; шелл — в этом терминале)"
     exec "$QEMU" "${QEMU_ARGS[@]}" -serial stdio

@@ -1,6 +1,6 @@
 // Host-independent hardware ABI declarations for the native desktop target.
 fn has_gpu_acceleration() -> bool { return false }
-fn gpu_init_double_buffer(a: int, b: int, c: int) {}
+fn gpu_init_double_buffer(a: int, b: int, c: int, d: int) {}
 fn gpu_clear(a: int, b: int, c: int) {}
 fn gpu_swap_buffers() {}
 fn wait_for_vsync() {}

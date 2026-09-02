@@ -143,6 +143,10 @@ log "4h/7" "Compiling kf_vfs.c (vfs) ($CC)"
 if [[ -f "$KERNEL_DIR/kf_vfs.c" ]]; then
     eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_vfs.c\" -o \"$BUILD_DIR/kf_vfs.o\""
 fi
+log "4h2/7" "Compiling kf_pkg.c (packages) ($CC)"
+if [[ -f "$KERNEL_DIR/kf_pkg.c" ]]; then
+    eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_pkg.c\" -o \"$BUILD_DIR/kf_pkg.o\""
+fi
 
 log "4i/7" "Compiling kf_time.c (timer) ($CC)"
 if [[ -f "$KERNEL_DIR/kf_time.c" ]]; then
@@ -211,6 +215,7 @@ if [[ -f "$BUILD_DIR/kf_kbd.o" ]]; then OBJS+=("$BUILD_DIR/kf_kbd.o"); fi
 if [[ -f "$BUILD_DIR/kf_shell.o" ]]; then OBJS+=("$BUILD_DIR/kf_shell.o"); fi
 if [[ -f "$BUILD_DIR/kf_proc.o" ]]; then OBJS+=("$BUILD_DIR/kf_proc.o"); fi
 if [[ -f "$BUILD_DIR/kf_vfs.o" ]]; then OBJS+=("$BUILD_DIR/kf_vfs.o"); fi
+if [[ -f "$BUILD_DIR/kf_pkg.o" ]]; then OBJS+=("$BUILD_DIR/kf_pkg.o"); fi
 if [[ -f "$BUILD_DIR/kf_time.o" ]]; then OBJS+=("$BUILD_DIR/kf_time.o"); fi
 if [[ -f "$BUILD_DIR/kf_hw.o" ]]; then OBJS+=("$BUILD_DIR/kf_hw.o"); fi
 if [[ -f "$BUILD_DIR/kf_power.o" ]]; then OBJS+=("$BUILD_DIR/kf_power.o"); fi

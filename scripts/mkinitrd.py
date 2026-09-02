@@ -13,7 +13,7 @@ import subprocess, sys, platform, os
 
 def sh(cmd):
     try:
-        return subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10).stdout.strip()
+        return subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=10, errors="replace").stdout.strip()
     except Exception:
         return "n/a"
 
@@ -34,6 +34,17 @@ def collect(root):
             if os.path.isfile(os.path.join(kdir, f)):
                 files += f + "\n"
     entries["kernel-src"] = files.encode()
+    # KengaOS Store: .kpkg v1 манифесты (текстовые, формат см. kernel/kf_pkg.c)
+    NL = chr(10)
+    entries["pkg-calc.kpkg"] = NL.join([
+        "name=Калькулятор", "version=1.0.0",
+        "desc=Считает через модель-агента (XOR-MLP)", "entry=calc", ""]).encode()
+    entries["pkg-notes.kpkg"] = NL.join([
+        "name=Блокнот", "version=0.9.0",
+        "desc=Текстовые заметки в агента-окне", "entry=notes", ""]).encode()
+    entries["pkg-agents.kpkg"] = NL.join([
+        "name=Агенты", "version=1.1.0",
+        "desc=Панель IPC-агентов системы", "entry=agents", ""]).encode()
     return entries
 
 def main():
