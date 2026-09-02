@@ -630,7 +630,7 @@ fn init_screen() -> i64 {
     let boot_at: i64 = kd_uptime();
     let spins: i64 = 0;
     while 1 {
-        if kbd_pending() == 1 {
+        if kbd_pending() >= 1 {
             let c: i64 = kbd_read();
             if c == 10 { return 0; }
         }
@@ -662,7 +662,7 @@ fn lock_screen() -> i64 {
     let boot_at: i64 = kd_uptime();
     let spins: i64 = 0;
     while 1 {
-        if kbd_pending() == 1 {
+        if kbd_pending() >= 1 {
             let c: i64 = kbd_read();
             if c == 10 { return 0; }
         }
@@ -726,7 +726,7 @@ fn desktop_main() -> i64 {
             last_up = now_up;
             last_n = now_n;
             s = ns;
-        } else if kbd_pending() == 1 {
+        } else if kbd_pending() >= 1 {
             /* keyboard: 1..4 switch apps; otherwise type into the agent bar */
             let c: i64 = kbd_read();
             if c >= 49 && c <= 53 {
