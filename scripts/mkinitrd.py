@@ -48,6 +48,12 @@ def collect(root):
     entries["pkg-agents.kpkg"] = NL.join([
         "name=Агенты", "version=1.1.0",
         "desc=Панель IPC-агентов системы", "entry=agents", ""]).encode()
+    entries["pkg-hello.kpkg"] = NL.join([
+        "name=Hello (ring3)", "version=1.0.0",
+        "desc=Pervaya user-programma: ELF v ring 3", "entry=hello", ""]).encode()
+    entries["pkg-sysinfo.kpkg"] = NL.join([
+        "name=Sysinfo", "version=1.0.0",
+        "desc=CPU, pamyat, uptime, versiya yadra", "entry=sysinfo", ""]).encode()
     return entries
 
 def main():
