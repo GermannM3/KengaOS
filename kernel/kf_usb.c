@@ -46,6 +46,14 @@ typedef struct {
 static uint16_t io_base = 0;
 static uint8_t  usb_ok = 0;
 static uint8_t  tab_present = 0;
+static uint8_t  usb_mode = 0;   /* 0 = UHCI (QEMU ICH9), 1 = xHCI (реальное железо/QEMU) */
+
+/* xHCI — основной путь (kf_usb_xhci.c); UHCI — fallback */
+extern int64_t k_xhci_init(void);
+extern int64_t k_xhci_poll(void);
+extern int64_t k_xhci_tab_x(void);
+extern int64_t k_xhci_tab_y(void);
+extern int64_t k_xhci_tab_btn(void);
 
 static uint8_t inb16(uint16_t p) { uint8_t v; __asm__ __volatile__("inb %1,%0" : "=a"(v) : "Nd"(p)); return v; }
 static void    outb16(uint16_t p, uint8_t v) { __asm__ __volatile__("outb %0,%1" : : "a"(v), "Nd"(p)); }
@@ -230,6 +238,11 @@ static void usb_poll_tab(void) {
 }
 
 int64_t k_usb_init(void) {
+    /* xHCI сначала: реальное железо и QEMU с -device qemu-xhci */
+    usb_mode = 1;
+    if (k_xhci_init() == 1) { usb_ok = 1; tab_present = 1; return 1; }
+    usb_mode = 0;
+    usb_log("usb: xhci no, uhci fallback\n");
     if (!find_uhci()) { usb_log("usb: no uhci\n"); return 0; }
     usb_log("usb: uhci at ");
     usb_log("0x");
@@ -365,9 +378,10 @@ int64_t k_usb_tab_present(void) { return tab_present; }
 /* Poll + return state (called every desktop tick). */
 int64_t k_usb_poll(void) {
     if (!usb_ok) return 0;
+    if (usb_mode == 1) return k_xhci_poll();
     usb_poll_tab();
     return 1;
 }
-int64_t k_usb_tab_x(void) { return tab_x; }
-int64_t k_usb_tab_y(void) { return tab_y; }
-int64_t k_usb_tab_btn(void) { return tab_btn; }
+int64_t k_usb_tab_x(void)   { return usb_mode == 1 ? k_xhci_tab_x()   : tab_x; }
+int64_t k_usb_tab_y(void)   { return usb_mode == 1 ? k_xhci_tab_y()   : tab_y; }
+int64_t k_usb_tab_btn(void) { return usb_mode == 1 ? k_xhci_tab_btn() : tab_btn; }

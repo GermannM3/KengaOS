@@ -187,6 +187,10 @@ if [[ -f "$KERNEL_DIR/kf_mouse.c" ]]; then
     eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_mouse.c\" -o \"$BUILD_DIR/kf_mouse.o\""
 fi
 
+log "4m1/7" "Compiling kf_usb_xhci.c (xHCI + HID tablet) ($CC)"
+if [[ -f "$KERNEL_DIR/kf_usb_xhci.c" ]]; then
+    eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_usb_xhci.c\" -o \"$BUILD_DIR/kf_usb_xhci.o\""
+fi
 log "4m2/7" "Compiling kf_usb.c (UHCI + usb-tablet) ($CC)"
 if [[ -f "$KERNEL_DIR/kf_usb.c" ]]; then
     eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_usb.c\" -o \"$BUILD_DIR/kf_usb.o\""
@@ -237,6 +241,7 @@ if [[ -f "$BUILD_DIR/kf_power.o" ]]; then OBJS+=("$BUILD_DIR/kf_power.o"); fi
 if [[ -f "$BUILD_DIR/kf_model.o" ]]; then OBJS+=("$BUILD_DIR/kf_model.o"); fi
 if [[ -f "$BUILD_DIR/kf_mouse.o" ]]; then OBJS+=("$BUILD_DIR/kf_mouse.o"); fi
 if [[ -f "$BUILD_DIR/kf_usb.o" ]]; then OBJS+=("$BUILD_DIR/kf_usb.o"); fi
+if [[ -f "$BUILD_DIR/kf_usb_xhci.o" ]]; then OBJS+=("$BUILD_DIR/kf_usb_xhci.o"); fi
 if [[ -f "$BUILD_DIR/kf_wallpaper.o" ]]; then OBJS+=("$BUILD_DIR/kf_wallpaper.o"); fi
 if [[ -f "$BUILD_DIR/kf_font_aa.o" ]]; then OBJS+=("$BUILD_DIR/kf_font_aa.o"); fi
 if [[ -f "$BUILD_DIR/kf_gui.o" ]]; then OBJS+=("$BUILD_DIR/kf_gui.o"); fi
@@ -322,6 +327,7 @@ if command -v qemu-system-x86_64 >/dev/null 2>&1 && [[ -f "$BUILD_DIR/kengaos.is
     fi
     timeout 5 qemu-system-x86_64 -M q35 -cdrom "$BUILD_DIR/kengaos.iso" \
         -serial "file:$WIN_UART" -display none -no-reboot -m 64 \
+        -device qemu-xhci -device usb-tablet \
         -device isa-debug-exit,iobase=0xf4,iosize=0x04 || true
     QEMU_RAN=1
     echo "--- UART output ($UART_LOG) ---"
@@ -341,6 +347,7 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "INT3 CAUGHT" "$UART_LOG" || { echo "ERROR: INT3 (IDT) marker missing" >&2; ok=0; }
     grep -q "SHELL READY" "$UART_LOG" || { echo "ERROR: SHELL READY marker missing" >&2; ok=0; }
     grep -q "PROC READY" "$UART_LOG" || { echo "ERROR: PROC READY marker missing" >&2; ok=0; }
+    grep -q "tablet ready" "$UART_LOG" || { echo "ERROR: USB xHCI tablet marker missing" >&2; ok=0; }
     grep -q "RING3 OK" "$UART_LOG" || { echo "ERROR: RING3 user-mode marker missing" >&2; ok=0; }
     grep -q "MEM READY" "$UART_LOG" || { echo "ERROR: MEM READY marker missing" >&2; ok=0; }
     grep -Eq "initrd files=[1-9][0-9]*" "$UART_LOG" || { echo "ERROR: initrd/VFS marker missing" >&2; ok=0; }
