@@ -132,7 +132,7 @@ k_kf_get_hhdm:
     mov rax, [rip + limine_hhdm_request + 40]
     test rax, rax
     jz .khhdm_done
-    mov rax, [rax]               /* response->offset */
+    mov rax, [rax + 8]           /* response->offset (revision @0, offset @8) */
 .khhdm_done:
     ret
 

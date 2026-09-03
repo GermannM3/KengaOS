@@ -144,6 +144,19 @@ if [[ -f "$KERNEL_DIR/kf_vfs.c" ]]; then
     eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_vfs.c\" -o \"$BUILD_DIR/kf_vfs.o\""
 fi
 log "4h2/7" "Compiling kf_pkg.c (packages) ($CC)"
+log "4h3/7" "Compiling user-mode (kf_user.c + kf_user_asm.S) ($CC)"
+if [[ -f "$KERNEL_DIR/kf_user.c" ]]; then
+    eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_user.c\" -o \"$BUILD_DIR/kf_user.o\""
+    eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_user_asm.S\" -o \"$BUILD_DIR/kf_user_asm.o\""
+fi
+log "4h4/7" "Building user sample (user/hello.c -> hello.elf)"
+mkdir -p "$BUILD_DIR/user"
+if command -v clang >/dev/null 2>&1; then
+    clang --target=x86_64-elf -ffreestanding -c "$ROOT/user/hello.c"         -o "$BUILD_DIR/user/hello.o"
+    ld.lld -flavor gnu -m elf_x86_64 -nostdlib -e _start         "$BUILD_DIR/user/hello.o" -o "$BUILD_DIR/user/hello.elf"         && echo "hello.elf built"
+else
+    echo "warning: clang not found, hello.elf skipped"
+fi
 if [[ -f "$KERNEL_DIR/kf_pkg.c" ]]; then
     eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_pkg.c\" -o \"$BUILD_DIR/kf_pkg.o\""
 fi
@@ -216,6 +229,8 @@ if [[ -f "$BUILD_DIR/kf_shell.o" ]]; then OBJS+=("$BUILD_DIR/kf_shell.o"); fi
 if [[ -f "$BUILD_DIR/kf_proc.o" ]]; then OBJS+=("$BUILD_DIR/kf_proc.o"); fi
 if [[ -f "$BUILD_DIR/kf_vfs.o" ]]; then OBJS+=("$BUILD_DIR/kf_vfs.o"); fi
 if [[ -f "$BUILD_DIR/kf_pkg.o" ]]; then OBJS+=("$BUILD_DIR/kf_pkg.o"); fi
+if [[ -f "$BUILD_DIR/kf_user.o" ]]; then OBJS+=("$BUILD_DIR/kf_user.o"); fi
+if [[ -f "$BUILD_DIR/kf_user_asm.o" ]]; then OBJS+=("$BUILD_DIR/kf_user_asm.o"); fi
 if [[ -f "$BUILD_DIR/kf_time.o" ]]; then OBJS+=("$BUILD_DIR/kf_time.o"); fi
 if [[ -f "$BUILD_DIR/kf_hw.o" ]]; then OBJS+=("$BUILD_DIR/kf_hw.o"); fi
 if [[ -f "$BUILD_DIR/kf_power.o" ]]; then OBJS+=("$BUILD_DIR/kf_power.o"); fi
@@ -326,6 +341,7 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "INT3 CAUGHT" "$UART_LOG" || { echo "ERROR: INT3 (IDT) marker missing" >&2; ok=0; }
     grep -q "SHELL READY" "$UART_LOG" || { echo "ERROR: SHELL READY marker missing" >&2; ok=0; }
     grep -q "PROC READY" "$UART_LOG" || { echo "ERROR: PROC READY marker missing" >&2; ok=0; }
+    grep -q "RING3 OK" "$UART_LOG" || { echo "WARN: RING3 user-mode marker missing (non-fatal)" >&2; }
     grep -q "MEM READY" "$UART_LOG" || { echo "ERROR: MEM READY marker missing" >&2; ok=0; }
     grep -Eq "initrd files=[1-9][0-9]*" "$UART_LOG" || { echo "ERROR: initrd/VFS marker missing" >&2; ok=0; }
     # ponytail: agent/model IPC round-trip pending the kenga-lang ABI migration

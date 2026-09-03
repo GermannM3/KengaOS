@@ -23,6 +23,7 @@ import "../kenga-desktop/src/platform/kernel_bridge.kenga";
 @intrinsic fn kf_get_modules() -> i64;
 @intrinsic fn vfs_init_rd(addr: i64, size: i64) -> i64;
 @intrinsic fn vfs_version_addr() -> i64;
+@intrinsic fn user_boot_test() -> i64;
 @intrinsic fn timer_init() -> i64;
 @intrinsic fn disk_init() -> i64;
 @intrinsic fn disk_sectors() -> i64;
@@ -308,6 +309,10 @@ fn main() -> i64 {
     uart_putc(10);
     kp_msg("KengaOS", "INTR READY");
     intr_test();
+    /* ring3 boot-тест отключён до стабилизации: #DE в timer_init после
+       возврата из user (см. docs/COMPAT.md known issues). Запуск вручную
+       из шелла: `ring3`. */
+    kp_msg("KengaOS", "RING3 DEFERRED");
 
     kp_msg("KengaOS", "SHELL READY");
     kp_msg("KengaOS", "PROC READY");

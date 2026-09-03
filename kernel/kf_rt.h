@@ -204,6 +204,11 @@ int64_t k_timer_init(void);
 int64_t k_time_uptime_ms(void);
 void k_timer_tick(void);
 
+/* User-mode ring 3 (kernel/kf_user.c, x86_64; a64 — заглушки). */
+int64_t k_user_boot_test(void);
+int64_t k_user_exec_vfs(const char* name);
+int64_t k_user_run(int64_t entry);
+
 /* Virtual filesystem (kernel/kf_vfs.c). */
 int64_t k_vfs_count(void);
 const char* k_vfs_name(int64_t idx);

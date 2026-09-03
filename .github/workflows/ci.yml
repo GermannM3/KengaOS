@@ -36,6 +36,11 @@ jobs:
 
       - name: Build + smoke test
         run: ./scripts/build.sh
+      - name: Ring3 user-mode test
+        run: |
+          UL=$(cygpath -m build/uart-x86.log 2>/dev/null || echo build/uart-x86.log)
+          { sleep 12; printf 'ring3'; sleep 4; } | timeout 25 qemu-system-x86_64             -M q35 -cdrom build/kengaos.iso -serial "file:$UL" -display none             -no-reboot -m 512 || true
+          grep -q "hello from user-mode" "$UL" && echo "RING3 TEST OK"
       - name: Verify release artifacts
         run: python3 scripts/release_gate.py --build build
 

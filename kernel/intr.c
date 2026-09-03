@@ -198,7 +198,6 @@ void k_kf_intr_handler(void* regs) {
     if (r->vector == 14) {
         __asm__ __volatile__("mov %%cr2, %0" : "=r"(cr2));
     }
-
     uputs("\r\n");
     uputs("[KengaOS] KERNEL PANIC\r\n");
     uputs("  vector: "); uputhex(r->vector); uputs("  "); uputs(vector_name(r->vector)); uputnl();
@@ -206,6 +205,11 @@ void k_kf_intr_handler(void* regs) {
     uputs("  rip   : "); uputhex(r->rip); uputnl();
     uputs("  cs    : "); uputhex(r->cs); uputnl();
     uputs("  flags : "); uputhex(r->rflags); uputnl();
+    uputs("  rax   : "); uputhex(r->rax); uputnl();
+    uputs("  rdi   : "); uputhex(r->rdi); uputnl();
+    uputs("  rsi   : "); uputhex(r->rsi); uputnl();
+    uputs("  rdx   : "); uputhex(r->rdx); uputnl();
+    uputs("  rsp   : "); uputhex(r->rsp); uputnl();
     if (r->vector == 14) { uputs("  cr2   : "); uputhex(cr2); uputnl(); }
 
     /* Try to reflect it on the framebuffer too. */

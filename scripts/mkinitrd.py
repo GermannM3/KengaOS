@@ -42,6 +42,9 @@ def collect(root):
     entries["pkg-notes.kpkg"] = NL.join([
         "name=Блокнот", "version=0.9.0",
         "desc=Текстовые заметки в агента-окне", "entry=notes", ""]).encode()
+    hello = os.path.join(root, "build", "user", "hello.elf")
+    if os.path.isfile(hello):
+        entries["user-hello.elf"] = open(hello, "rb").read()
     entries["pkg-agents.kpkg"] = NL.join([
         "name=Агенты", "version=1.1.0",
         "desc=Панель IPC-агентов системы", "entry=agents", ""]).encode()

@@ -825,6 +825,12 @@ int64_t k_ui_input_len(void) { return (int64_t)g_input_len; }
    "install <N>" перехватывается пакетной системой (v1 store). */
 int64_t k_ui_input_submit(void) {
     if (g_input_len == 0) return 0;
+    if (g_input_len == 5 && g_input[0] == 'r' && g_input[1] == 'i' && g_input[2] == 'n' && g_input[3] == 'g' && g_input[4] == '3') {
+        extern int64_t k_user_boot_test(void);
+        int64_t ur = k_user_boot_test();
+        g_input_len = 0; g_input[0] = 0;
+        return ur;
+    }
     if (g_input[0] == 'i' && store_install_cmd(g_input)) {
         g_input_len = 0; g_input[0] = 0;
         return 1;
