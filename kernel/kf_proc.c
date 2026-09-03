@@ -821,6 +821,16 @@ int64_t k_ui_input_clear(void) { g_input_len = 0; g_input[0] = 0; return 1; }
 const char* k_ui_input_str(void) { return g_input; }
 int64_t k_ui_input_len(void) { return (int64_t)g_input_len; }
 
+/* --- Пророк (kf_prophet.c): системный сервис предсказания --- */
+extern int64_t k_prophet_tick(int64_t mx, int64_t my, int64_t app, int64_t w, int64_t h);
+extern int64_t k_prophet_pred_app(void);
+extern int64_t k_prophet_surprise_pct(void);
+int64_t k_kd_prophet_tick(int64_t mx, int64_t my, int64_t app) {
+    return k_prophet_tick(mx, my, app, k_fb_width(), k_fb_height());
+}
+int64_t k_kd_prophet_next_app(void) { return k_prophet_pred_app(); }
+int64_t k_kd_prophet_surprise(void) { return k_prophet_surprise_pct(); }
+
 /* Send the typed line to the system agent as a "chat" message, clear input.
    "install <N>" перехватывается пакетной системой (v1 store). */
 int64_t k_ui_input_submit(void) {

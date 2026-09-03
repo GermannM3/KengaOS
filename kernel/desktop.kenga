@@ -118,6 +118,12 @@ fn draw_command_center(w: i64, h: i64, st: DesktopState) -> i64 {
     fb_text_aa(rx + 18, y + 206, dim, panel, "SYSTEM HEALTH");
     fb_text_aa(rx + 18, y + 238, cyan, panel, "CPU  07%   RAM  06%");
     fb_text_aa(rx + 18, y + 264, green, panel, "ALL SYSTEMS NOMINAL");
+    /* PROPHET: предсказание следующего состояния (kf_prophet.c) */
+    let psx: i64 = kd_prophet_surprise();
+    let papp: i64 = kd_prophet_next_app();
+    let pcol: i64 = 0x7ee7d3;
+    fb_text_aa(rx + 18, y + 290, dim, panel, "PROPHET");
+    fb_text_aa(rx + 18, y + 316, pcol, panel, "next app " + papp + "  surprise " + psx + "%");
     return 0;
 }
 
@@ -705,6 +711,7 @@ fn desktop_main() -> i64 {
         let bx: i64 = kd_mouse_buttons();
         let cmx: i64 = mouse_x();
         let cmy: i64 = mouse_y();
+        kd_prophet_tick(cmx, cmy, s.cur_app);
         let clicked: i64 = 0;
         if bx != 0 && mprev == 0 { clicked = 1; }
         let released: i64 = 0;

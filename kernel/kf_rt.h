@@ -209,6 +209,12 @@ int64_t k_user_boot_test(void);
 int64_t k_user_exec_vfs(const char* name);
 int64_t k_user_run(int64_t entry);
 
+/* Пророк — системный сервис предсказания (kernel/kf_prophet.c),
+   мост десктопа (kf_proc.c). */
+int64_t k_kd_prophet_tick(int64_t mx, int64_t my, int64_t app);
+int64_t k_kd_prophet_next_app(void);
+int64_t k_kd_prophet_surprise(void);
+
 /* Virtual filesystem (kernel/kf_vfs.c). */
 int64_t k_vfs_count(void);
 const char* k_vfs_name(int64_t idx);
