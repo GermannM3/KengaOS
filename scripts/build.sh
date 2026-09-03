@@ -341,7 +341,7 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "INT3 CAUGHT" "$UART_LOG" || { echo "ERROR: INT3 (IDT) marker missing" >&2; ok=0; }
     grep -q "SHELL READY" "$UART_LOG" || { echo "ERROR: SHELL READY marker missing" >&2; ok=0; }
     grep -q "PROC READY" "$UART_LOG" || { echo "ERROR: PROC READY marker missing" >&2; ok=0; }
-    grep -q "RING3 OK" "$UART_LOG" || { echo "WARN: RING3 user-mode marker missing (non-fatal)" >&2; }
+    grep -q "RING3 OK" "$UART_LOG" || { echo "ERROR: RING3 user-mode marker missing" >&2; ok=0; }
     grep -q "MEM READY" "$UART_LOG" || { echo "ERROR: MEM READY marker missing" >&2; ok=0; }
     grep -Eq "initrd files=[1-9][0-9]*" "$UART_LOG" || { echo "ERROR: initrd/VFS marker missing" >&2; ok=0; }
     # ponytail: agent/model IPC round-trip pending the kenga-lang ABI migration

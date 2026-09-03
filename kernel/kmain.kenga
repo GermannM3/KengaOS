@@ -309,10 +309,12 @@ fn main() -> i64 {
     uart_putc(10);
     kp_msg("KengaOS", "INTR READY");
     intr_test();
-    /* ring3 boot-тест отключён до стабилизации: #DE в timer_init после
-       возврата из user (см. docs/COMPAT.md known issues). Запуск вручную
-       из шелла: `ring3`. */
-    kp_msg("KengaOS", "RING3 DEFERRED");
+    let ur: i64 = user_boot_test();
+    if ur == 1 {
+        kp_msg("KengaOS", "RING3 OK");
+    } else {
+        kp_msg("KengaOS", "RING3 SKIP");
+    }
 
     kp_msg("KengaOS", "SHELL READY");
     kp_msg("KengaOS", "PROC READY");
