@@ -9,6 +9,7 @@
  */
 #include "kf_rt.h"
 
+extern int64_t k_kf_get_hhdm(void);
 /* --- QEMU virt: GICv2 --- */
 #define GICD_BASE 0x08000000ull
 #define GICC_BASE 0x08010000ull
@@ -24,6 +25,19 @@
 #define GICC_EOIR      (GICC_BASE + 0x010)
 
 #define IRQ_VTIMER 27   /* PPI: virtual timer (QEMU virt) */
+
+/* --- GICv3 (SM6125 и QEMU gic-version=3): GICR CPU0 на virt --- */
+#define GICR_BASE_VA   0x080A0000ull   /* identity-map PA (dev-map окно) */
+#define GICR_CTLR      0x0000
+#define GICR_WAKER     0x0014
+#define GICR_IGROUPR0  0x0080
+#define GICR_ISENABLER 0x0100
+#define GICR_IPRIORITYR 0x0400
+
+static int gic_version = 2;   /* заполняется в k_intr_init */
+static int gic_sre_ok = 0;    /* DEBUG: ICC_SRE_EL1.SRE применился */
+
+/* GICv3 sysreg-доступ: ICC_IAR1_EL1 = S3_0_C12_C12_0, ICC_EOIR1_EL1 = S3_0_C12_C12_1 */
 
 /* --- UART (hw_a64.c) --- */
 void k_arch_uart_puts(const char* s);
@@ -133,9 +147,21 @@ void k_a64_dead_c(a64_frame* f) {
     panic_halt();
 }
 
-/* IRQ: читаем IAR, перезаряжаем таймер, тик, EOI. */
+/* IRQ: читаем IAR, перезаряжаем таймер, тик, EOI. GICv2 — MMIO,
+   GICv3 — системные регистры ICC_IAR1/EOIR1. */
 void k_a64_irq_c(a64_frame* f) {
     (void)f;
+    if (gic_version >= 3) {
+        uint64_t iar;
+        __asm__ __volatile__("mrs %0, icc_iar1_el1" : "=r"(iar));
+        uint64_t id = iar & 0x3FFull;
+        if (id == IRQ_VTIMER) {
+            k_timer_rearm();    /* до EOI: снять уровень CNTV */
+            k_timer_tick();
+        }
+        __asm__ __volatile__("msr icc_eoir1_el1, %0" : : "r"(iar));
+        return;
+    }
     uint32_t iar = mmio_read32(GICC_IAR);
     uint32_t id  = iar & 0x3FF;
     if (id == IRQ_VTIMER) {
@@ -157,7 +183,62 @@ int64_t k_intr_init(void) {
     __asm__ __volatile__("msr vbar_el1, %0" : : "r"((uint64_t)(uintptr_t)k_a64_vectors));
     (void)vb;
 
-    /* GICv2: дистрибьютор + CPU-интерфейс. */
+    /* Версия GIC: ID_AA64PFR0_EL1[27:24] — 0 = v2, 1 = v3/4. */
+    uint64_t pfr0;
+    __asm__ __volatile__("mrs %0, id_aa64pfr0_el1" : "=r"(pfr0));
+#ifdef KENGA_GICV3
+    gic_version = (int)((pfr0 >> 24) & 0xF) ? 3 : 2;   /* SM6125: v3 */
+#else
+    gic_version = 2;   /* проверенный путь (QEMU virt gic-version=2) */
+#endif
+
+    if (gic_version >= 3) {
+        /* --- GICv3 (SM6125, QEMU gic-version=3) --- */
+        /* ICC_SRE_EL1.SRE = 1 (sysreg-режим интерфейса) */
+        uint64_t sre;
+        __asm__ __volatile__("mrs %0, icc_sre_el1" : "=r"(sre));
+        if (!(sre & 1)) {
+            __asm__ __volatile__("msr icc_sre_el1, %0" : : "r"((uint64_t)1));
+            __asm__ __volatile__("isb");
+            __asm__ __volatile__("mrs %0, icc_sre_el1" : "=r"(sre));
+        }
+        gic_sre_ok = (sre & 1) ? 1 : 0;
+
+        /* GICD: disable, затем enable Group1NS */
+        mmio_write32(GICD_CTLR, 0);
+        for (uint32_t i = 0; i < 32; i++) {
+            mmio_write32(GICD_ICENABLER + 4 * i, 0xFFFFFFFFu);
+            mmio_write32(GICD_ICPENDR + 4 * i, 0xFFFFFFFFu);
+        }
+        for (uint32_t i = 0; i < 128; i++) {   /* приоритет 0xA0 всем */
+            mmio_write32(GICD_IPRIORITYR + 4 * i, 0xA0A0A0A0u);
+        }
+        mmio_write32(GICD_ISENABLER + 4 * (IRQ_VTIMER / 32), 1u << (IRQ_VTIMER % 32));
+        mmio_write32(GICD_CTLR, 2u);           /* EnableG1NS */
+
+        /* GICR CPU0 (virt: 0x080A0000): разбудить редистрибьютор.
+           MMIO доступ через identity-map (raw PA), как GICv2. */
+        volatile uint32_t* gicr = (volatile uint32_t*)(uintptr_t)(GICR_BASE_VA);
+        for (int spin = 0; spin < 1000000; spin++) {
+            if (!(gicr[GICR_WAKER / 4] & (1u << 1))) break;   /* ProcessorSleep=0 */
+            gicr[GICR_WAKER / 4] &= ~(1u << 1);
+        }
+        gicr[GICR_IGROUPR0 / 4] = 0xFFFFFFFFu;            /* всё в Group1NS */
+        gicr[GICR_ISENABLER / 4 + (IRQ_VTIMER / 32)] = 1u << (IRQ_VTIMER % 32);
+        {
+            volatile uint8_t* pr = (volatile uint8_t*)(uintptr_t)
+                ((uintptr_t)gicr + GICR_IPRIORITYR + IRQ_VTIMER);
+            *pr = 0xA0;
+        }
+
+        /* CPU-интерфейс: PMR + Group1 enable */
+        __asm__ __volatile__("msr icc_pmr_el1, %0" : : "r"((uint64_t)0xFF));
+        __asm__ __volatile__("msr icc_igrpen1_el1, %0" : : "r"((uint64_t)1));
+        __asm__ __volatile__("isb");
+        return 1;
+    }
+
+    /* --- GICv2: дистрибьютор + CPU-интерфейс (QEMU gic-version=2, RPi) --- */
     uint32_t typer = mmio_read32(GICD_TYPER);
     uint32_t nlines = (typer & 0x1F) + 1;   /* группы по 32 INTID */
     mmio_write32(GICD_CTLR, 0);
