@@ -42,6 +42,9 @@ def collect(root):
     entries["pkg-notes.kpkg"] = NL.join([
         "name=Блокнот", "version=0.9.0",
         "desc=Текстовые заметки в агента-окне", "entry=notes", ""]).encode()
+    vdtb = os.path.join(root, "build", "a64", "virt.dtb")
+    if os.path.isfile(vdtb):
+        entries["virt.dtb"] = open(vdtb, "rb").read()
     hello = os.path.join(root, "build", "user", "hello.elf")
     if os.path.isfile(hello):
         entries["user-hello.elf"] = open(hello, "rb").read()

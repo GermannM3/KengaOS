@@ -53,6 +53,12 @@ if [[ ! -f "$LIMINE_DIR/BOOTAA64.EFI" ]]; then
 fi
 [[ -f "$LIMINE_DIR/BOOTAA64.EFI" ]] || { echo "error: BOOTAA64.EFI not found" >&2; exit 1; }
 
+# --- virt.dtb: реальный device tree QEMU virt (для FDT-парсера) ---
+VDTB="$BUILD_DIR/virt.dtb"
+if [[ ! -f "$VDTB" ]]; then
+    "$QEMU" -M virt,highmem-ecam=off,dumpdtb="$BUILD_DIR/virt.dtb" -cpu cortex-a72 -m 512M -display none > /dev/null 2>&1 || true
+fi
+
 # --- initrd (как на x86) ---
 PY=""
 for cand in python python3 py; do

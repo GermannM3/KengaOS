@@ -154,7 +154,11 @@ if [[ -f "$KERNEL_DIR/kf_prophet.c" ]]; then
     eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_prophet.c\" -o \"$BUILD_DIR/kf_prophet.o\""
 fi
 
-log "4h4/7" "Building user sample (user/hello.c -> hello.elf) ($CC)"
+log "4h38/7" "Compiling fdt stub (x86) ($CC)"
+if [[ -f "$KERNEL_DIR/fdt_stub.c" ]]; then
+    eval "$CC -c $CFLAGS \"$KERNEL_DIR/fdt_stub.c\" -o \"$BUILD_DIR/fdt_stub.o\""
+fi
+
 mkdir -p "$BUILD_DIR/user"
 if command -v clang >/dev/null 2>&1; then
     clang --target=x86_64-elf -ffreestanding -c "$ROOT/user/hello.c"         -o "$BUILD_DIR/user/hello.o"
@@ -241,6 +245,7 @@ if [[ -f "$BUILD_DIR/kf_pkg.o" ]]; then OBJS+=("$BUILD_DIR/kf_pkg.o"); fi
 if [[ -f "$BUILD_DIR/kf_user.o" ]]; then OBJS+=("$BUILD_DIR/kf_user.o"); fi
 if [[ -f "$BUILD_DIR/kf_prophet.o" ]]; then OBJS+=("$BUILD_DIR/kf_prophet.o"); fi
 if [[ -f "$BUILD_DIR/kf_user_asm.o" ]]; then OBJS+=("$BUILD_DIR/kf_user_asm.o"); fi
+if [[ -f "$BUILD_DIR/fdt_stub.o" ]]; then OBJS+=("$BUILD_DIR/fdt_stub.o"); fi
 if [[ -f "$BUILD_DIR/kf_time.o" ]]; then OBJS+=("$BUILD_DIR/kf_time.o"); fi
 if [[ -f "$BUILD_DIR/kf_hw.o" ]]; then OBJS+=("$BUILD_DIR/kf_hw.o"); fi
 if [[ -f "$BUILD_DIR/kf_power.o" ]]; then OBJS+=("$BUILD_DIR/kf_power.o"); fi

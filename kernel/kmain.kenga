@@ -24,6 +24,7 @@ import "../kenga-desktop/src/platform/kernel_bridge.kenga";
 @intrinsic fn vfs_init_rd(addr: i64, size: i64) -> i64;
 @intrinsic fn vfs_version_addr() -> i64;
 @intrinsic fn user_boot_test() -> i64;
+@intrinsic fn fdt_boot_test() -> i64;
 @intrinsic fn timer_init() -> i64;
 @intrinsic fn disk_init() -> i64;
 @intrinsic fn disk_sectors() -> i64;
@@ -319,6 +320,12 @@ fn main() -> i64 {
     kp_msg("KengaOS", "SHELL READY");
     kp_msg("KengaOS", "PROC READY");
 
+    let fd: i64 = fdt_boot_test();
+    if fd == 1 {
+        kp_msg("KengaOS", "FDT PARSED");
+    } else {
+        kp_msg("KengaOS", "FDT NONE");
+    }
     timer_init();
 
     let go: i64 = gui_init();   /* hardware bridge: kbd/con/proc/mouse, sti */

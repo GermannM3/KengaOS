@@ -209,6 +209,9 @@ int64_t k_user_boot_test(void);
 int64_t k_user_exec_vfs(const char* name);
 int64_t k_user_run(int64_t entry);
 
+/* FDT/DTB (aarch64; x86 — заглушка). */
+int64_t k_fdt_boot_test(void);
+
 /* Пророк — системный сервис предсказания (kernel/kf_prophet.c),
    мост десктопа (kf_proc.c). */
 int64_t k_kd_prophet_tick(int64_t mx, int64_t my, int64_t app);
