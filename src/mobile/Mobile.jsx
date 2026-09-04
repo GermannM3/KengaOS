@@ -39,7 +39,12 @@ const useKernel = (booted) => {
   return k;
 };
 
-const fmt = (s) => [3600, 60].reduce((a, m) => { const r = a % m; a = (a - r) / m; return [...a, r]; }, [s % 60]).map(n => String(n).padStart(2, '0')).join(':');
+const fmt = (s) => {
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return [h, m, sec].map((n) => String(n).padStart(2, "0")).join(":");
+};
 
 /* ---------- обои: база + два дрейфующих glow + vignette ---------- */
 
@@ -229,8 +234,10 @@ const Launcher = ({ onOpen, onClose }) => {
 /* ---------- корень ---------- */
 
 const Mobile = () => {
-  const [booted, setBooted] = useState(false);
-  const [locked, setLocked] = useState(true);
+  const skip = typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).has('skip');
+  const [booted, setBooted] = useState(skip);
+  const [locked, setLocked] = useState(!skip);
   const [launcher, setLauncher] = useState(false);
   const [openApp, setOpenApp] = useState(null);
   const k = useKernel(booted);
