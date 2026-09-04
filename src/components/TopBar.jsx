@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-const TopBar = ({ ramPct, cpuPct, uptime }) => {
+const TopBar = ({ ramPct, cpuPct, uptime, onMenu }) => {
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -14,7 +14,7 @@ const TopBar = ({ ramPct, cpuPct, uptime }) => {
   return (
     <div id="topbar" className="fixed top-0 left-0 right-0 h-[38px] z-[90] flex items-center justify-between px-[10px] bg-[rgba(7,10,19,0.55)] backdrop-blur-[20px] saturate-[140%] border-b border-white/[0.06]">
       <div className="flex items-center gap-2">
-        <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[#cfd8f2] hover:bg-white/[0.1] hover:text-white transition-all cursor-pointer border-none bg-transparent" title="Лаунчер приложений">
+        <button onClick={onMenu} className="w-7 h-7 rounded-lg flex items-center justify-center text-[#cfd8f2] hover:bg-white/[0.1] hover:text-white transition-all cursor-pointer border-none bg-transparent" title="Лаунчер приложений">
           <svg viewBox="0 0 48 48" width="20" height="20">
             <defs>
               <linearGradient id="lgTop" x1="0" y1="0" x2="1" y2="1">

@@ -93,7 +93,7 @@ const App = () => {
     <div id="desktop" className="relative w-full h-full overflow-hidden">
       <Wallpaper wallIdx={wallIdx} />
       
-      <TopBar ramPct={Math.round(ramPct)} cpuPct={Math.round(cpuPct)} uptime={uptime} />
+      <TopBar ramPct={Math.round(ramPct)} cpuPct={Math.round(cpuPct)} uptime={uptime} onMenu={() => setLauncherOpen(true)} />
       
       <Dock activeApp={activeApp} onAppClick={openApp} />
       

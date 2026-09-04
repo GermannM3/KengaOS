@@ -40,11 +40,49 @@ const useKernel = (booted) => {
 };
 
 const fmt = (s) => {
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    const sec = s % 60;
-    return [h, m, sec].map((n) => String(n).padStart(2, "0")).join(":");
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return [h, m, sec].map((n) => String(n).padStart(2, "0")).join(":");
 };
+
+/* ---------- иконки телефонного дока (трубка, смс, браузер, камера) ---------- */
+
+const IconPhone = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.2a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.8.7a2 2 0 0 1 1.7 2z" />
+  </svg>
+);
+const IconMsg = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.4 8.6 8.6 0 0 1-3.8-.9L3 21l2-5.3a8.4 8.4 0 1 1 16-4.2z" />
+  </svg>
+);
+const IconBrowser = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="9" />
+    <path d="M3 12h18M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18zM12 3a14 14 0 0 0 0 18a14 14 0 0 0 0-18z" />
+  </svg>
+);
+const IconCamera = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+    <circle cx="12" cy="13" r="4" />
+  </svg>
+);
+const IconBack = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M19 12H5M12 19l-7-7 7-7" />
+  </svg>
+);
+
+/* телефонные приложения дока (v1 — заглушки до порта в Kenga) */
+const PHONE_DOCK = [
+  { id: 'phone', name: 'Телефон', icon: <IconPhone /> },
+  { id: 'messages', name: 'Сообщения', icon: <IconMsg /> },
+  { id: 'browser', name: 'Браузер', icon: <IconBrowser /> },
+  { id: 'camera', name: 'Камера', icon: <IconCamera /> },
+];
 
 /* ---------- обои: база + два дрейфующих glow + vignette ---------- */
 
@@ -58,10 +96,14 @@ const Wallpaper = () => (
   </div>
 );
 
-/* ---------- статусбар ---------- */
+/* ---------- статусбар (тап/драг — шторка) ---------- */
 
-const StatusBar = ({ k }) => (
-  <div className="flex items-center justify-between px-5 pt-3 pb-1 text-white/70">
+const StatusBar = ({ k, onShade }) => (
+  <div
+    className="flex cursor-pointer items-center justify-between px-5 pt-3 pb-1 text-white/70 transition hover:text-white/90"
+    onClick={onShade}
+    onTouchStart={(e) => { e.stopPropagation(); onShade(); }}
+  >
     <span className="mono text-[11px] tracking-wide">{k.now.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
     <div className="flex items-center gap-2">
       <span className="mono text-[9px] text-white/40">KENGAOS</span>
@@ -70,6 +112,59 @@ const StatusBar = ({ k }) => (
     </div>
   </div>
 );
+
+/* ---------- шторка быстрых настроек ---------- */
+
+const Shade = ({ open, onClose }) => {
+  const [toggles, setToggles] = useState({ wifi: true, bt: false, flash: false, air: false });
+  const [bright, setBright] = useState(70);
+  const tgl = (k) => setToggles(t => ({ ...t, [k]: !t[k] }));
+  const tile = (k, label, on) => (
+    <button
+      onClick={() => tgl(k)}
+      className={`flex flex-col items-center gap-1.5 rounded-2xl px-3 py-3 transition active:scale-95 ${
+        on ? 'bg-accent text-white' : 'bg-white/[0.06] text-white/50'}`}
+    >
+      <span className="h-5 w-5">{label}</span>
+      <span className="text-[9px]">{k === 'wifi' ? 'Wi-Fi' : k === 'bt' ? 'BT' : k === 'flash' ? 'Фонарь' : 'Полёт'}</span>
+    </button>
+  );
+  const icoWifi = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 12a10 10 0 0 1 14 0M8.5 15.5a5 5 0 0 1 7 0M2 8.5a15 15 0 0 1 20 0" /><circle cx="12" cy="19" r="1" fill="currentColor" /></svg>;
+  const icoBt = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6.5 6.5l11 11L12 23V1l5.5 5.5-11 11" /></svg>;
+  const icoFlash = <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" /></svg>;
+  const icoAir = <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 16v-2l-8-5V3.5A1.5 1.5 0 0 0 11.5 2 1.5 1.5 0 0 0 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" /></svg>;
+  return (
+    <div className="animate-fade-in absolute inset-x-0 top-0 z-40">
+      <div className="glass m-2 rounded-3xl p-4 shadow-2xl">
+        <div className="flex items-center justify-between px-1 pb-3">
+          <span className="mono text-[10px] tracking-wider text-white/50">БЫСТРЫЕ НАСТРОЙКИ</span>
+          <button onClick={onClose} className="mono text-[10px] text-white/40 hover:text-white/80">закрыть ✕</button>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {tile('wifi', icoWifi, toggles.wifi)}
+          {tile('bt', icoBt, toggles.bt)}
+          {tile('flash', icoFlash, toggles.flash)}
+          {tile('air', icoAir, toggles.air)}
+        </div>
+        <div className="mt-4 flex items-center gap-3 px-1">
+          <span className="text-[10px] text-white/40">☀</span>
+          <input
+            type="range" min="10" max="100" value={bright}
+            onChange={(e) => setBright(Number(e.target.value))}
+            className="h-1.5 flex-1 appearance-none rounded-full bg-white/15 accent-[var(--accent)]"
+            style={{ background: `linear-gradient(90deg, var(--accent) ${bright}%, rgba(255,255,255,0.15) ${bright}%)` }}
+          />
+          <span className="text-[10px] text-white/40">☀☀</span>
+        </div>
+        <div className="mt-4 flex items-center justify-between rounded-2xl bg-white/[0.04] px-4 py-2.5">
+          <span className="mono text-[10px] text-white/45">Яркость {bright}%</span>
+          <span className="mono text-[10px] text-accent2">{toggles.wifi ? 'wifi: on' : 'wifi: off'}</span>
+        </div>
+      </div>
+      <button onClick={onClose} className="mx-auto mt-2 block h-1.5 w-28 rounded-full bg-white/30" aria-label="закрыть шторку" />
+    </div>
+  );
+};
 
 /* ---------- lock screen ---------- */
 
@@ -138,15 +233,20 @@ const Widget = ({ k }) => (
   </div>
 );
 
-/* ---------- приложение на весь экран ---------- */
+/* ---------- приложение на весь экран (без светофора) ---------- */
 
 const AppSheet = ({ app, onClose }) => (
   <div className="animate-pop-in absolute inset-0 z-40 flex flex-col">
     <div className="glass m-2 flex flex-1 flex-col overflow-hidden rounded-3xl">
-      <div className="flex items-center gap-2 border-b border-white/[0.06] px-4 py-3">
-        <button onClick={onClose} className="h-3 w-3 rounded-full bg-[#ff5f57] active:scale-90" aria-label="закрыть" />
-        <span className="h-3 w-3 rounded-full bg-white/15" />
-        <span className="ml-2 flex items-center gap-2 text-sm text-white/85">
+      <div className="flex items-center gap-3 border-b border-white/[0.06] px-4 py-3">
+        <button
+          onClick={onClose}
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.06] text-white/70 transition hover:bg-white/[0.12] active:scale-90"
+          aria-label="назад"
+        >
+          <span className="h-4 w-4"><IconBack /></span>
+        </button>
+        <span className="flex items-center gap-2 text-sm text-white/85">
           <span className="h-4 w-4 text-accent">{ICONS[app.icon]}</span>
           {app.name}
         </span>
@@ -166,11 +266,11 @@ const AppSheet = ({ app, onClose }) => (
 
 /* ---------- домашний экран ---------- */
 
-const Home = ({ k, onOpen, onLauncher }) => {
-  const dock = ['agents', 'chat', 'terminal', 'files'];
+const Home = ({ k, onOpen, onLauncher, onShade }) => {
+  const dock = PHONE_DOCK;
   return (
     <div className="animate-fade-in absolute inset-0 flex flex-col">
-      <StatusBar k={k} />
+      <StatusBar k={k} onShade={onShade} />
       <div className="px-4 pt-2"><Widget k={k} /></div>
       <div className="grid grid-cols-4 gap-x-2 gap-y-5 px-4 pt-6">
         {APPS.map(app => (
@@ -183,15 +283,18 @@ const Home = ({ k, onOpen, onLauncher }) => {
         ))}
       </div>
       <div className="mt-auto px-4 pb-2">
-        <div className="glass flex items-center justify-around rounded-3xl px-2 py-3">
-          {dock.map(id => {
-            const app = APPS.find(a => a.id === id);
-            return (
-              <button key={id} onClick={() => onOpen(app)} className="text-accent transition active:scale-90">
-                <span className="h-7 w-7">{ICONS[app.icon]}</span>
-              </button>
-            );
-          })}
+        <div className="glass flex items-center justify-around rounded-3xl px-3 py-3.5">
+          {dock.map(a => (
+            <button
+              key={a.id}
+              onClick={() => onOpen({ id: a.id, name: a.name, icon: a.icon, tag: 'v1' })}
+              className="flex flex-col items-center gap-1 text-accent transition active:scale-90"
+              aria-label={a.name}
+            >
+              <span className="h-6 w-6">{a.icon}</span>
+              <span className="text-[8px] text-white/45">{a.name}</span>
+            </button>
+          ))}
         </div>
         <button onClick={onLauncher} className="mx-auto mt-3 block h-1.5 w-28 rounded-full bg-white/30 active:bg-white/60" aria-label="лаунчер" />
       </div>
@@ -240,10 +343,12 @@ const Mobile = () => {
   const [locked, setLocked] = useState(!skip);
   const [launcher, setLauncher] = useState(false);
   const [openApp, setOpenApp] = useState(null);
+  const [shade, setShade] = useState(
+    new URLSearchParams(window.location.search).has('shade'));
   const k = useKernel(booted);
 
-  const open = (app) => { setLauncher(false); setOpenApp(app); };
-  const home = () => { setOpenApp(null); setLauncher(false); };
+  const open = (app) => { setLauncher(false); setShade(false); setOpenApp(app); };
+  const home = () => { setOpenApp(null); setLauncher(false); setShade(false); };
 
   return (
     <div className="relative mx-auto h-screen max-w-[430px] overflow-hidden">
@@ -252,9 +357,10 @@ const Mobile = () => {
         <>
           {locked
             ? <LockScreen k={k} onUnlock={() => setLocked(false)} />
-            : <Home k={k} onOpen={open} onLauncher={() => setLauncher(true)} />}
+            : <Home k={k} onOpen={open} onLauncher={() => setLauncher(true)} onShade={() => setShade(true)} />}
           {launcher && <Launcher onOpen={open} onClose={home} />}
           {openApp && <AppSheet app={openApp} onClose={home} />}
+          {shade && <Shade open={shade} onClose={() => setShade(false)} />}
         </>
       )}
       {!booted && (
