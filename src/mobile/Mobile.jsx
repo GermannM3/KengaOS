@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ICONS, APPS } from '../components/Dock.jsx';
-import TerminalWindow from '../components/TerminalWindow.jsx';
+import { BROWSER_PAGES } from '../components/BrowserApp.jsx';
 
 /* KengaOS Mobile — тач-оболочка референса (glass / воздушная).
    Одно «ядро» (kernel bridge внизу файла) — та же поверхность, что у десктопа:
@@ -233,36 +233,164 @@ const Widget = ({ k }) => (
   </div>
 );
 
-/* ---------- приложение на весь экран (без светофора) ---------- */
+/* ---------- экранная клавиатура (ЙЦУКЕН, glass) ---------- */
 
-const AppSheet = ({ app, onClose }) => (
-  <div className="animate-pop-in absolute inset-0 z-40 flex flex-col">
-    <div className="glass m-2 flex flex-1 flex-col overflow-hidden rounded-3xl">
-      <div className="flex items-center gap-3 border-b border-white/[0.06] px-4 py-3">
+const KB_ROWS = [
+  ['й', 'ц', 'у', 'к', 'е', 'н', 'г', 'ш', 'щ', 'з', 'х', 'ъ'],
+  ['ф', 'ы', 'в', 'а', 'п', 'р', 'о', 'л', 'д', 'ж', 'э'],
+  ['я', 'ч', 'с', 'м', 'и', 'т', 'ь', 'б', 'ю', '.'],
+];
+
+const SoftKeyboard = ({ onKey, onBack, onEnter }) => {
+  const [shift, setShift] = useState(false);
+  const tap = (c) => { onKey(shift ? c.toUpperCase() : c); if (shift) setShift(false); };
+  return (
+    <div className="mx-1 mb-1 shrink-0 rounded-2xl border border-white/[0.08] bg-[rgba(10,14,26,0.55)] p-1.5 backdrop-blur-xl">
+      {KB_ROWS.map((row, i) => (
+        <div key={i} className="mb-1.5 flex gap-1" style={{ padding: '0 ' + (i === 1 ? 18 : 4) + 'px' }}>
+          {row.map(c => (
+            <button
+              key={c} onClick={() => tap(c)}
+              className="flex h-9 flex-1 items-center justify-center rounded-md bg-white/[0.07] text-[13px] text-white/85 transition active:scale-90 active:bg-white/20"
+            >{shift ? c.toUpperCase() : c}</button>
+          ))}
+        </div>
+      ))}
+      <div className="flex gap-1 px-1">
         <button
-          onClick={onClose}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.06] text-white/70 transition hover:bg-white/[0.12] active:scale-90"
-          aria-label="назад"
-        >
-          <span className="h-4 w-4"><IconBack /></span>
-        </button>
-        <span className="flex items-center gap-2 text-sm text-white/85">
-          <span className="h-4 w-4 text-accent">{ICONS[app.icon]}</span>
-          {app.name}
-        </span>
-        <span className="badge ml-auto hidden px-1.5 py-0.5 text-[9px] sm:block">{app.tag}</span>
-      </div>
-      <div className="flex-1 overflow-auto">
-        {app.id === 'terminal'
-          ? <TerminalWindow />
-          : <div className="flex h-full flex-col items-center justify-center gap-3 text-white/35">
-              <span className="h-10 w-10 text-accent/60">{ICONS[app.icon]}</span>
-              <span className="mono text-[11px]">модуль «{app.name}» · этап порта в Kenga</span>
-            </div>}
+          onClick={() => setShift(s => !s)}
+          className={`h-9 w-12 shrink-0 rounded-md text-[13px] transition active:scale-90 ${shift ? 'bg-accent text-white' : 'bg-white/[0.07] text-white/60'}`}
+        >⇧</button>
+        <button onClick={() => onKey(' ')} className="h-9 flex-1 rounded-md bg-white/[0.07] text-[10px] text-white/50 transition active:scale-95">пробел</button>
+        <button onClick={onBack} className="h-9 w-12 shrink-0 rounded-md bg-white/[0.07] text-[13px] text-white/60 transition active:scale-90">⌫</button>
+        <button onClick={onEnter} className="h-9 w-12 shrink-0 rounded-md bg-accent/80 text-[13px] text-white transition active:scale-90">⏎</button>
       </div>
     </div>
-  </div>
-);
+  );
+};
+
+/* ---------- браузер v1: внутренние страницы kenga:// (общие с десктопом) ---------- */
+
+const BrowserAppM = () => {
+  const [url, setUrl] = useState('kenga://home');
+  const [editing, setEditing] = useState(false);
+  const page = BROWSER_PAGES[url];
+  return (
+    <div className="flex h-full flex-col">
+      <button onClick={() => setEditing(true)} className="glass mx-3 mt-2 flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-left">
+        <span className="text-[12px] text-accent2">⌕</span>
+        <span className={`flex-1 truncate text-[12px] ${editing ? 'text-accent' : 'text-white/80'}`}>{url}</span>
+        {!editing && <span className="mono text-[9px] text-white/30">править</span>}
+      </button>
+      {editing ? (
+        <SoftKeyboard
+          onKey={(c) => setUrl(u => u + c)}
+          onBack={() => setUrl(u => u.slice(0, -1))}
+          onEnter={() => setEditing(false)}
+        />
+      ) : page ? (
+        <div className="flex-1 overflow-auto px-5 pb-5">
+          <div className="disp pt-3 text-lg text-white/90">{page.title}</div>
+          <p className="mt-2 text-[12px] leading-relaxed text-white/55">{page.text}</p>
+          <div className="mt-4 space-y-2">
+            {page.links.map(([u, label]) => (
+              <button
+                key={u} onClick={() => setUrl(u)}
+                className="glass flex w-full items-center rounded-xl px-4 py-3 text-left text-[12px] text-accent transition active:scale-[0.98]"
+              >
+                {label}<span className="mono ml-auto text-[9px] text-white/30">{u}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 px-8 text-center">
+          <span className="h-8 w-8 text-accent/50"><IconBrowser /></span>
+          <div className="mono text-[10px] text-white/40">страница не найдена</div>
+          <div className="text-[10px] leading-relaxed text-white/30">
+            внешние сайты — после сетевого стека в ядре. внутренние: kenga://home
+          </div>
+          <button onClick={() => setUrl('kenga://home')} className="glass mt-2 rounded-lg px-3 py-1.5 text-[11px] text-accent">на главную</button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ---------- терминал (мобильный): экранная клавиатура + консоль ---------- */
+
+const TermLite = () => {
+  const [lines, setLines] = useState([
+    'KengaOS mobile shell · kernel bridge (симуляция)',
+    'команды: help, uptime, mem, agents, clear',
+  ]);
+  const [cur, setCur] = useState('');
+  const log = useRef(null);
+  useEffect(() => { if (log.current) log.current.scrollTop = log.current.scrollHeight; }, [lines]);
+  const run = (cmd) => {
+    const c = cmd.trim().toLowerCase();
+    if (c === 'clear') { setLines([]); return; }
+    const out = {
+      help: 'help, uptime, mem, agents, clear',
+      uptime: 'uptime: ' + fmt(Math.floor(performance.now() / 1000)),
+      mem: 'ram 41% · kernel bridge (симуляция; реальное ядро — в QEMU)',
+      agents: 'агенты: ui-agent, model-agent, kenga-agent, vfs',
+    }[c];
+    setLines(ls => [...ls, '» ' + cmd, out || 'неизвестная команда: ' + c]);
+  };
+  return (
+    <div className="flex h-full flex-col">
+      <div ref={log} className="mono flex-1 overflow-auto px-4 py-3 text-[11px] leading-relaxed text-white/70">
+        {lines.map((l, i) => (
+          <div key={i} className={l.startsWith('»') ? 'text-accent2' : ''}>{l}</div>
+        ))}
+      </div>
+      <div className="glass mx-3 mb-1 flex shrink-0 items-center rounded-lg px-3 py-1.5">
+        <span className="mono text-[11px] text-accent">»</span>
+        <span className="mono flex-1 truncate pl-2 text-[11px] text-white/85">{cur}<span className="animate-blink">▌</span></span>
+      </div>
+      <SoftKeyboard
+        onKey={(c) => setCur(s => s + c)}
+        onBack={() => setCur(s => s.slice(0, -1))}
+        onEnter={() => { if (cur.trim()) run(cur); setCur(''); }}
+      />
+    </div>
+  );
+};
+
+/* ---------- приложение на весь экран (без светофора) ---------- */
+
+const AppSheet = ({ app, onClose }) => {
+  const icon = typeof app.icon === 'string' ? ICONS[app.icon] : app.icon;
+  return (
+    <div className="animate-pop-in absolute inset-0 z-40 flex flex-col">
+      <div className="glass m-2 flex flex-1 flex-col overflow-hidden rounded-3xl">
+        <div className="flex items-center gap-3 border-b border-white/[0.06] px-4 py-3">
+          <button
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.06] text-white/70 transition hover:bg-white/[0.12] active:scale-90"
+            aria-label="назад"
+          >
+            <span className="h-4 w-4"><IconBack /></span>
+          </button>
+          <span className="flex items-center gap-2 text-sm text-white/85">
+            <span className="h-4 w-4 text-accent">{icon}</span>
+            {app.name}
+          </span>
+          <span className="badge ml-auto hidden px-1.5 py-0.5 text-[9px] sm:block">{app.tag}</span>
+        </div>
+        <div className="min-h-0 flex-1 overflow-hidden">
+          {app.id === 'terminal' ? <TermLite />
+            : app.id === 'browser' ? <BrowserAppM />
+            : <div className="flex h-full flex-col items-center justify-center gap-3 text-white/35">
+                <span className="h-10 w-10 text-accent/60">{icon}</span>
+                <span className="mono text-[11px]">модуль «{app.name}» · этап порта в Kenga</span>
+              </div>}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 /* ---------- домашний экран ---------- */
 

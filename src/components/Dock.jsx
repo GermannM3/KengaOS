@@ -42,6 +42,12 @@ const ICONS = {
       <circle cx="12" cy="12" r="9" />
       <path d="M12 10.8V17M12 7v.2" />
     </svg>
+  ),
+  browser: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18z" />
+    </svg>
   )
 };
 
@@ -49,6 +55,7 @@ const APPS = [
   { id: 'agents', name: 'Агенты', icon: 'agents', tag: 'CAP · IPC' },
   { id: 'chat', name: 'Чат', icon: 'chat', tag: 'agent-native' },
   { id: 'terminal', name: 'Терминал', icon: 'terminal', tag: 'shell · UTF-8' },
+  { id: 'browser', name: 'Браузер', icon: 'browser', tag: 'kenga://' },
   { id: 'monitor', name: 'Монитор', icon: 'monitor', tag: 'PIT 100 Гц' },
   { id: 'files', name: 'Файлы', icon: 'files', tag: 'VFS + initrd' },
   { id: 'settings', name: 'Настройки', icon: 'settings', tag: 'system' },
