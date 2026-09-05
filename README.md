@@ -75,6 +75,28 @@ KengaOS получает абсолютные координаты курсор�
 
 ## Скриншоты
 
+### Оболочки (UI-прототипы: десктоп + мобилка)
+
+Десктоп-оболочка: окна со стеклом, dock, браузер (`kenga://` + внешние
+сайты), терминал. Темы: Полярная / Синяя волна / Зелёная волна
+(переключатель в topbar):
+
+![KengaOS desktop shell](docs/shots/desktop.png)
+
+Мобильная оболочка (одно ядро, другой UI): домашний экран, звонилка
+с набором номера, браузер. Темы переключаются в шторке:
+
+<p align="center">
+  <img src="docs/shots/mobile-home.png" width="250" />
+  <img src="docs/shots/mobile-phone.png" width="250" />
+  <img src="docs/shots/mobile-browser.png" width="250" />
+</p>
+
+Постановочные кадры сняты через URL-параметры: `?skip`, `?theme=blue|green`,
+`?app=terminal,browser` (десктоп), `?app=phone&num=…` (мобилка).
+
+### Ядро (QEMU, framebuffer)
+
 Экран загрузки ядра (linear framebuffer, рисуется ядром на Kenga):
 
 ![Экран загрузки KengaOS](docs/boot-fb.png)

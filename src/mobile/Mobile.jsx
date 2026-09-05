@@ -3,7 +3,10 @@ import { ICONS, APPS } from '../components/Dock.jsx';
 import { BROWSER_PAGES, HOME, parseAddr } from '../components/BrowserApp.jsx';
 import { THEMES, getTheme, setTheme, initTheme } from '../theme.js';
 
-initTheme();
+/* URL-параметры: ?skip, ?shade, ?theme=aurora|blue|green, ?app=phone|browser|terminal|… */
+const MOBILE_QS = typeof window !== 'undefined'
+  ? new URLSearchParams(window.location.search) : new URLSearchParams();
+if (MOBILE_QS.get('theme')) setTheme(MOBILE_QS.get('theme')); else initTheme();
 
 /* KengaOS Mobile — тач-оболочка референса (glass / воздушная).
    Одно «ядро» (kernel bridge внизу файла) — та же поверхность, что у десктопа:
@@ -386,7 +389,7 @@ const DIAL_KEYS = [
 let RECENTS = [];   /* журнал за сессию */
 
 const DialerApp = () => {
-  const [num, setNum] = useState('');
+  const [num, setNum] = useState(MOBILE_QS.get('num') || '');
   const [call, setCall] = useState(null);
   const [sec, setSec] = useState(0);
   const [recent, setRecent] = useState(RECENTS);
@@ -607,14 +610,17 @@ const Launcher = ({ onOpen, onClose }) => {
 /* ---------- корень ---------- */
 
 const Mobile = () => {
-  const skip = typeof window !== 'undefined'
-    && new URLSearchParams(window.location.search).has('skip');
+  const skip = MOBILE_QS.has('skip');
   const [booted, setBooted] = useState(skip);
   const [locked, setLocked] = useState(!skip);
   const [launcher, setLauncher] = useState(false);
-  const [openApp, setOpenApp] = useState(null);
-  const [shade, setShade] = useState(
-    new URLSearchParams(window.location.search).has('shade'));
+  const [openApp, setOpenApp] = useState(() => {
+    const id = MOBILE_QS.get('app');
+    if (!id) return null;
+    const src = APPS.find(a => a.id === id) || PHONE_DOCK.find(a => a.id === id);
+    return src ? { id: src.id, name: src.name, icon: src.icon, tag: src.tag || 'v1' } : null;
+  });
+  const [shade, setShade] = useState(MOBILE_QS.has('shade'));
   const k = useKernel(booted);
 
   const open = (app) => { setLauncher(false); setShade(false); setOpenApp(app); };

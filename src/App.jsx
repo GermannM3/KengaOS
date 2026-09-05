@@ -8,12 +8,15 @@ import TopBar from './components/TopBar.jsx';
 import Dock from './components/Dock.jsx';
 import Launcher from './components/Launcher.jsx';
 import BrowserApp from './components/BrowserApp.jsx';
-import { initTheme } from './theme.js';
+import { initTheme, setTheme } from './theme.js';
 
-initTheme();
+/* URL-параметры: ?skip (мимо boot), ?theme=aurora|blue|green, ?app=terminal,browser */
+const DESKTOP_QS = typeof window !== 'undefined'
+  ? new URLSearchParams(window.location.search) : new URLSearchParams();
+if (DESKTOP_QS.get('theme')) setTheme(DESKTOP_QS.get('theme')); else initTheme();
 
 const App = () => {
-  const [booted, setBooted] = useState(false);
+  const [booted, setBooted] = useState(DESKTOP_QS.has('skip'));
   const [launcherOpen, setLauncherOpen] = useState(false);
   const [activeApp, setActiveApp] = useState(null);
   const [windows, setWindows] = useState({});
@@ -56,22 +59,31 @@ const App = () => {
     const app = APPS.find(a => a.id === appId);
     if (!app) return;
 
-    const offset = Object.keys(windows).length * 30;
-    setWindows(prev => ({
-      ...prev,
-      [appId]: {
-        id: appId,
-        title: app.name,
-        icon: ICONS[app.icon],
-        tag: app.tag,
-        position: { x: 280 + offset, y: 80 + offset },
-        size: { w: appId === 'terminal' ? '640px' : appId === 'monitor' ? '620px' : '560px', h: appId === 'terminal' ? '420px' : appId === 'monitor' ? '480px' : '470px' },
-        content: appId === 'terminal' ? <TerminalWindow /> : appId === 'browser' ? <BrowserApp /> : <div className="p-4 text-white/60">Содержимое окна: {app.name}</div>
-      }
-    }));
+    setWindows(prev => {
+      const offset = Object.keys(prev).length * 110;
+      return {
+        ...prev,
+        [appId]: {
+          id: appId,
+          title: app.name,
+          icon: ICONS[app.icon],
+          tag: app.tag,
+          position: { x: 280 + offset, y: 80 + offset },
+          size: { w: appId === 'terminal' ? '640px' : appId === 'monitor' ? '620px' : '560px', h: appId === 'terminal' ? '420px' : appId === 'monitor' ? '480px' : '470px' },
+          content: appId === 'terminal' ? <TerminalWindow /> : appId === 'browser' ? <BrowserApp /> : <div className="p-4 text-white/60">Содержимое окна: {app.name}</div>
+        }
+      };
+    });
     setActiveApp(appId);
     setZIndex(prev => prev + 1);
   };
+
+  // ?app=terminal,browser — открыть окна сразу (демо/скриншоты)
+  React.useEffect(() => {
+    if (!booted) return;
+    (DESKTOP_QS.get('app') || '').split(',').map(s => s.trim()).filter(Boolean)
+      .forEach(id => openApp(id));
+  }, [booted]);
 
   const closeWindow = (appId) => {
     setWindows(prev => {
