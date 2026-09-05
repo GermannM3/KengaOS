@@ -136,33 +136,34 @@ Standalone HTML-preview дизайн-системы находится в
 | **Окна (CAP_UI)** | есть | Агенты с `CAP_UI` могут создавать окна через IPC (`ui <title>|<text>`); основной Command Center не создаёт legacy floating windows |
 | **Agent chat** | есть | Клавиатурный ввод в input-бар → IPC агенту → ответ в собственном окне агента |
 | **Живой лог** | есть | Панель событий агентов (IPC-трафик) над input-баром |
+| **Магазин .kpkg** | есть | Пакеты в initrd, реестр, установка из input-бара, CI-тест |
+| **Ring 3 приложения** | есть | Пользовательские ELF (user-страницы, GDT/TSS, `int 0x80` write/exit) |
+| **xHCI USB** | QEMU | Тач-планшет на x86_64 и aarch64; на живом железе не проверен |
+| **Prophet (v1)** | есть | Пророк как системный сервис: память паттернов, surprise, предсказание (kf_prophet.c) |
+| **aarch64** | есть | То же ядро без изменений на ARM64 (QEMU virt, CI-гейт) |
 | VFS + initrd | есть | Виртуальная ФС + initrd через Limine (git-лог, инфо хоста) |
-| Таймер / uptime | есть | PIT 100 Гц, команда `time` |
-| Аппаратура | есть | CPUID (`cpuinfo`), RTC (`date`), память (`mmap`) |
-| Power | есть | `reboot`, `poweroff` |
-| CI/CD | есть | Автосборка ISO + QEMU smoke-тест с проверкой boot, VFS и IPC round-trip |
+| Таймер / uptime | есть | PIT 100 Гц (x86) / generic timer CNTV (ARM64), команда `time` |
+| Аппаратура | есть | CPUID/MIDR (`cpuinfo`), RTC (`date`), память (`mmap`), FDT (ARM64) |
+| Power | есть | `reboot`, `poweroff` (x86: ACPI/PSCI-заглушки) |
+| **UI-оболочки (прототипы)** | есть | Веб-десктоп (окна/док/лаунчер/браузер) + мобилка (экранная клавиатура, браузер, звонилка); темы «Полярная / Синяя волна / Зелёная волна» |
+| CI/CD | есть | 3 джобы: тесты релиза, x86 ISO + QEMU smoke (RING3-гейт), aarch64 smoke (store-тест) |
 | Developer preview | готовится | Рабочий x86_64 ISO; paging-изоляция, сеть и persistent storage ещё в roadmap |
 
 ---
 
 ## Дорожная карта
 
-Фаза 2 — прерывания и планировщик:
-- PIT-таймер и регулярные IRQ
-- Прерывный (timer-driven) планировщик (сейчас — кооперативный)
-- Потоки и IPC-каналы
+Актуальные планы и честный статус — `docs/HONEST-CHECKLIST.md` (разрыв
+видение/реальность) и `docs/PORT-ARM64.md` + `docs/PHONE-TRACK.md` (железо).
+Кратко, ближайшее:
 
-Фаза 3 — процессы и память (частично реализовано в developer-preview):
-- Процессы с изоляцией адресного пространства (paging)
-- Buddy-аллокатор для kernel heap
-- Прерывный (timer-driven) планировщик
-- Init daemon
-
-Фаза 4+ — расширенный функционал:
-- Сетевой стек (TCP/IP)
-- Файловая система (FAT32 / ext2)
-- Desktop environment с window manager
-- Пакетный менеджер
+- **Десктоп до ежедневной пригодности**: xHCI на живом железе →
+  AHCI/NVMe (запись) → ACPI → Wi-Fi.
+- **Kenga-приложения в магазине**: `.kpkg` v2 = Kenga-исходник → ELF в ring 3.
+- **Телефон**: беспроводной adb → mtkclient (POCO M4 Pro, MediaTek) →
+  `fastboot boot kengaos-phone.img` из RAM (без сноса) → чек-лист
+  дисплей/тач/Wi-Fi/BT/модем → только потом установка.
+- **Prophet v2**: память `.km` в ядре, предсказание на системных событиях.
 
 ---
 
@@ -189,23 +190,28 @@ Standalone HTML-preview дизайн-системы находится в
 
 ```
 KengaOS/
-├── kernel/                  # Ядро
+├── kernel/                  # Единое ядро (x86_64 + aarch64)
 │   ├── kmain.kenga         # Основной код (Kenga)
 │   ├── desktop.kenga       # Desktop: event loop, окна, views (Kenga)
 │   ├── ui.kenga            # Chrome десктопа: панели, sidebar (Kenga)
-│   ├── start.S             # Точка входа (Assembly)
+│   ├── start.S             # Точка входа x86_64 (Assembly)
+│   ├── aarch64/            # Арх-слой ARM64: start64.S, vectors, GIC, FDT, xHCI
 │   ├── kf_fb.c             # Framebuffer + консоль
 │   ├── kf_kbd.c            # Клавиатура (PS/2)
 │   ├── kf_mem.c            # Физическая память + heap
 │   ├── kf_proc.c           # Процессы + IPC + окна (CAP_UI)
 │   ├── kf_shell.c          # Интерактивный shell
+│   ├── kf_user.c           # Ring 3: ELF-загрузчик, int 0x80
+│   ├── kf_prophet.c        # Пророк: память паттернов, foresee
+│   ├── kf_pkg.c            # Магазин .kpkg
+│   ├── kf_usb*.c           # USB: xHCI + UHCI + HID
+│   ├── kf_disk.c           # ATA PIO диск (чтение)
 │   ├── intr.c / isr.S      # GDT + IDT + обработчики
-│   ├── sched.c             # Планировщик
-│   ├── linker.ld           # Скрипт компоновщика
-│   └── limine.cfg          # Конфигурация загрузчика
-├── scripts/                # build.sh / build.cmd
-├── docs/                   # Логотип и скриншоты
-├── .github/workflows/      # CI + release
+│   └── linker.ld           # Скрипт компоновщика (x86_64)
+├── src/                    # Оболочки (прототипы): десктоп + мобилка, темы
+├── scripts/                # build.sh (ISO), build-a64.sh, run-a64.sh, mkbootimg.py
+├── docs/                   # Документация: статус, железо, порты
+├── .github/workflows/      # CI (3 джобы) + release
 └── kenga-lang/             # Компилятор Kenga (submodule)
 ```
 
