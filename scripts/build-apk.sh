@@ -11,10 +11,23 @@ AJ="$SDK/platforms/android-35/android.jar"
 WORK="$ROOT/build/apk"
 
 cd "$ROOT"
-npx vite build
+npx vite build --config scripts/vite.apk.mjs
 
 rm -rf "$WORK/assets" "$WORK/classes"; mkdir -p "$WORK/assets" "$WORK/classes"
-cp -r dist/* "$WORK/assets/"
+# инлайн JS+CSS в один mobile.html (file:// в WebView не грузит модуль-чанки)
+python - <<'EOF'
+import re, pathlib
+d = pathlib.Path("dist-apk")
+html = (d/"mobile.html").read_text(encoding="utf-8")
+js  = next(p for p in (d/"assets").iterdir() if p.suffix==".js").read_text(encoding="utf-8")
+css = next(p for p in (d/"assets").iterdir() if p.suffix==".css").read_text(encoding="utf-8")
+html = re.sub(r'<script type="module"[^>]*>\s*</script>', lambda m: '', html)
+html = re.sub(r'<link rel="modulepreload"[^>]*>', lambda m: '', html)
+html = html.replace('</head>', '<style>'+css+'</style></head>')
+html = html.replace('</body>', '<script type="module">'+js.replace('</script>', '<\\/script>')+'</script></body>')
+pathlib.Path("build/apk/assets/mobile.html").write_text(html, encoding="utf-8")
+print("inlined:", len(html), "bytes")
+EOF
 cp "$AJ" "$WORK/android.jar"
 
 javac --release 11 -cp "$WORK/android.jar" -d "$WORK/classes" android/MainActivity.java
