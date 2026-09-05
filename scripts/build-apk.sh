@@ -30,9 +30,10 @@ print("inlined:", len(html), "bytes")
 EOF
 cp "$AJ" "$WORK/android.jar"
 
-javac --release 11 -cp "$WORK/android.jar" -d "$WORK/classes" android/MainActivity.java
+javac --release 11 -encoding UTF-8 -cp "$WORK/android.jar" -d "$WORK/classes" android/MainActivity.java
+"$JAVA_HOME/bin/jar" cf "$WORK/classes.jar" -C "$WORK/classes" . 2>/dev/null || jar cf "$WORK/classes.jar" -C "$WORK/classes" .
 BTWIN=$(cygpath -w "$BT")
-( cd "$BTWIN" && cmd //c "d8.bat --release --lib $(cygpath -w "$WORK/android.jar") --output $(cygpath -w "$WORK") $(cygpath -w "$WORK"/classes/ru/kengaos/shell/*.class)" )
+( cd "$BTWIN" && cmd //c "d8.bat --release --lib $(cygpath -w "$WORK/android.jar") --output $(cygpath -w "$WORK") $(cygpath -w "$WORK/classes.jar")" )
 
 cd "$WORK"
 "$BT/aapt2.exe" link -o base.apk -I android.jar --manifest "$ROOT/android/AndroidManifest.xml" -A assets --min-sdk-version 23 --target-sdk-version 35

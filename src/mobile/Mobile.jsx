@@ -259,20 +259,27 @@ const Widget = ({ k }) => (
   </div>
 );
 
-/* ---------- экранная клавиатура (ЙЦУКЕН, glass) ---------- */
+/* ---------- экранная клавиатура (Ру/En, glass) ---------- */
 
-const KB_ROWS = [
+const KB_RU = [
   ['й', 'ц', 'у', 'к', 'е', 'н', 'г', 'ш', 'щ', 'з', 'х', 'ъ'],
   ['ф', 'ы', 'в', 'а', 'п', 'р', 'о', 'л', 'д', 'ж', 'э'],
-  ['я', 'ч', 'с', 'м', 'и', 'т', 'ь', 'б', 'ю', '.'],
+  ['я', 'ч', 'с', 'м', 'и', 'т', 'ь', 'б', 'ю'],
+];
+const KB_EN = [
+  ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+  ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+  ['z', 'x', 'c', 'v', 'b', 'n', 'm'],
 ];
 
 const SoftKeyboard = ({ onKey, onBack, onEnter }) => {
   const [shift, setShift] = useState(false);
+  const [ru, setRu] = useState(true);
+  const rows = ru ? KB_RU : KB_EN;
   const tap = (c) => { onKey(shift ? c.toUpperCase() : c); if (shift) setShift(false); };
   return (
     <div className="mx-1 mb-1 shrink-0 rounded-2xl border border-white/[0.08] bg-[rgba(10,14,26,0.55)] p-1.5 backdrop-blur-xl">
-      {KB_ROWS.map((row, i) => (
+      {rows.map((row, i) => (
         <div key={i} className="mb-1.5 flex gap-1" style={{ padding: '0 ' + (i === 1 ? 18 : 4) + 'px' }}>
           {row.map(c => (
             <button
@@ -282,14 +289,23 @@ const SoftKeyboard = ({ onKey, onBack, onEnter }) => {
           ))}
         </div>
       ))}
-      <div className="flex gap-1 px-1">
+      <div className="mb-1.5 flex gap-1 px-1">
+        <button onClick={() => tap('.')} className="h-9 w-10 shrink-0 rounded-md bg-white/[0.07] text-[13px] text-white/70 transition active:scale-90">.</button>
+        <button onClick={() => tap(',')} className="h-9 w-10 shrink-0 rounded-md bg-white/[0.07] text-[13px] text-white/70 transition active:scale-90">,</button>
+        <button onClick={() => onKey(' ')} className="h-9 flex-1 rounded-md bg-white/[0.07] text-[10px] text-white/50 transition active:scale-95">пробел</button>
+        <button onClick={onBack} className="h-9 w-11 shrink-0 rounded-md bg-white/[0.07] text-[13px] text-white/60 transition active:scale-90">⌫</button>
+        <button onClick={onEnter} className="h-9 w-11 shrink-0 rounded-md bg-accent/80 text-[13px] text-white transition active:scale-90">⏎</button>
+      </div>
+      <div className="flex gap-1 px-1 pb-0.5">
+        <button
+          onClick={() => setRu(v => !v)}
+          className="h-8 w-14 shrink-0 rounded-md bg-white/[0.07] mono text-[11px] text-accent transition active:scale-90"
+        >{ru ? 'En' : 'Ру'}</button>
         <button
           onClick={() => setShift(s => !s)}
-          className={`h-9 w-12 shrink-0 rounded-md text-[13px] transition active:scale-90 ${shift ? 'bg-accent text-white' : 'bg-white/[0.07] text-white/60'}`}
+          className={`h-8 w-12 shrink-0 rounded-md text-[13px] transition active:scale-90 ${shift ? 'bg-accent text-white' : 'bg-white/[0.07] text-white/60'}`}
         >⇧</button>
-        <button onClick={() => onKey(' ')} className="h-9 flex-1 rounded-md bg-white/[0.07] text-[10px] text-white/50 transition active:scale-95">пробел</button>
-        <button onClick={onBack} className="h-9 w-12 shrink-0 rounded-md bg-white/[0.07] text-[13px] text-white/60 transition active:scale-90">⌫</button>
-        <button onClick={onEnter} className="h-9 w-12 shrink-0 rounded-md bg-accent/80 text-[13px] text-white transition active:scale-90">⏎</button>
+        <span className="mono flex flex-1 items-center justify-center text-[9px] text-white/20">KengaOS</span>
       </div>
     </div>
   );
@@ -378,6 +394,175 @@ const BrowserAppM = () => {
   );
 };
 
+/* ---------- файлы: VFS с Kenga-исходниками ---------- */
+
+const KENGA_HELLO = `// hello.kenga — первая программа на Кенга
+on "start" {
+    print("Привет из KengaOS!");
+}
+
+let имя: str = "мир";
+print("Привет, " + имя);`;
+
+const KENGA_PROPHET = `// prophet.kenga — пророк помнит и предсказывает
+let p = memory(8);          // память паттернов
+
+on "tick" {
+    learn(p, state());
+    let что_дальше = foresee(p);
+    if surprise(p) > 0.5 {
+        print("аномалия: " + что_дальше);
+    }
+}`;
+
+const KENGA_AGENT = `// agent.kenga — агент с правами
+agent Помощник {
+    cap: [CAP_UI, CAP_IPC];
+    on message m {
+        reply("принял: " + m);
+    }
+}`;
+
+const VFS = {
+  '/': [
+    ['bin', 'd'], ['etc', 'd'], ['home', 'd'],
+    ['readme.txt', 'KengaOS v0.7 — ОС на языке Кенга.\nОдно ядро для ПК и телефона.\n\nЭтот VFS — как initrd в ядре: файлы внутри оболочки.'],
+  ],
+  '/bin': [
+    ['shell', 'KengaOS shell · UTF-8\nкоманды: help, uptime, mem, agents, ls, cat'],
+    ['kenga-run', 'рантайм Kenga (bytecode)\nиспользование: kenga-run <файл.kenga>'],
+  ],
+  '/etc': [
+    ['motd', 'Добро пожаловать в KengaOS.\nПророки уже наблюдают.'],
+    ['agents.conf', 'ui-agent    CAP_UI\nmodel-agent CAP_MODEL_INFER\nkenga-agent CAP_IPC, CAP_UI\nvfs         CAP_FS'],
+  ],
+  '/home': [['user', 'd']],
+  '/home/user': [
+    ['hello.kenga', KENGA_HELLO],
+    ['prophet.kenga', KENGA_PROPHET],
+    ['agent.kenga', KENGA_AGENT],
+    ['mind.km', 'KENGAMIND\x00v1 · паттерны пророка · 8 dims · эпизоды: 32'],
+  ],
+};
+
+const FilesLite = () => {
+  const [path, setPath] = useState('/');
+  const [file, setFile] = useState(null); // [имя, содержимое]
+  if (file) {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="mono flex shrink-0 items-center gap-2 px-4 pt-3 text-[11px] text-accent2">
+          <button onClick={() => setFile(null)} className="text-white/50">←</button>
+          {file[0]}
+        </div>
+        <pre className="mono flex-1 overflow-auto whitespace-pre-wrap px-4 py-3 text-[11px] leading-relaxed text-white/75">{file[1]}</pre>
+      </div>
+    );
+  }
+  const items = VFS[path] || [];
+  return (
+    <div className="flex h-full flex-col">
+      <div className="mono flex shrink-0 items-center gap-1 px-4 pt-3 text-[11px]">
+        {path !== '/' && <button onClick={() => setPath(p => p.slice(0, p.lastIndexOf('/')) || '/')} className="text-white/50">←</button>}
+        <span className="text-accent">vfs:</span>
+        <span className="text-white/70">{path}</span>
+      </div>
+      <div className="flex-1 space-y-1.5 overflow-auto px-3 pt-3 pb-3">
+        {items.map(([name, kind]) => (
+          <button
+            key={name}
+            onClick={() => kind === 'd' ? setPath(p => (p === '/' ? '' : p) + '/' + name) : setFile([name, kind])}
+            className="glass flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-left transition active:scale-[0.98]"
+          >
+            <span className={`text-[13px] ${kind === 'd' ? 'text-accent2' : 'text-white/35'}`}>{kind === 'd' ? '▸' : '≡'}</span>
+            <span className="flex-1 truncate text-[12px] text-white/85">{name}</span>
+            {kind === 'd' && <span className="mono text-[9px] text-white/25">папка</span>}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/* ---------- агенты: живой чат с системными агентами ---------- */
+
+const AGENT_PROFILES = [
+  { id: 'ui-agent', name: 'UI-агент', tag: 'CAP_UI', color: 'text-accent',
+    greet: 'Оболочка на связи. Отрисовываю стекло, слушаю события.',
+    replies: ['Принял, отрисую в следующем кадре.', 'Понял. Поведение записываю в память сессии.', 'Событие доставлено ядру.'] },
+  { id: 'model-agent', name: 'Модель-агент', tag: 'CAP_MODEL_INFER', color: 'text-accent2',
+    greet: 'MLP онлайн. Дай два числа через пробел — предскажу выход.',
+    replies: ['Считаю… готово: см. прогноз в логе.', 'Паттерн похож на виденные — удивление низкое.', 'Обучусь на этом примере при следующем тике.'] },
+  { id: 'kenga-agent', name: 'Кенга-агент', tag: 'CAP_IPC', color: 'text-accent',
+    greet: 'Я написан на Кенге. Спроси про язык: memory, learn, foresee.',
+    replies: ['В Кенге это делается так: learn(p, state()).', 'Пророки — часть ядра, а не приложение.', 'Пиши код — компилятор emit-c уже собран.'] },
+  { id: 'vfs', name: 'VFS', tag: 'CAP_FS', color: 'text-accent2',
+    greet: 'Initrd смонтирован: /bin, /etc, /home/user.',
+    replies: ['Файл найден в дереве VFS.', 'Права есть: чтение разрешено.', 'Записи пока нет — ядро live.']},
+];
+
+const AgentsLite = () => {
+  const [active, setActive] = useState(AGENT_PROFILES[0]);
+  const [chats, setChats] = useState({});   // id: [{me:bool, text}]
+  const [cur, setCur] = useState('');
+  const [seen, setSeen] = useState({});     // id: true — прочитан грит
+  const log = useRef(null);
+  const msgs = chats[active.id] || [];
+
+  useEffect(() => {
+    if (!chats[active.id] && !seen[active.id]) {
+      setSeen(s => ({ ...s, [active.id]: true }));
+      setChats(c => ({ ...c, [active.id]: [{ me: false, text: active.greet }] }));
+    }
+  }, [active.id]);
+
+  useEffect(() => { if (log.current) log.current.scrollTop = log.current.scrollHeight; }, [chats, active.id]);
+
+  const send = () => {
+    const t = cur.trim();
+    if (!t) return;
+    setCur('');
+    setChats(c => ({ ...c, [active.id]: [...(c[active.id] || []), { me: true, text: t }] }));
+    setTimeout(() => {
+      const r = active.replies[Math.floor(Math.random() * active.replies.length)];
+      setChats(c => ({ ...c, [active.id]: [...(c[active.id] || []), { me: false, text: r }] }));
+    }, 500);
+  };
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex shrink-0 gap-1.5 overflow-x-auto px-3 pt-2">
+        {AGENT_PROFILES.map(a => (
+          <button
+            key={a.id} onClick={() => setActive(a)}
+            className={`glass shrink-0 rounded-full px-3 py-1.5 text-[10px] transition active:scale-95 ${a.id === active.id ? 'border-accent/50 text-white' : 'text-white/50'}`}
+          >
+            {a.name}<span className={`mono ml-1 text-[8px] ${a.color}`}>●</span>
+          </button>
+        ))}
+      </div>
+      <div ref={log} className="flex-1 space-y-2 overflow-auto px-3 py-3">
+        {msgs.map((m, i) => (
+          <div key={i} className={`flex ${m.me ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-[12px] leading-snug ${m.me ? 'bg-accent/25 text-white' : 'glass text-white/80'}`}>
+              {m.text}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="glass mx-3 mb-1 flex shrink-0 items-center rounded-lg px-3 py-1.5">
+        <span className="mono flex-1 truncate text-[11px] text-white/85">{cur}<span className="animate-blink">▌</span></span>
+        <button onClick={send} className="text-[12px] text-accent">отправить</button>
+      </div>
+      <SoftKeyboard
+        onKey={(ch) => setCur(s => s + ch)}
+        onBack={() => setCur(s => s.slice(0, -1))}
+        onEnter={send}
+      />
+    </div>
+  );
+};
+
 /* ---------- телефон: набор номера ---------- */
 
 const DIAL_KEYS = [
@@ -388,11 +573,33 @@ const DIAL_KEYS = [
 ];
 let RECENTS = [];   /* журнал за сессию */
 
+/* T9: цифра → буквы (латиница + кириллица) */
+const T9 = {
+  2: 'abcабвг', 3: 'defдежз', 4: 'ghiийкл', 5: 'jklмноп',
+  6: 'mnoрсту', 7: 'pqrsфхцч', 8: 'tuvшщъы', 9: 'wxyzьэюя',
+};
+const nameToDigits = (name) => name.toLowerCase().split('').map(ch => {
+  if (/[0-9]/.test(ch)) return ch;
+  for (const [d, letters] of Object.entries(T9)) if (letters.includes(ch)) return d;
+  return '';
+}).join('');
+
 const DialerApp = () => {
   const [num, setNum] = useState(MOBILE_QS.get('num') || '');
   const [call, setCall] = useState(null);
   const [sec, setSec] = useState(0);
+  const [speaker, setSpeaker] = useState(false);
   const [recent, setRecent] = useState(RECENTS);
+  const [contacts, setContacts] = useState([]);
+  const native = typeof window !== 'undefined' ? window.KengaNative : null;
+
+  /* реальные контакты из телефона (мост из MainActivity) */
+  useEffect(() => {
+    try {
+      const list = JSON.parse(native && native.contacts ? native.contacts() : '[]');
+      setContacts(Array.isArray(list) ? list : []);
+    } catch { setContacts([]); }
+  }, []);
 
   useEffect(() => {
     if (!call) return;
@@ -405,38 +612,72 @@ const DialerApp = () => {
     if (!num) return;
     RECENTS = [num, ...RECENTS.filter(r => r !== num)].slice(0, 6);
     setRecent(RECENTS);
-    setSec(0);
-    setCall(num);
+    if (native && native.dial) { native.dial(num); return; }  // реальный вызов
+    setSec(0); setCall(num);                                   // демо-вызов (десктоп)
   };
   const mmss = (s) => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 
   if (call) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-6">
+      <div className="flex h-full flex-col items-center justify-center gap-5">
         <div className="flex h-20 w-20 items-center justify-center rounded-full bg-accent/20 text-2xl text-accent">✆</div>
         <div className="disp text-2xl text-white/90">{call}</div>
         <div className="mono text-[12px] text-white/45">{sec < 3 ? 'вызов…' : mmss(sec)}</div>
-        <button
-          onClick={() => setCall(null)}
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-red-500/90 text-lg text-white transition active:scale-90"
-          aria-label="завершить вызов"
-        >✕</button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setSpeaker(sp => !sp)}
+            className={`flex h-11 w-11 items-center justify-center rounded-full text-[14px] transition active:scale-90 ${speaker ? 'bg-accent text-white' : 'glass text-white/60'}`}
+            aria-label="громкая связь"
+          >🔈</button>
+          <button
+            onClick={() => setCall(null)}
+            className="flex h-14 w-14 items-center justify-center rounded-full bg-red-500/90 text-lg text-white transition active:scale-90"
+            aria-label="завершить вызов"
+          >✕</button>
+        </div>
+        {speaker && <div className="mono text-[10px] text-accent2">громкая связь</div>}
       </div>
     );
   }
+
+  const pat = nameToDigits(num.replace(/[^0-9*#]/g, ''));
+  const matched = num
+    ? contacts.filter(c =>
+        c.t.replace(/[^0-9]/g, '').includes(num.replace(/[^0-9]/g, '')) ||
+        (pat && nameToDigits(c.n).includes(pat)))
+    : contacts;
+
   return (
-    <div className="flex h-full flex-col px-6 pb-3">
-      <div className="disp mt-3 flex min-h-[44px] items-center truncate text-3xl font-light tracking-wide text-white/95">
+    <div className="flex h-full flex-col px-5 pb-3">
+      <div className="disp mt-2 flex min-h-[40px] items-center truncate text-2xl font-light tracking-wide text-white/95">
         {num || <span className="text-white/25">номер</span>}
       </div>
-      {recent.length > 0 && (
-        <div className="mt-1 flex flex-wrap gap-1.5">
-          {recent.map(r => (
-            <button key={r} onClick={() => setNum(r)} className="mono rounded-full bg-white/[0.06] px-2.5 py-0.5 text-[10px] text-white/50">{r}</button>
-          ))}
-        </div>
-      )}
-      <div className="mx-auto mt-2 grid w-full max-w-[280px] grid-cols-3 gap-2">
+      {/* контакты: совпадения по цифрам/буквам, либо весь список */}
+      <div className="mt-1 min-h-0 flex-1 space-y-1 overflow-y-auto">
+        {num && recent.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pb-1">
+            {recent.map(r => (
+              <button key={r} onClick={() => setNum(r)} className="mono rounded-full bg-white/[0.06] px-2.5 py-0.5 text-[10px] text-white/50">{r}</button>
+            ))}
+          </div>
+        )}
+        {matched.map((c, i) => (
+          <button
+            key={c.t + i} onClick={() => setNum(c.t)}
+            className="glass flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition active:scale-[0.98]"
+          >
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent/15 text-[11px] text-accent">{c.n[0]}</span>
+            <span className="flex-1 truncate text-[12px] text-white/85">{c.n}</span>
+            <span className="mono text-[10px] text-white/40">{c.t}</span>
+          </button>
+        ))}
+        {contacts.length === 0 && (
+          <div className="mono px-1 pt-2 text-[10px] leading-relaxed text-white/25">
+            {native ? 'контакты недоступны — дай разрешение' : 'контакты: только в APK на телефоне'}
+          </div>
+        )}
+      </div>
+      <div className="mx-auto mt-2 grid w-full max-w-[300px] grid-cols-3 gap-2">
         {DIAL_KEYS.map(([d, sub]) => (
           <button key={d} onClick={() => digit(d)} className="glass flex flex-col items-center rounded-2xl py-2.5 transition active:scale-90">
             <span className="text-xl text-white/90">{d}</span>
@@ -444,7 +685,7 @@ const DialerApp = () => {
           </button>
         ))}
       </div>
-      <div className="mx-auto mt-3 flex w-full max-w-[280px] items-center justify-between">
+      <div className="mx-auto mt-3 flex w-full max-w-[300px] items-center justify-between">
         <span className="w-14" />
         <button
           onClick={doCall}
@@ -463,24 +704,39 @@ const DialerApp = () => {
 
 /* ---------- терминал (мобильный): экранная клавиатура + консоль ---------- */
 
+/* алиасы: и латиница, и кириллица ведут к одной команде */
+const TERM_ALIASES = {
+  help: ['help', 'помощь', '?'],
+  uptime: ['uptime', 'аптайм', 'время'],
+  mem: ['mem', 'meminfo', 'память'],
+  agents: ['agents', 'агенты', 'ps'],
+  echo: ['echo', 'эхо'],
+  clear: ['clear', 'очистить', 'cls'],
+};
+
 const TermLite = () => {
   const [lines, setLines] = useState([
     'KengaOS mobile shell · kernel bridge (симуляция)',
-    'команды: help, uptime, mem, agents, clear',
+    'команды: help · uptime · mem · agents · echo · clear',
+    '(можно по-русски: помощь · аптайм · память · агенты)',
   ]);
   const [cur, setCur] = useState('');
   const log = useRef(null);
   useEffect(() => { if (log.current) log.current.scrollTop = log.current.scrollHeight; }, [lines]);
-  const run = (cmd) => {
-    const c = cmd.trim().toLowerCase();
-    if (c === 'clear') { setLines([]); return; }
-    const out = {
-      help: 'help, uptime, mem, agents, clear',
-      uptime: 'uptime: ' + fmt(Math.floor(performance.now() / 1000)),
-      mem: 'ram 41% · kernel bridge (симуляция; реальное ядро — в QEMU)',
-      agents: 'агенты: ui-agent, model-agent, kenga-agent, vfs',
-    }[c];
-    setLines(ls => [...ls, '» ' + cmd, out || 'неизвестная команда: ' + c]);
+  const run = (raw) => {
+    const parts = raw.trim().split(/\s+/);
+    const c = (parts[0] || '').toLowerCase();
+    if (!c) return;
+    if (TERM_ALIASES.clear.some(a => a === c)) { setLines([]); return; }
+    const canon = Object.keys(TERM_ALIASES).find(k => TERM_ALIASES[k].some(a => a === c));
+    let out;
+    if (canon === 'help') out = 'help · uptime · mem · agents · echo <текст> · clear';
+    else if (canon === 'uptime') out = 'uptime: ' + fmt(Math.floor(performance.now() / 1000));
+    else if (canon === 'mem') out = 'ram 41% · kernel bridge (симуляция; реальное ядро — в QEMU)';
+    else if (canon === 'agents') out = 'агенты: ui-agent, model-agent, kenga-agent, vfs';
+    else if (canon === 'echo') out = parts.slice(1).join(' ') || '';
+    else out = 'неизвестная команда: ' + c + '  (help — список)';
+    setLines(ls => [...ls, '» ' + raw, out]);
   };
   return (
     <div className="flex h-full flex-col">
@@ -494,7 +750,7 @@ const TermLite = () => {
         <span className="mono flex-1 truncate pl-2 text-[11px] text-white/85">{cur}<span className="animate-blink">▌</span></span>
       </div>
       <SoftKeyboard
-        onKey={(c) => setCur(s => s + c)}
+        onKey={(ch) => setCur(s => s + ch)}
         onBack={() => setCur(s => s.slice(0, -1))}
         onEnter={() => { if (cur.trim()) run(cur); setCur(''); }}
       />
@@ -527,6 +783,8 @@ const AppSheet = ({ app, onClose }) => {
           {app.id === 'terminal' ? <TermLite />
             : app.id === 'browser' ? <BrowserAppM />
             : app.id === 'phone' ? <DialerApp />
+            : app.id === 'agents' ? <AgentsLite />
+            : app.id === 'files' ? <FilesLite />
             : <div className="flex h-full flex-col items-center justify-center gap-3 text-white/35">
                 <span className="h-10 w-10 text-accent/60">{icon}</span>
                 <span className="mono text-[11px]">модуль «{app.name}» · этап порта в Kenga</span>
