@@ -9,8 +9,25 @@
 :root {
   --accent: #8b7bff;
   --accent2: #22d3ee;
+  --accent-rgb: 139 123 255;
+  --accent2-rgb: 34 211 238;
   --glass: linear-gradient(160deg, rgba(22, 28, 48, 0.78), rgba(10, 14, 26, 0.72));
   --stroke: rgba(255, 255, 255, 0.08);
+}
+
+/* темы: полярная (по умолчанию), синяя волна, зелёная волна */
+:root[data-theme='blue'] {
+  --accent: #3fa4ff;
+  --accent2: #2ee6c8;
+  --accent-rgb: 63 164 255;
+  --accent2-rgb: 46 230 200;
+}
+
+:root[data-theme='green'] {
+  --accent: #2fe3a0;
+  --accent2: #49c9ff;
+  --accent-rgb: 47 227 160;
+  --accent2-rgb: 73 201 255;
 }
 
 * {

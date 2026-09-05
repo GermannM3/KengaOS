@@ -1,4 +1,29 @@
 import React, { useState, useEffect } from 'react';
+import { THEMES, getTheme, setTheme } from '../theme.js';
+
+const ThemeSwatches = () => {
+  const [cur, setCur] = useState(getTheme());
+  return (
+    <span className="hidden md:flex items-center gap-[5px] px-[8px] py-[3px] rounded-lg bg-white/[0.06]" title="Тема">
+      {THEMES.map(t => (
+        <button
+          key={t.id}
+          onClick={() => { setTheme(t.id); setCur(t.id); }}
+          title={t.name}
+          className="w-3 h-3 rounded-full cursor-pointer border transition-all"
+          style={{
+            background: t.id === 'aurora' ? 'linear-gradient(135deg,#8b7bff,#22d3ee)'
+              : t.id === 'blue' ? 'linear-gradient(135deg,#3fa4ff,#2ee6c8)'
+              : 'linear-gradient(135deg,#2fe3a0,#49c9ff)',
+            outline: cur === t.id ? '1.5px solid rgba(255,255,255,0.85)' : 'none',
+            outlineOffset: 1.5,
+          }}
+        />
+      ))}
+    </span>
+  );
+};
+
 
 const TopBar = ({ ramPct, cpuPct, uptime, onMenu }) => {
   const [time, setTime] = useState(new Date());
@@ -49,6 +74,7 @@ const TopBar = ({ ramPct, cpuPct, uptime, onMenu }) => {
         <span className="chip mono hidden md:flex text-[11px] py-[3px] px-[9px] rounded-lg bg-white/[0.06] text-[#cfd8f2]" title="Время работы">
           ⏱ {uptime}
         </span>
+        <ThemeSwatches />
         <button className="w-7 h-7 rounded-lg flex items-center justify-center text-[#cfd8f2] hover:bg-white/[0.1] hover:text-white transition-all cursor-pointer border-none bg-transparent" title="Питание">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
             <path d="M12 3v8M6.3 6.5a8 8 0 1 0 11.4 0" />

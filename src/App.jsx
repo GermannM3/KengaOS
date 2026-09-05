@@ -8,6 +8,9 @@ import TopBar from './components/TopBar.jsx';
 import Dock from './components/Dock.jsx';
 import Launcher from './components/Launcher.jsx';
 import BrowserApp from './components/BrowserApp.jsx';
+import { initTheme } from './theme.js';
+
+initTheme();
 
 const App = () => {
   const [booted, setBooted] = useState(false);

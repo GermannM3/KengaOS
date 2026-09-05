@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
 
-/* Браузер KengaOS v1 — внутренние страницы kenga://.
+/* Браузер KengaOS v2 — UI-прототип оболочки.
 
-   ponytail: настоящий движок веб-страниц — годы работы; v1 честно
-   показывает только внутренние страницы оболочки. Внешние сайты —
-   после порта сетевого стека в ядро и/или порта готового движка
-   (Servo/WebKit-класс) в userspace KengaOS.
-   Используется десктопом (input + Enter) и мобилкой (экранная
-   клавиатура в Mobile.jsx импортирует BROWSER_PAGES). */
+   Внутренние страницы kenga:// рендерим сами; внешние сайты —
+   через iframe оболочки (оболочка пока живёт внутри браузера
+   хоста, так что это честно работающая навигация). Сайты с
+   X-Frame-Options: DENY не встроятся — для них кнопка «открыть
+   снаружи». В будущей ОС это заменит наш движок / порт Servo.
+   Мобильная версия (Mobile.jsx) использует BROWSER_PAGES и
+   parseAddr отсюда. */
 
 export const BROWSER_PAGES = {
   'kenga://home': {
     title: 'Внутренняя сеть',
-    text: 'Страницы оболочки KengaOS. Внешние сайты откроются после порта сетевого стека в ядро.',
-    links: [['kenga://about', 'О системе'], ['kenga://prophets', 'Пророки'], ['kenga://sys', 'Ядро']],
+    text: 'Страницы оболочки KengaOS. Внешние сайты открываются в окне ниже; часть сайтов запрещает встраивание.',
+    links: [['kenga://about', 'О системе'], ['kenga://prophets', 'Пророки'], ['kenga://sys', 'Ядро'], ['https://example.com', 'example.com (тест)']],
   },
   'kenga://about': {
     title: 'KengaOS',
@@ -32,39 +33,66 @@ export const BROWSER_PAGES = {
   },
 };
 
-const IconGlobe = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" className="h-4 w-4 text-accent/60">
-    <circle cx="12" cy="12" r="9" />
-    <path d="M3 12h18M12 3a14 14 0 0 1 0 18a14 14 0 0 1 0-18z" />
-  </svg>
+export const HOME = 'kenga://home';
+
+/* адрес → цель: внутренняя | https | null (не похоже на адрес) */
+export const parseAddr = (raw) => {
+  const u = (raw || '').trim();
+  if (!u) return HOME;
+  if (u.startsWith('kenga://')) return BROWSER_PAGES[u] ? u : null;
+  if (/^https?:\/\//i.test(u)) return u;
+  if (/^[\w-]+(\.[\w-]+)+/.test(u)) return 'https://' + u;
+  return null;
+};
+
+const IconBtn = ({ children, onClick, title, disabled }) => (
+  <button
+    onClick={onClick} title={title} disabled={disabled}
+    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[13px] transition active:scale-90
+      ${disabled ? 'text-white/20' : 'text-white/70 hover:bg-white/[0.08] hover:text-white'}`}
+  >{children}</button>
 );
 
-/* Десктопная версия: обычный input (железная клавиатура).
-   Пропсом addr можно задать внешний режим набора (мобилка). */
-const BrowserApp = ({ url: urlProp, onAddr }) => {
-  const [url, setUrl] = useState(urlProp || 'kenga://home');
-  const [draft, setDraft] = useState(null); // null = не редактируем
+/* Десктопная версия: железная клавиатура. */
+const BrowserApp = () => {
+  const [hist, setHist] = useState([HOME]);
+  const [hidx, setHidx] = useState(0);
+  const [draft, setDraft] = useState(null);
+  const [nonce, setNonce] = useState(0);
+  const url = hist[hidx];
   const page = BROWSER_PAGES[url];
-  const value = draft !== null ? draft : url;
-  const commit = () => {
-    const v = (draft || '').trim();
-    setUrl(BROWSER_PAGES[v] ? v : url);
-    if (onAddr) onAddr(v);
-    setDraft(null);
+  const external = !page && url.startsWith('http');
+
+  const go = (raw) => {
+    const t = parseAddr(raw);
+    if (!t) { setDraft(null); return; }
+    const nh = hist.slice(0, hidx + 1).concat(t);
+    setHist(nh); setHidx(nh.length - 1); setDraft(null);
   };
+  const jump = (d) => {
+    const ni = Math.max(0, Math.min(hist.length - 1, hidx + d));
+    setHidx(ni); setDraft(null);
+  };
+
   return (
     <div className="flex h-full flex-col">
-      <div className="flex shrink-0 items-center gap-2 px-3 pt-3">
-        <span className="text-accent2">⌕</span>
+      <div className="flex shrink-0 items-center gap-1 px-3 pt-3">
+        <IconBtn onClick={() => jump(-1)} disabled={hidx === 0} title="Назад">←</IconBtn>
+        <IconBtn onClick={() => jump(1)} disabled={hidx >= hist.length - 1} title="Вперёд">→</IconBtn>
+        <IconBtn onClick={() => setNonce(n => n + 1)} title="Обновить">⟳</IconBtn>
+        <IconBtn onClick={() => go(HOME)} title="Главная">⌂</IconBtn>
         <input
-          value={value}
+          value={draft !== null ? draft : url}
           onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') commit(); }}
-          onBlur={commit}
+          onKeyDown={(e) => { if (e.key === 'Enter') go(draft); }}
+          onBlur={() => setDraft(null)}
           spellCheck="false"
-          className="field flex-1 rounded-lg px-3 py-1.5 text-[12px] outline-none"
-          placeholder="kenga://…"
+          className="field mx-1 flex-1 rounded-lg px-3 py-1.5 text-[12px] outline-none"
+          placeholder="kenga://… или адрес сайта"
         />
+        {external && (
+          <IconBtn onClick={() => window.open(url, '_blank')} title="Открыть в новом окне (если сайт запретил встраивание)">↗</IconBtn>
+        )}
       </div>
       {page ? (
         <div className="flex-1 overflow-auto px-6 pb-5">
@@ -73,7 +101,7 @@ const BrowserApp = ({ url: urlProp, onAddr }) => {
           <div className="mt-5 flex max-w-[420px] flex-col gap-2">
             {page.links.map(([u, label]) => (
               <button
-                key={u} onClick={() => { setUrl(u); setDraft(null); }}
+                key={u} onClick={() => go(u)}
                 className="glass flex w-full items-center rounded-xl px-4 py-2.5 text-left text-[13px] text-accent transition hover:bg-white/[0.08]"
               >
                 {label}<span className="mono ml-auto text-[9px] text-white/30">{u}</span>
@@ -81,14 +109,20 @@ const BrowserApp = ({ url: urlProp, onAddr }) => {
             ))}
           </div>
         </div>
+      ) : external ? (
+        <iframe
+          key={url + nonce}
+          src={url}
+          title="KengaOS browser"
+          className="mx-3 mb-3 mt-2 min-h-0 flex-1 rounded-xl border border-white/[0.08] bg-white"
+        />
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
-          <IconGlobe />
-          <div className="mono text-[11px] text-white/40">страница не найдена: {url}</div>
+          <div className="mono text-[11px] text-white/40">не похоже на адрес: {url}</div>
           <div className="max-w-[40ch] text-[11px] leading-relaxed text-white/30">
-            внешние сайты — после сетевого стека в ядре. внутренние: kenga://home
+            внутренние страницы: kenga://home · внешние: адрес вида example.com
           </div>
-          <button onClick={() => setUrl('kenga://home')} className="glass mt-2 rounded-lg px-3 py-1.5 text-[12px] text-accent">на главную</button>
+          <button onClick={() => go(HOME)} className="glass mt-2 rounded-lg px-3 py-1.5 text-[12px] text-accent">на главную</button>
         </div>
       )}
     </div>

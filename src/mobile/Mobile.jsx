@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ICONS, APPS } from '../components/Dock.jsx';
-import { BROWSER_PAGES } from '../components/BrowserApp.jsx';
+import { BROWSER_PAGES, HOME, parseAddr } from '../components/BrowserApp.jsx';
+import { THEMES, getTheme, setTheme, initTheme } from '../theme.js';
+
+initTheme();
 
 /* KengaOS Mobile — тач-оболочка референса (glass / воздушная).
    Одно «ядро» (kernel bridge внизу файла) — та же поверхность, что у десктопа:
@@ -118,6 +121,7 @@ const StatusBar = ({ k, onShade }) => (
 const Shade = ({ open, onClose }) => {
   const [toggles, setToggles] = useState({ wifi: true, bt: false, flash: false, air: false });
   const [bright, setBright] = useState(70);
+  const [theme, setT] = useState(getTheme());
   const tgl = (k) => setToggles(t => ({ ...t, [k]: !t[k] }));
   const tile = (k, label, on) => (
     <button
@@ -157,6 +161,25 @@ const Shade = ({ open, onClose }) => {
           <span className="text-[10px] text-white/40">☀☀</span>
         </div>
         <div className="mt-4 flex items-center justify-between rounded-2xl bg-white/[0.04] px-4 py-2.5">
+          <span className="mono text-[10px] text-white/45">Тема</span>
+          <div className="flex items-center gap-2.5">
+            {THEMES.map(t => (
+              <button
+                key={t.id}
+                onClick={() => { setTheme(t.id); setT(t.id); }}
+                title={t.name}
+                className="h-5 w-5 rounded-full transition active:scale-90"
+                style={{
+                  background: t.id === 'aurora' ? 'linear-gradient(135deg,#8b7bff,#22d3ee)'
+                    : t.id === 'blue' ? 'linear-gradient(135deg,#3fa4ff,#2ee6c8)'
+                    : 'linear-gradient(135deg,#2fe3a0,#49c9ff)',
+                  border: theme === t.id ? '2px solid rgba(255,255,255,0.9)' : '1px solid rgba(255,255,255,0.25)',
+                }}
+              />
+            ))}
+          </div>
+        </div>
+        <div className="mt-2 flex items-center justify-between rounded-2xl bg-white/[0.04] px-4 py-2.5">
           <span className="mono text-[10px] text-white/45">Яркость {bright}%</span>
           <span className="mono text-[10px] text-accent2">{toggles.wifi ? 'wifi: on' : 'wifi: off'}</span>
         </div>
@@ -269,33 +292,53 @@ const SoftKeyboard = ({ onKey, onBack, onEnter }) => {
   );
 };
 
-/* ---------- браузер v1: внутренние страницы kenga:// (общие с десктопом) ---------- */
+/* ---------- браузер: kenga:// + внешние сайты (iframe) ---------- */
 
 const BrowserAppM = () => {
-  const [url, setUrl] = useState('kenga://home');
-  const [editing, setEditing] = useState(false);
+  const [hist, setHist] = useState([HOME]);
+  const [hidx, setHidx] = useState(0);
+  const [draft, setDraft] = useState(null);
+  const [nonce, setNonce] = useState(0);
+  const url = hist[hidx];
   const page = BROWSER_PAGES[url];
+  const external = !page && url.startsWith('http');
+
+  const go = (raw) => {
+    const t = parseAddr(raw);
+    if (!t) { setDraft(null); return; }
+    const nh = hist.slice(0, hidx + 1).concat(t);
+    setHist(nh); setHidx(nh.length - 1); setDraft(null);
+  };
+
   return (
     <div className="flex h-full flex-col">
-      <button onClick={() => setEditing(true)} className="glass mx-3 mt-2 flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-left">
-        <span className="text-[12px] text-accent2">⌕</span>
-        <span className={`flex-1 truncate text-[12px] ${editing ? 'text-accent' : 'text-white/80'}`}>{url}</span>
-        {!editing && <span className="mono text-[9px] text-white/30">править</span>}
-      </button>
-      {editing ? (
+      <div className="flex shrink-0 items-center gap-1.5 px-3 pt-2">
+        <button
+          onClick={() => setHidx(i => Math.max(0, i - 1))} disabled={hidx === 0}
+          className={`glass flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[13px] ${hidx === 0 ? 'text-white/25' : 'text-white/75 active:scale-90'}`}
+          aria-label="назад"
+        >←</button>
+        <button onClick={() => go(HOME)} className="glass flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[13px] text-white/75 active:scale-90" aria-label="главная">⌂</button>
+        <button onClick={() => setDraft(url)} className="glass flex flex-1 items-center gap-2 rounded-full px-3.5 py-2 text-left">
+          <span className="text-[12px] text-accent2">⌕</span>
+          <span className={`flex-1 truncate text-[11px] ${draft !== null ? 'text-accent' : 'text-white/80'}`}>{draft !== null ? draft : url}</span>
+        </button>
+        <button onClick={() => setNonce(n => n + 1)} className="glass flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[13px] text-white/75 active:scale-90" aria-label="обновить">⟳</button>
+      </div>
+      {draft !== null ? (
         <SoftKeyboard
-          onKey={(c) => setUrl(u => u + c)}
-          onBack={() => setUrl(u => u.slice(0, -1))}
-          onEnter={() => setEditing(false)}
+          onKey={(c) => setDraft(d => d + c)}
+          onBack={() => setDraft(d => d.slice(0, -1))}
+          onEnter={() => go(draft)}
         />
       ) : page ? (
-        <div className="flex-1 overflow-auto px-5 pb-5">
+        <div className="flex-1 overflow-auto px-5 pb-4">
           <div className="disp pt-3 text-lg text-white/90">{page.title}</div>
           <p className="mt-2 text-[12px] leading-relaxed text-white/55">{page.text}</p>
           <div className="mt-4 space-y-2">
             {page.links.map(([u, label]) => (
               <button
-                key={u} onClick={() => setUrl(u)}
+                key={u} onClick={() => go(u)}
                 className="glass flex w-full items-center rounded-xl px-4 py-3 text-left text-[12px] text-accent transition active:scale-[0.98]"
               >
                 {label}<span className="mono ml-auto text-[9px] text-white/30">{u}</span>
@@ -303,16 +346,114 @@ const BrowserAppM = () => {
             ))}
           </div>
         </div>
+      ) : external ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <iframe
+            key={url + nonce}
+            src={url}
+            title="KengaOS browser"
+            className="mx-3 mb-2 mt-2 min-h-0 flex-1 rounded-2xl border border-white/[0.08] bg-white"
+          />
+          <button
+            onClick={() => window.open(url, '_blank')}
+            className="mono mx-3 mb-2 shrink-0 rounded-xl bg-white/[0.06] py-1.5 text-[10px] text-white/50"
+          >
+            не открылся? сайт запретил встраивание → ↗ открыть снаружи
+          </button>
+        </div>
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 px-8 text-center">
           <span className="h-8 w-8 text-accent/50"><IconBrowser /></span>
-          <div className="mono text-[10px] text-white/40">страница не найдена</div>
+          <div className="mono text-[10px] text-white/40">не похоже на адрес: {url}</div>
           <div className="text-[10px] leading-relaxed text-white/30">
-            внешние сайты — после сетевого стека в ядре. внутренние: kenga://home
+            внутренние: kenga://home · внешние: example.com
           </div>
-          <button onClick={() => setUrl('kenga://home')} className="glass mt-2 rounded-lg px-3 py-1.5 text-[11px] text-accent">на главную</button>
+          <button onClick={() => go(HOME)} className="glass mt-2 rounded-lg px-3 py-1.5 text-[11px] text-accent">на главную</button>
         </div>
       )}
+    </div>
+  );
+};
+
+/* ---------- телефон: набор номера ---------- */
+
+const DIAL_KEYS = [
+  ['1', ''], ['2', 'ABC'], ['3', 'DEF'],
+  ['4', 'GHI'], ['5', 'JKL'], ['6', 'MNO'],
+  ['7', 'PQRS'], ['8', 'TUV'], ['9', 'WXYZ'],
+  ['*', ''], ['0', '+'], ['#', ''],
+];
+let RECENTS = [];   /* журнал за сессию */
+
+const DialerApp = () => {
+  const [num, setNum] = useState('');
+  const [call, setCall] = useState(null);
+  const [sec, setSec] = useState(0);
+  const [recent, setRecent] = useState(RECENTS);
+
+  useEffect(() => {
+    if (!call) return;
+    const t = setInterval(() => setSec(s => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [call]);
+
+  const digit = (d) => { if (num.length < 16) setNum(num + d); };
+  const doCall = () => {
+    if (!num) return;
+    RECENTS = [num, ...RECENTS.filter(r => r !== num)].slice(0, 6);
+    setRecent(RECENTS);
+    setSec(0);
+    setCall(num);
+  };
+  const mmss = (s) => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+
+  if (call) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-6">
+        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-accent/20 text-2xl text-accent">✆</div>
+        <div className="disp text-2xl text-white/90">{call}</div>
+        <div className="mono text-[12px] text-white/45">{sec < 3 ? 'вызов…' : mmss(sec)}</div>
+        <button
+          onClick={() => setCall(null)}
+          className="flex h-14 w-14 items-center justify-center rounded-full bg-red-500/90 text-lg text-white transition active:scale-90"
+          aria-label="завершить вызов"
+        >✕</button>
+      </div>
+    );
+  }
+  return (
+    <div className="flex h-full flex-col px-6 pb-3">
+      <div className="disp mt-3 flex min-h-[44px] items-center truncate text-3xl font-light tracking-wide text-white/95">
+        {num || <span className="text-white/25">номер</span>}
+      </div>
+      {recent.length > 0 && (
+        <div className="mt-1 flex flex-wrap gap-1.5">
+          {recent.map(r => (
+            <button key={r} onClick={() => setNum(r)} className="mono rounded-full bg-white/[0.06] px-2.5 py-0.5 text-[10px] text-white/50">{r}</button>
+          ))}
+        </div>
+      )}
+      <div className="mx-auto mt-2 grid w-full max-w-[280px] grid-cols-3 gap-2">
+        {DIAL_KEYS.map(([d, sub]) => (
+          <button key={d} onClick={() => digit(d)} className="glass flex flex-col items-center rounded-2xl py-2.5 transition active:scale-90">
+            <span className="text-xl text-white/90">{d}</span>
+            {sub && <span className="mono text-[7px] tracking-[2px] text-white/35">{sub}</span>}
+          </button>
+        ))}
+      </div>
+      <div className="mx-auto mt-3 flex w-full max-w-[280px] items-center justify-between">
+        <span className="w-14" />
+        <button
+          onClick={doCall}
+          className={`flex h-14 w-14 items-center justify-center rounded-full text-xl transition active:scale-90 ${num ? 'bg-accent text-white' : 'bg-white/[0.08] text-white/30'}`}
+          aria-label="вызов"
+        >✆</button>
+        <button
+          onClick={() => setNum(n => n.slice(0, -1))}
+          className={`w-14 text-left text-lg text-white/50 transition active:scale-90 ${num ? '' : 'opacity-0'}`}
+          aria-label="стереть"
+        >⌫</button>
+      </div>
     </div>
   );
 };
@@ -382,6 +523,7 @@ const AppSheet = ({ app, onClose }) => {
         <div className="min-h-0 flex-1 overflow-hidden">
           {app.id === 'terminal' ? <TermLite />
             : app.id === 'browser' ? <BrowserAppM />
+            : app.id === 'phone' ? <DialerApp />
             : <div className="flex h-full flex-col items-center justify-center gap-3 text-white/35">
                 <span className="h-10 w-10 text-accent/60">{icon}</span>
                 <span className="mono text-[11px]">модуль «{app.name}» · этап порта в Kenga</span>
