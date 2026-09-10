@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ICONS, APPS } from '../components/Dock.jsx';
 import { BROWSER_PAGES, HOME, parseAddr } from '../components/BrowserApp.jsx';
 import { SoftKeyboard, AgentsApp, ChatApp, FilesApp, MonitorApp, SettingsApp, AboutApp } from '../components/Apps.jsx';
+import { observeApp, foreseeApp, APP_NAMES } from '../components/Prophet.jsx';
 import { THEMES, getTheme, setTheme, initTheme } from '../theme.js';
 
 /* URL-параметры: ?skip, ?shade, ?theme=aurora|blue|green, ?app=phone|browser|terminal|… */
@@ -257,6 +258,15 @@ const Widget = ({ k }) => (
       <div className="badge flex-1 rounded-lg px-2 py-1 text-center">RAM {Math.round(k.ram)}%</div>
       <div className="badge flex-1 rounded-lg px-2 py-1 text-center">UP {fmt(k.uptime)}</div>
     </div>
+    {(() => {
+      const f = foreseeApp();
+      return f.length ? (
+        <div className="mono mt-2 text-[9px] text-white/40">
+          пророк: дальше → <span className="text-accent">{f[0].name}</span> {Math.round(f[0].p * 100)}%
+          {f[1] && <span> · {f[1].name} {Math.round(f[1].p * 100)}%</span>}
+        </div>
+      ) : null;
+    })()}
   </div>
 );
 
@@ -794,7 +804,7 @@ const Mobile = () => {
   const [shade, setShade] = useState(MOBILE_QS.has('shade'));
   const k = useKernel(booted);
 
-  const open = (app) => { setLauncher(false); setShade(false); setOpenApp(app); };
+  const open = (app) => { setLauncher(false); setShade(false); setOpenApp(app); observeApp(app.id); };
   const home = () => { setOpenApp(null); setLauncher(false); setShade(false); };
 
   return (

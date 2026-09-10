@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getTheme, setTheme } from '../theme.js';
+import { answer, parseTeach, foreseeApp, prophetStats } from './Prophet.jsx';
 
 /* Общие приложения KengaOS — используются десктопом и мобилкой.
    Приложения с вводом принимают prop softKeyboard:
@@ -97,6 +98,34 @@ export const MonitorApp = ({ cpu = 12, ram = 41, uptime = '—', ipc = [] }) => 
       </div>
       <div className={`${box} mono flex items-center justify-between text-[10px] text-white/50`}>
         <span>uptime</span><span className="text-white/85">{uptime}</span>
+      </div>
+      <div className={box}>
+        <div className="mono pb-1.5 text-[10px] tracking-wider text-white/45">ПРОРОК · ЧТО ОТКРОЕШЬ ДАЛЬШЕ</div>
+        {(() => {
+          const fc = foreseeApp();
+          const st = prophetStats();
+          if (!fc.length) return (
+            <div className="mono text-[10px] leading-relaxed text-white/25">
+              {'набираю статистику — пооткрывай приложения; ассистент учится в «Чате»: «учи: вопрос => ответ»'}
+            </div>
+          );
+          return (
+            <>
+              {fc.map(f => (
+                <div key={f.id} className="mono flex items-center gap-2 py-0.5 text-[10px]">
+                  <span className="w-24 truncate text-white/70">{f.name}</span>
+                  <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.08]">
+                    <i className="block h-full rounded-full" style={{ width: Math.round(f.p * 100) + '%', background: 'linear-gradient(90deg, var(--accent), var(--accent2))' }} />
+                  </span>
+                  <span className="text-accent">{Math.round(f.p * 100)}%</span>
+                </div>
+              ))}
+              <div className="mono pt-1.5 text-[9px] text-white/30">
+                переходов: {st.obs} · точность прогноза: {Math.round(st.accuracy * 100)}%
+              </div>
+            </>
+          );
+        })()}
       </div>
       {ipc.length > 0 && (
         <div className={box}>
@@ -294,7 +323,7 @@ export const FilesApp = () => {
   );
 };
 
-/* ---------- агенты: чат с системными агентами ---------- */
+/* ---------- агенты: чат с системными агентами (пророк учится на ходу) ---------- */
 
 export const AGENT_PROFILES = [
   { id: 'ui-agent', name: 'UI-агент', tag: 'CAP_UI', color: 'text-accent',
@@ -333,12 +362,24 @@ export const AgentsApp = ({ softKeyboard = false }) => {
     if (!t) return;
     setCur('');
     setChats(c => ({ ...c, [active.id]: [...(c[active.id] || []), { me: true, text: t }] }));
-    /* модель-агент: «XOR-предсказание» как в ядре (MLP 2-2-1) */
-    const nums = t.trim().split(/\s+/).map(Number);
-    let reply = active.replies[Math.floor(Math.random() * active.replies.length)];
-    if (active.id === 'model-agent' && nums.length === 2 && nums.every(n => n === 0 || n === 1)) {
-      const xor = nums[0] ^ nums[1];
-      reply = `вход [${nums[0]}, ${nums[1]}] → прогноз: ${xor} (MLP 2-2-1, ядро)`;
+    /* обучение на ходу: «учи: вопрос => ответ» */
+    const taught = parseTeach(t);
+    let reply;
+    if (taught) {
+      reply = `Выучено: «${taught.q}» → «${taught.a}». Спроси — отвечу (пар в памяти: спрошу без подсказки).`;
+    } else {
+      /* модель-агент: «XOR-предсказание» как в ядре (MLP 2-2-1) */
+      const nums = t.trim().split(/\s+/).map(Number);
+      const hit = answer(t);
+      if (active.id === 'model-agent' && nums.length === 2 && nums.every(n => n === 0 || n === 1)) {
+        const xor = nums[0] ^ nums[1];
+        reply = `вход [${nums[0]}, ${nums[1]}] → прогноз: ${xor} (MLP 2-2-1, ядро)`;
+      } else if (hit) {
+        reply = hit.text + (hit.learned ? '  · (из моей памяти — ты выучил)' : '');
+      } else {
+        reply = active.replies[Math.floor(Math.random() * active.replies.length)] +
+          '\nнаучи меня: «учи: вопрос => ответ»';
+      }
     }
     setTimeout(() => {
       setChats(c => ({ ...c, [active.id]: [...(c[active.id] || []), { me: false, text: reply }] }));
@@ -393,21 +434,11 @@ export const AgentsApp = ({ softKeyboard = false }) => {
   );
 };
 
-/* ---------- чат: ассистент KengaOS ---------- */
-
-const KNOW = [
-  [/тем[аыу]|оформлен|цвет/i, 'Темы переключаются в Настройках: Полярная, Синяя волна, Зелёная волна. На мобилке — в шторке.'],
-  [/пророк|predict|foresee|surprise/i, 'Пророк — паттерновая память ядра: learn / predict / foresee / surprise. В ядре уже работает kf_prophet.c (v1).'],
-  [/кенг[ау]|язык|kenga/i, 'Kenga — системный язык: i64/f64/str/list/Tensor/Memory, emit-c --freestanding. Примеры — в Файлах: /home/user/hello.kenga'],
-  [/ядр|kernel|arch/i, 'Ядро: kmain.kenga → emit-c → нейтральный C → x86_64 и aarch64. Автотесты в QEMU на каждый коммит (CI).'],
-  [/телефон|poco|mtk|мобил/i, 'Трек телефона: оболочка (сейчас) → mtkclient → fastboot boot без сноса. Цель — POCO M4 Pro (Helio G96).'],
-  [/браузер|internet|сайт/i, 'Браузер открывает внутренние страницы kenga:// и внешние сайты. Свой движок отрисовки — дорожная карта.'],
-  [/привет|здравств|хай/i, 'Привет! Я ассистент KengaOS. Спроси про темы, пророков, язык Кенга, ядро или телефон.'],
-];
+/* ---------- чат: пророк-ассистент (обучается на ходу) ---------- */
 
 export const ChatApp = ({ softKeyboard = false }) => {
   const [msgs, setMsgs] = useState([
-    { me: false, text: 'Ассистент KengaOS на связи. Спроси про: темы · пророки · язык · ядро · телефон.' },
+    { me: false, text: 'Пророк-ассистент на связи. Учусь на ходу: напиши «учи: вопрос => ответ» — запомню навсегда. Или спроси: темы · пророки · язык · ядро · телефон · сравнение.' },
   ]);
   const [cur, setCur] = useState('');
   const log = useRef(null);
@@ -417,9 +448,17 @@ export const ChatApp = ({ softKeyboard = false }) => {
     const t = cur.trim();
     if (!t) return;
     setCur('');
-    const hit = KNOW.find(([re]) => re.test(t));
-    const reply = hit ? hit[1] : 'Записал. Пока отвечаю по темам: темы · пророки · язык · ядро · телефон.';
     setMsgs(m => [...m, { me: true, text: t }]);
+    const taught = parseTeach(t);
+    let reply;
+    if (taught) {
+      reply = 'Выучено: «' + taught.q + '" → "' + taught.a + '». Спроси — отвечу.';
+    } else {
+      const hit = answer(t);
+      reply = hit
+        ? hit.text + (hit.learned ? '  · (из моей памяти)' : '')
+        : 'Не знаю ещё. Научи: «учи: ' + t.slice(0, 30) + ' => ответ» — запомню навсегда.';
+    }
     setTimeout(() => setMsgs(m => [...m, { me: false, text: reply }]), 450);
   };
 
@@ -452,7 +491,7 @@ export const ChatApp = ({ softKeyboard = false }) => {
             value={cur}
             onChange={(e) => setCur(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') send(); }}
-            placeholder="спроси про KengaOS…"
+            placeholder="спроси или научи: вопрос => ответ"
             className="flex-1 bg-transparent text-[12px] text-white/85 outline-none"
           />
           <button onClick={send} className="text-[12px] text-accent">отправить</button>

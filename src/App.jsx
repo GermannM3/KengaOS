@@ -9,6 +9,7 @@ import Dock from './components/Dock.jsx';
 import Launcher from './components/Launcher.jsx';
 import BrowserApp from './components/BrowserApp.jsx';
 import { AgentsApp, ChatApp, FilesApp, MonitorApp, SettingsApp, AboutApp } from './components/Apps.jsx';
+import { observeApp } from './components/Prophet.jsx';
 import { initTheme, setTheme } from './theme.js';
 
 /* URL-параметры: ?skip (мимо boot), ?theme=aurora|blue|green, ?app=terminal,browser */
@@ -59,6 +60,7 @@ const App = () => {
     
     const app = APPS.find(a => a.id === appId);
     if (!app) return;
+    observeApp(appId);   // пророк: учится на переходах
 
     setWindows(prev => {
       const offset = Object.keys(prev).length * 110;
