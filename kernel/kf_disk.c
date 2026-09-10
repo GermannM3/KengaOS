@@ -152,6 +152,10 @@ int64_t k_disk_write(uint64_t lba, uint16_t count, const void *buf) {
    Скретч-сектор — в хвосте диска; исходное содержимое сохраняется
    и восстанавливается (read-modify-write-verify-read). */
 #include <cpuid.h>
+static int memeq512(const uint8_t *a, const uint8_t *b) {
+    for (int i = 0; i < 512; i++) if (a[i] != b[i]) return 0;
+    return 1;
+}
 int64_t k_disk_rw_test(void) {
     if (!n_sectors) return 0;
     uint32_t a = 0, b = 0, c = 0, d = 0;
@@ -173,10 +177,10 @@ int64_t k_disk_rw_test(void) {
         pat[i] = (uint8_t)(0x4B ^ (i * 7) ^ (lba));   /* 'K' + позиция + LBA */
     if (k_disk_write(lba, 1, pat)) return -2;
     if (k_disk_read(lba, 1, back)) return -3;
-    if (__builtin_memcmp(pat, back, 512)) return -4;
+    if (!memeq512(pat, back)) return -4;
     /* вернуть как было */
     if (k_disk_write(lba, 1, orig)) return -5;
     if (k_disk_read(lba, 1, back)) return -6;
-    if (__builtin_memcmp(orig, back, 512)) return -7;
+    if (!memeq512(orig, back)) return -7;
     return 1;
 }

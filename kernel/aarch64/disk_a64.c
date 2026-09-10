@@ -10,3 +10,4 @@ int64_t k_disk_init(void)    { return 0; }
 int64_t k_disk_sectors(void) { return 0; }
 int64_t k_disk_read(uint64_t lba, uint16_t count, void* buf) { (void)lba; (void)count; (void)buf; return 0; }
 int64_t k_disk_write(uint64_t lba, uint16_t count, const void* buf) { (void)lba; (void)count; (void)buf; return 0; }
+int64_t k_disk_rw_test(void) { return 2; }   /* диска нет — RW-тест skip */
