@@ -153,7 +153,7 @@ Standalone HTML-preview дизайн-системы находится в
 | GDT + IDT | есть | Исключения + panic (UART + framebuffer) |
 | Планировщик | есть | Round-robin multitasking, собственные стеки |
 | Клавиатура (PS/2) | есть | IRQ1, ring buffer, framebuffer-консоль |
-| Shell | есть | `help`, `info`, `ver`, `clear`, `echo`, `mem`, `ps`, `agents`, `log`, `ask`, `spawn`, `tasks`, `ls`, `cat`, `time`, `cpuinfo`, `date`, `mmap`, `demo`, `reboot`, `poweroff` |
+| Shell | есть | `help`, `info`, `ver`, `clear`, `echo`, `mem`, `ps`, `agents`, `log`, `ask`, `spawn`, `tasks`, `ls`, `cat`, `time`, `cpuinfo`, `date`, `mmap`, `demo`, `reboot`, `poweroff`; **пайпы**: `echo text \| upper \| count` (CI-гейт `PIPE OK`) |
 | Кириллица | есть | UTF-8 консоль + русский шрифт, русское приветствие |
 | Память | есть | Kernel heap + frame-аллокатор (bitmap, ~94 МБ фреймов) |
 | Процессы + IPC | есть | `k_proc_spawn`, `k_ipc_send`/`k_ipc_recv`, очереди сообщений |
