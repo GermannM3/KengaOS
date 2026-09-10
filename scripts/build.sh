@@ -336,10 +336,11 @@ if command -v qemu-system-x86_64 >/dev/null 2>&1 && [[ -f "$BUILD_DIR/kengaos.is
     else
         WIN_UART="$UART_LOG"
     fi
-    # виртуальный диск для RW-теста (тест пишет только под гипервизором)
+    # scratch-диск для RW-теста: маркер на LBA0 = разрешение на запись
     WIN_DISK="$(cygpath -m "$BUILD_DIR/smoke-disk.img" 2>/dev/null || echo "$BUILD_DIR/smoke-disk.img")"
     dd if=/dev/zero of="$BUILD_DIR/smoke-disk.img" bs=1M count=64 status=none
-    timeout 5 qemu-system-x86_64 -M pc -cpu max,hypervisor=on -cdrom "$BUILD_DIR/kengaos.iso" \
+    printf 'KENGARWTEST1' | dd of="$BUILD_DIR/smoke-disk.img" bs=512 count=1 conv=notrunc status=none
+    timeout 5 qemu-system-x86_64 -M pc -cdrom "$BUILD_DIR/kengaos.iso" \
         -drive "file=$WIN_DISK,format=raw,if=ide" \
         -serial "file:$WIN_UART" -display none -no-reboot -m 64 \
         -device qemu-xhci -device usb-tablet \

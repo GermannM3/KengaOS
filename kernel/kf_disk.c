@@ -160,23 +160,19 @@ static int sig_eq(const char *hv, const char *sig, int n) {
     for (int i = 0; i < n; i++) if (hv[i] != sig[i]) return 0;
     return 1;
 }
+/* Тест чтение-запись-чтение: честный гейт «диск умеет писать».
+   Безопасность: пишем ТОЛЬКО в диск, у которого на LBA0 стоит маркер
+   KENGARWTEST1 (его кладёт scripts/build.sh на scratch-диск smoke).
+   На загрузочном/пользовательском диске маркера нет — skip.
+   Исходное содержимое скретч-сектора сохраняется и восстанавливается. */
 int64_t k_disk_rw_test(void) {
+    static uint8_t zero[512];
     if (!n_sectors) return 0;
-    /* сырой CPUID: __get_cpuid_count отбрасывает диапазон 0x40000000 */
-    uint32_t a = 0, b = 0, c = 0, d = 0;
-    __asm__ __volatile__("cpuid" : "=a"(a), "=b"(b), "=c"(c), "=d"(d) : "a"(0x40000000), "c"(0));
-    if (!b && !c && !d) return 2;                 /* листа нет — не ВМ */
-    const char *hv = (const char *)&b;
-    int virt = sig_eq(hv, "KVMKVMKVM", 9)
-            || sig_eq(hv, "TCGTCGTCG", 9)
-            || sig_eq(hv, "VMwareVMware", 12)
-            || sig_eq(hv, "Microsoft Hv", 12)
-            || sig_eq(hv, "XenVMMXenVMM", 12);
-    if (!virt) return 2;
-
     if (n_sectors < 32) return 0;
     uint64_t lba = n_sectors - 16;
     static uint8_t orig[512], pat[512], back[512];
+    if (k_disk_read(0, 1, zero)) return -1;            /* LBA0: маркер? */
+    if (!sig_eq((const char *)zero, "KENGARWTEST1", 12)) return 2;
     if (k_disk_read(lba, 1, orig)) return -1;
     for (int i = 0; i < 512; i++)
         pat[i] = (uint8_t)(0x4B ^ (i * 7) ^ (lba));   /* 'K' + позиция + LBA */
