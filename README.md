@@ -78,22 +78,28 @@ KengaOS получает абсолютные координаты курсор�
 ### Оболочки (UI-прототипы: десктоп + мобилка)
 
 Десктоп-оболочка: окна со стеклом, dock, браузер (`kenga://` + внешние
-сайты), терминал. Темы: Полярная / Синяя волна / Зелёная волна
-(переключатель в topbar):
+сайты), терминал. Темы: Полярная / Синяя волна / Зелёная волна:
 
 ![KengaOS desktop shell](docs/shots/desktop.png)
 
-Мобильная оболочка (одно ядро, другой UI): домашний экран, звонилка
-с набором номера, браузер. Темы переключаются в шторке:
+Монитор (графики CPU/RAM) и Настройки (темы, обои, о системе):
+
+![KengaOS monitor + settings](docs/shots/desktop-monitor.png)
+
+Мобильная оболочка (одно ядро, другой UI): домашний экран, агенты
+(чат с системными агентами + экранная клавиатура Ру/En), браузер.
+На телефоне также: звонилка с **реальными контактами** и вызовом,
+**реальные SMS**, **камера**:
 
 <p align="center">
   <img src="docs/shots/mobile-home.png" width="250" />
-  <img src="docs/shots/mobile-phone.png" width="250" />
+  <img src="docs/shots/mobile-agents.png" width="250" />
   <img src="docs/shots/mobile-browser.png" width="250" />
 </p>
 
 Постановочные кадры сняты через URL-параметры: `?skip`, `?theme=blue|green`,
-`?app=terminal,browser` (десктоп), `?app=phone&num=…` (мобилка).
+`?app=terminal,browser` (десктоп), `?app=agents|browser|phone&num=…` (мобилка).
+Сборка оболочки телефоном: `scripts/build-apk.sh` → `kengaos-mobile.apk`.
 
 ### Ядро (QEMU, framebuffer)
 
@@ -167,7 +173,7 @@ Standalone HTML-preview дизайн-системы находится в
 | Таймер / uptime | есть | PIT 100 Гц (x86) / generic timer CNTV (ARM64), команда `time` |
 | Аппаратура | есть | CPUID/MIDR (`cpuinfo`), RTC (`date`), память (`mmap`), FDT (ARM64) |
 | Power | есть | `reboot`, `poweroff` (x86: ACPI/PSCI-заглушки) |
-| **UI-оболочки (прототипы)** | есть | Веб-десктоп (окна/док/лаунчер/браузер) + мобилка (экранная клавиатура, браузер, звонилка); темы «Полярная / Синяя волна / Зелёная волна» |
+| **UI-оболочки (прототипы)** | есть, v0.8 | Десктоп и мобилка без заглушек: браузер, терминал, файлы (VFS), агенты, чат, монитор, настройки, темы. Мобилка — APK (`scripts/build-apk.sh`): контакты, SMS, камера, звонки через системные приложения |
 | CI/CD | есть | 3 джобы: тесты релиза, x86 ISO + QEMU smoke (RING3-гейт), aarch64 smoke (store-тест) |
 | Developer preview | готовится | Рабочий x86_64 ISO; paging-изоляция, сеть и persistent storage ещё в roadmap |
 

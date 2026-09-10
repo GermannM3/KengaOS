@@ -8,6 +8,7 @@ import TopBar from './components/TopBar.jsx';
 import Dock from './components/Dock.jsx';
 import Launcher from './components/Launcher.jsx';
 import BrowserApp from './components/BrowserApp.jsx';
+import { AgentsApp, ChatApp, FilesApp, MonitorApp, SettingsApp, AboutApp } from './components/Apps.jsx';
 import { initTheme, setTheme } from './theme.js';
 
 /* URL-параметры: ?skip (мимо boot), ?theme=aurora|blue|green, ?app=terminal,browser */
@@ -70,7 +71,15 @@ const App = () => {
           tag: app.tag,
           position: { x: 280 + offset, y: 80 + offset },
           size: { w: appId === 'terminal' ? '640px' : appId === 'monitor' ? '620px' : '560px', h: appId === 'terminal' ? '420px' : appId === 'monitor' ? '480px' : '470px' },
-          content: appId === 'terminal' ? <TerminalWindow /> : appId === 'browser' ? <BrowserApp /> : <div className="p-4 text-white/60">Содержимое окна: {app.name}</div>
+          content: appId === 'terminal' ? <TerminalWindow />
+            : appId === 'browser' ? <BrowserApp />
+            : appId === 'agents' ? <AgentsApp />
+            : appId === 'chat' ? <ChatApp />
+            : appId === 'monitor' ? <MonitorApp cpu={cpuPct} ram={ramPct} uptime={uptime} />
+            : appId === 'files' ? <FilesApp />
+            : appId === 'settings' ? <SettingsApp wallpaper wallIdx={wallIdx} onWallIdx={setWallIdx} />
+            : appId === 'about' ? <AboutApp />
+            : <div className="p-4 text-white/60">Содержимое окна: {app.name}</div>
         }
       };
     });

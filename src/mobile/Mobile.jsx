@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ICONS, APPS } from '../components/Dock.jsx';
 import { BROWSER_PAGES, HOME, parseAddr } from '../components/BrowserApp.jsx';
+import { SoftKeyboard, AgentsApp, ChatApp, FilesApp, MonitorApp, SettingsApp, AboutApp } from '../components/Apps.jsx';
 import { THEMES, getTheme, setTheme, initTheme } from '../theme.js';
 
 /* URL-параметры: ?skip, ?shade, ?theme=aurora|blue|green, ?app=phone|browser|terminal|… */
@@ -259,58 +260,6 @@ const Widget = ({ k }) => (
   </div>
 );
 
-/* ---------- экранная клавиатура (Ру/En, glass) ---------- */
-
-const KB_RU = [
-  ['й', 'ц', 'у', 'к', 'е', 'н', 'г', 'ш', 'щ', 'з', 'х', 'ъ'],
-  ['ф', 'ы', 'в', 'а', 'п', 'р', 'о', 'л', 'д', 'ж', 'э'],
-  ['я', 'ч', 'с', 'м', 'и', 'т', 'ь', 'б', 'ю'],
-];
-const KB_EN = [
-  ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
-  ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
-  ['z', 'x', 'c', 'v', 'b', 'n', 'm'],
-];
-
-const SoftKeyboard = ({ onKey, onBack, onEnter }) => {
-  const [shift, setShift] = useState(false);
-  const [ru, setRu] = useState(true);
-  const rows = ru ? KB_RU : KB_EN;
-  const tap = (c) => { onKey(shift ? c.toUpperCase() : c); if (shift) setShift(false); };
-  return (
-    <div className="mx-1 mb-1 shrink-0 rounded-2xl border border-white/[0.08] bg-[rgba(10,14,26,0.55)] p-1.5 backdrop-blur-xl">
-      {rows.map((row, i) => (
-        <div key={i} className="mb-1.5 flex gap-1" style={{ padding: '0 ' + (i === 1 ? 18 : 4) + 'px' }}>
-          {row.map(c => (
-            <button
-              key={c} onClick={() => tap(c)}
-              className="flex h-9 flex-1 items-center justify-center rounded-md bg-white/[0.07] text-[13px] text-white/85 transition active:scale-90 active:bg-white/20"
-            >{shift ? c.toUpperCase() : c}</button>
-          ))}
-        </div>
-      ))}
-      <div className="mb-1.5 flex gap-1 px-1">
-        <button onClick={() => tap('.')} className="h-9 w-10 shrink-0 rounded-md bg-white/[0.07] text-[13px] text-white/70 transition active:scale-90">.</button>
-        <button onClick={() => tap(',')} className="h-9 w-10 shrink-0 rounded-md bg-white/[0.07] text-[13px] text-white/70 transition active:scale-90">,</button>
-        <button onClick={() => onKey(' ')} className="h-9 flex-1 rounded-md bg-white/[0.07] text-[10px] text-white/50 transition active:scale-95">пробел</button>
-        <button onClick={onBack} className="h-9 w-11 shrink-0 rounded-md bg-white/[0.07] text-[13px] text-white/60 transition active:scale-90">⌫</button>
-        <button onClick={onEnter} className="h-9 w-11 shrink-0 rounded-md bg-accent/80 text-[13px] text-white transition active:scale-90">⏎</button>
-      </div>
-      <div className="flex gap-1 px-1 pb-0.5">
-        <button
-          onClick={() => setRu(v => !v)}
-          className="h-8 w-14 shrink-0 rounded-md bg-white/[0.07] mono text-[11px] text-accent transition active:scale-90"
-        >{ru ? 'En' : 'Ру'}</button>
-        <button
-          onClick={() => setShift(s => !s)}
-          className={`h-8 w-12 shrink-0 rounded-md text-[13px] transition active:scale-90 ${shift ? 'bg-accent text-white' : 'bg-white/[0.07] text-white/60'}`}
-        >⇧</button>
-        <span className="mono flex flex-1 items-center justify-center text-[9px] text-white/20">KengaOS</span>
-      </div>
-    </div>
-  );
-};
-
 /* ---------- браузер: kenga:// + внешние сайты (iframe) ---------- */
 
 const BrowserAppM = () => {
@@ -390,175 +339,6 @@ const BrowserAppM = () => {
           <button onClick={() => go(HOME)} className="glass mt-2 rounded-lg px-3 py-1.5 text-[11px] text-accent">на главную</button>
         </div>
       )}
-    </div>
-  );
-};
-
-/* ---------- файлы: VFS с Kenga-исходниками ---------- */
-
-const KENGA_HELLO = `// hello.kenga — первая программа на Кенга
-on "start" {
-    print("Привет из KengaOS!");
-}
-
-let имя: str = "мир";
-print("Привет, " + имя);`;
-
-const KENGA_PROPHET = `// prophet.kenga — пророк помнит и предсказывает
-let p = memory(8);          // память паттернов
-
-on "tick" {
-    learn(p, state());
-    let что_дальше = foresee(p);
-    if surprise(p) > 0.5 {
-        print("аномалия: " + что_дальше);
-    }
-}`;
-
-const KENGA_AGENT = `// agent.kenga — агент с правами
-agent Помощник {
-    cap: [CAP_UI, CAP_IPC];
-    on message m {
-        reply("принял: " + m);
-    }
-}`;
-
-const VFS = {
-  '/': [
-    ['bin', 'd'], ['etc', 'd'], ['home', 'd'],
-    ['readme.txt', 'KengaOS v0.7 — ОС на языке Кенга.\nОдно ядро для ПК и телефона.\n\nЭтот VFS — как initrd в ядре: файлы внутри оболочки.'],
-  ],
-  '/bin': [
-    ['shell', 'KengaOS shell · UTF-8\nкоманды: help, uptime, mem, agents, ls, cat'],
-    ['kenga-run', 'рантайм Kenga (bytecode)\nиспользование: kenga-run <файл.kenga>'],
-  ],
-  '/etc': [
-    ['motd', 'Добро пожаловать в KengaOS.\nПророки уже наблюдают.'],
-    ['agents.conf', 'ui-agent    CAP_UI\nmodel-agent CAP_MODEL_INFER\nkenga-agent CAP_IPC, CAP_UI\nvfs         CAP_FS'],
-  ],
-  '/home': [['user', 'd']],
-  '/home/user': [
-    ['hello.kenga', KENGA_HELLO],
-    ['prophet.kenga', KENGA_PROPHET],
-    ['agent.kenga', KENGA_AGENT],
-    ['mind.km', 'KENGAMIND\x00v1 · паттерны пророка · 8 dims · эпизоды: 32'],
-  ],
-};
-
-const FilesLite = () => {
-  const [path, setPath] = useState('/');
-  const [file, setFile] = useState(null); // [имя, содержимое]
-  if (file) {
-    return (
-      <div className="flex h-full flex-col">
-        <div className="mono flex shrink-0 items-center gap-2 px-4 pt-3 text-[11px] text-accent2">
-          <button onClick={() => setFile(null)} className="text-white/50">←</button>
-          {file[0]}
-        </div>
-        <pre className="mono flex-1 overflow-auto whitespace-pre-wrap px-4 py-3 text-[11px] leading-relaxed text-white/75">{file[1]}</pre>
-      </div>
-    );
-  }
-  const items = VFS[path] || [];
-  return (
-    <div className="flex h-full flex-col">
-      <div className="mono flex shrink-0 items-center gap-1 px-4 pt-3 text-[11px]">
-        {path !== '/' && <button onClick={() => setPath(p => p.slice(0, p.lastIndexOf('/')) || '/')} className="text-white/50">←</button>}
-        <span className="text-accent">vfs:</span>
-        <span className="text-white/70">{path}</span>
-      </div>
-      <div className="flex-1 space-y-1.5 overflow-auto px-3 pt-3 pb-3">
-        {items.map(([name, kind]) => (
-          <button
-            key={name}
-            onClick={() => kind === 'd' ? setPath(p => (p === '/' ? '' : p) + '/' + name) : setFile([name, kind])}
-            className="glass flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-left transition active:scale-[0.98]"
-          >
-            <span className={`text-[13px] ${kind === 'd' ? 'text-accent2' : 'text-white/35'}`}>{kind === 'd' ? '▸' : '≡'}</span>
-            <span className="flex-1 truncate text-[12px] text-white/85">{name}</span>
-            {kind === 'd' && <span className="mono text-[9px] text-white/25">папка</span>}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-/* ---------- агенты: живой чат с системными агентами ---------- */
-
-const AGENT_PROFILES = [
-  { id: 'ui-agent', name: 'UI-агент', tag: 'CAP_UI', color: 'text-accent',
-    greet: 'Оболочка на связи. Отрисовываю стекло, слушаю события.',
-    replies: ['Принял, отрисую в следующем кадре.', 'Понял. Поведение записываю в память сессии.', 'Событие доставлено ядру.'] },
-  { id: 'model-agent', name: 'Модель-агент', tag: 'CAP_MODEL_INFER', color: 'text-accent2',
-    greet: 'MLP онлайн. Дай два числа через пробел — предскажу выход.',
-    replies: ['Считаю… готово: см. прогноз в логе.', 'Паттерн похож на виденные — удивление низкое.', 'Обучусь на этом примере при следующем тике.'] },
-  { id: 'kenga-agent', name: 'Кенга-агент', tag: 'CAP_IPC', color: 'text-accent',
-    greet: 'Я написан на Кенге. Спроси про язык: memory, learn, foresee.',
-    replies: ['В Кенге это делается так: learn(p, state()).', 'Пророки — часть ядра, а не приложение.', 'Пиши код — компилятор emit-c уже собран.'] },
-  { id: 'vfs', name: 'VFS', tag: 'CAP_FS', color: 'text-accent2',
-    greet: 'Initrd смонтирован: /bin, /etc, /home/user.',
-    replies: ['Файл найден в дереве VFS.', 'Права есть: чтение разрешено.', 'Записи пока нет — ядро live.']},
-];
-
-const AgentsLite = () => {
-  const [active, setActive] = useState(AGENT_PROFILES[0]);
-  const [chats, setChats] = useState({});   // id: [{me:bool, text}]
-  const [cur, setCur] = useState('');
-  const [seen, setSeen] = useState({});     // id: true — прочитан грит
-  const log = useRef(null);
-  const msgs = chats[active.id] || [];
-
-  useEffect(() => {
-    if (!chats[active.id] && !seen[active.id]) {
-      setSeen(s => ({ ...s, [active.id]: true }));
-      setChats(c => ({ ...c, [active.id]: [{ me: false, text: active.greet }] }));
-    }
-  }, [active.id]);
-
-  useEffect(() => { if (log.current) log.current.scrollTop = log.current.scrollHeight; }, [chats, active.id]);
-
-  const send = () => {
-    const t = cur.trim();
-    if (!t) return;
-    setCur('');
-    setChats(c => ({ ...c, [active.id]: [...(c[active.id] || []), { me: true, text: t }] }));
-    setTimeout(() => {
-      const r = active.replies[Math.floor(Math.random() * active.replies.length)];
-      setChats(c => ({ ...c, [active.id]: [...(c[active.id] || []), { me: false, text: r }] }));
-    }, 500);
-  };
-
-  return (
-    <div className="flex h-full flex-col">
-      <div className="flex shrink-0 gap-1.5 overflow-x-auto px-3 pt-2">
-        {AGENT_PROFILES.map(a => (
-          <button
-            key={a.id} onClick={() => setActive(a)}
-            className={`glass shrink-0 rounded-full px-3 py-1.5 text-[10px] transition active:scale-95 ${a.id === active.id ? 'border-accent/50 text-white' : 'text-white/50'}`}
-          >
-            {a.name}<span className={`mono ml-1 text-[8px] ${a.color}`}>●</span>
-          </button>
-        ))}
-      </div>
-      <div ref={log} className="flex-1 space-y-2 overflow-auto px-3 py-3">
-        {msgs.map((m, i) => (
-          <div key={i} className={`flex ${m.me ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-[12px] leading-snug ${m.me ? 'bg-accent/25 text-white' : 'glass text-white/80'}`}>
-              {m.text}
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="glass mx-3 mb-1 flex shrink-0 items-center rounded-lg px-3 py-1.5">
-        <span className="mono flex-1 truncate text-[11px] text-white/85">{cur}<span className="animate-blink">▌</span></span>
-        <button onClick={send} className="text-[12px] text-accent">отправить</button>
-      </div>
-      <SoftKeyboard
-        onKey={(ch) => setCur(s => s + ch)}
-        onBack={() => setCur(s => s.slice(0, -1))}
-        onEnter={send}
-      />
     </div>
   );
 };
@@ -758,9 +538,136 @@ const TermLite = () => {
   );
 };
 
+/* ---------- сообщения: реальные SMS (чтение) + ответ через системное приложение ---------- */
+
+const MessagesApp = () => {
+  const [threads, setThreads] = useState(null); // null = грузим
+  const [open, setOpen] = useState(null);       // {addr, msgs, count}
+  const native = typeof window !== 'undefined' ? window.KengaNative : null;
+
+  useEffect(() => {
+    try {
+      const list = JSON.parse(native && native.sms ? native.sms() : '[]');
+      const by = {};
+      for (const m of list) {
+        const t = by[m.a] || (by[m.a] = { addr: m.a, msgs: [], count: 0 });
+        t.msgs.push(m); t.count++;
+      }
+      setThreads(Object.values(by).map(t => ({ ...t, last: t.msgs[0] }))
+        .sort((x, y) => y.last.d - x.last.d));
+    } catch { setThreads([]); }
+  }, []);
+
+  if (open) {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="mono flex shrink-0 items-center gap-2 px-4 pt-3 text-[12px] text-white/80">
+          <button onClick={() => setOpen(null)} className="text-white/50">←</button>
+          {open.addr}
+          <button
+            onClick={() => native && native.smsOpen && native.smsOpen(open.addr)}
+            className="ml-auto rounded-full bg-white/[0.07] px-3 py-1 text-[10px] text-accent"
+          >ответить в СМС</button>
+        </div>
+        <div className="flex-1 space-y-2 overflow-auto px-3 py-3">
+          {open.msgs.map((m, i) => (
+            <div key={i} className="glass rounded-2xl px-3.5 py-2">
+              <div className="text-[12px] leading-snug text-white/85">{m.b}</div>
+              <div className="mono mt-1 text-[9px] text-white/25">{new Date(m.d).toLocaleString('ru-RU')}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex h-full flex-col">
+      <div className="mono shrink-0 px-4 pt-3 text-[11px] text-white/45">диалоги · входящие SMS</div>
+      <div className="flex-1 space-y-1.5 overflow-auto px-3 pt-2 pb-3">
+        {threads === null && <div className="mono px-2 pt-3 text-[11px] text-white/30">загрузка…</div>}
+        {threads && threads.map(t => (
+          <button
+            key={t.addr} onClick={() => setOpen(t)}
+            className="glass flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-left transition active:scale-[0.98]"
+          >
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent/15 text-[12px] text-accent">{(t.addr[0] || '?').toUpperCase()}</span>
+            <span className="flex-1 truncate">
+              <span className="block truncate text-[12px] text-white/85">{t.addr}</span>
+              <span className="block truncate text-[10px] text-white/40">{t.last.b}</span>
+            </span>
+            {t.count > 1 && <span className="mono rounded-full bg-white/[0.08] px-2 py-0.5 text-[9px] text-white/50">{t.count}</span>}
+          </button>
+        ))}
+        {threads && threads.length === 0 && (
+          <div className="mono px-2 pt-4 text-[10px] leading-relaxed text-white/25">
+            {native ? 'SMS недоступны — нет разрешения READ_SMS' : 'SMS: только в APK на телефоне'}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* ---------- камера: реальный превью + снимок (getUserMedia) ---------- */
+
+const CameraApp = () => {
+  const videoRef = useRef(null);
+  const [err, setErr] = useState(null);
+  const [shot, setShot] = useState(null);
+
+  useEffect(() => {
+    let stream = null;
+    if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+      setErr('камера недоступна в этом окружении'); return;
+    }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      .then(s => { stream = s; if (videoRef.current) { videoRef.current.srcObject = s; videoRef.current.play(); } })
+      .catch(e => setErr('нет доступа к камере (' + e.name + ')'));
+    return () => { if (stream) stream.getTracks().forEach(t => t.stop()); };
+  }, []);
+
+  const capture = () => {
+    const v = videoRef.current;
+    if (!v || !v.videoWidth) return;
+    const c = document.createElement('canvas');
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    c.getContext('2d').drawImage(v, 0, 0);
+    setShot(c.toDataURL('image/jpeg', 0.85));
+  };
+
+  if (shot) {
+    return (
+      <div className="flex h-full flex-col">
+        <img src={shot} alt="снимок" className="min-h-0 flex-1 rounded-2xl object-contain" />
+        <div className="flex shrink-0 items-center justify-center gap-4 py-3">
+          <button onClick={() => setShot(null)} className="glass rounded-full px-5 py-2 text-[12px] text-white/80 active:scale-95">переснять</button>
+          <a href={shot} download="kengaos.jpg" className="glass rounded-full px-5 py-2 text-[12px] text-accent active:scale-95">сохранить</a>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex h-full flex-col">
+      <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl bg-black/40">
+        <video ref={videoRef} playsInline muted className="h-full w-full object-cover" />
+        {err && (
+          <div className="mono absolute inset-0 flex items-center justify-center px-8 text-center text-[10px] leading-relaxed text-white/40">{err}</div>
+        )}
+      </div>
+      <div className="flex shrink-0 items-center justify-center py-3">
+        <button
+          onClick={capture}
+          className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-white/60 bg-white/10 active:scale-90"
+          aria-label="снять"
+        ><span className="h-12 w-12 rounded-full bg-accent" /></button>
+      </div>
+    </div>
+  );
+};
+
 /* ---------- приложение на весь экран (без светофора) ---------- */
 
-const AppSheet = ({ app, onClose }) => {
+const AppSheet = ({ app, k, onClose }) => {
   const icon = typeof app.icon === 'string' ? ICONS[app.icon] : app.icon;
   return (
     <div className="animate-pop-in absolute inset-0 z-40 flex flex-col">
@@ -783,8 +690,14 @@ const AppSheet = ({ app, onClose }) => {
           {app.id === 'terminal' ? <TermLite />
             : app.id === 'browser' ? <BrowserAppM />
             : app.id === 'phone' ? <DialerApp />
-            : app.id === 'agents' ? <AgentsLite />
-            : app.id === 'files' ? <FilesLite />
+            : app.id === 'messages' ? <MessagesApp />
+            : app.id === 'camera' ? <CameraApp />
+            : app.id === 'agents' ? <AgentsApp softKeyboard />
+            : app.id === 'chat' ? <ChatApp softKeyboard />
+            : app.id === 'files' ? <FilesApp />
+            : app.id === 'monitor' ? <MonitorApp cpu={k.cpu} ram={k.ram} uptime={fmt(k.uptime)} ipc={k.ipc} />
+            : app.id === 'settings' ? <SettingsApp />
+            : app.id === 'about' ? <AboutApp />
             : <div className="flex h-full flex-col items-center justify-center gap-3 text-white/35">
                 <span className="h-10 w-10 text-accent/60">{icon}</span>
                 <span className="mono text-[11px]">модуль «{app.name}» · этап порта в Kenga</span>
@@ -893,7 +806,7 @@ const Mobile = () => {
             ? <LockScreen k={k} onUnlock={() => setLocked(false)} />
             : <Home k={k} onOpen={open} onLauncher={() => setLauncher(true)} onShade={() => setShade(true)} />}
           {launcher && <Launcher onOpen={open} onClose={home} />}
-          {openApp && <AppSheet app={openApp} onClose={home} />}
+          {openApp && <AppSheet app={openApp} k={k} onClose={home} />}
           {shade && <Shade open={shade} onClose={() => setShade(false)} />}
         </>
       )}

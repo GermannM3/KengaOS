@@ -52,7 +52,7 @@ const TopBar = ({ ramPct, cpuPct, uptime, onMenu }) => {
           </svg>
         </button>
         <span className="disp text-[12px] tracking-[2px] bg-gradient-to-r from-white to-[#9aa7ff] bg-clip-text text-transparent">KENGAOS</span>
-        <span className="chip mono hidden md:flex text-[9px]">0.5 · agent-native</span>
+        <span className="chip mono hidden md:flex text-[9px]">0.8 · agent-native</span>
       </div>
       
       <div className="absolute left-1/2 -translate-x-1/2 flex items-baseline gap-[10px]">

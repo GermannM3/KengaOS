@@ -59,7 +59,7 @@ const APPS = [
   { id: 'monitor', name: 'Монитор', icon: 'monitor', tag: 'PIT 100 Гц' },
   { id: 'files', name: 'Файлы', icon: 'files', tag: 'VFS + initrd' },
   { id: 'settings', name: 'Настройки', icon: 'settings', tag: 'system' },
-  { id: 'about', name: 'О системе', icon: 'about', tag: 'v0.5' }
+  { id: 'about', name: 'О системе', icon: 'about', tag: 'v0.8' }
 ];
 
 const Dock = ({ activeApp, onAppClick }) => (
