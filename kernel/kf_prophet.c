@@ -129,10 +129,23 @@ int64_t k_prophet_tick(int64_t mx, int64_t my, int64_t app, int64_t w, int64_t h
     obs[7] = 0.5;                                   /* резерв */
 
     if (have_last) {
-        /* surprise: RMSE между прошлым наблюдением и текущим */
+        /* surprise = RMSE(pred, obs) — как в kenga-lang, не «мир сдвинулся» */
         double s = 0;
-        for (int i = 0; i < PP_DIM; i++) { double d = last_obs[i] - obs[i]; s += d * d; }
+        if (pred_valid) {
+            for (int i = 0; i < PP_DIM; i++) { double d = pred[i] - obs[i]; s += d * d; }
+        } else {
+            for (int i = 0; i < PP_DIM; i++) { double d = last_obs[i] - obs[i]; s += d * d; }
+        }
         last_surprise = s / PP_DIM;
+        {
+            /* Newton sqrt, libm в ядре — заглушка */
+            double g = last_surprise > 0 ? last_surprise : 0;
+            if (g > 0) {
+                int n;
+                for (n = 0; n < 8; n++) g = 0.5 * (g + last_surprise / g);
+                last_surprise = g;
+            }
+        }
         remember(last_obs, obs, last_surprise);
         foresee(obs);
         pred_surprise_pct = (int)(last_surprise * 400.0);

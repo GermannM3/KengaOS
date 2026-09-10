@@ -336,7 +336,11 @@ if command -v qemu-system-x86_64 >/dev/null 2>&1 && [[ -f "$BUILD_DIR/kengaos.is
     else
         WIN_UART="$UART_LOG"
     fi
+    # виртуальный диск для RW-теста (тест пишет только под гипервизором)
+    WIN_DISK="$(cygpath -m "$BUILD_DIR/smoke-disk.img" 2>/dev/null || echo "$BUILD_DIR/smoke-disk.img")"
+    dd if=/dev/zero of="$BUILD_DIR/smoke-disk.img" bs=1M count=64 status=none
     timeout 5 qemu-system-x86_64 -M q35 -cdrom "$BUILD_DIR/kengaos.iso" \
+        -drive "file=$WIN_DISK,format=raw,if=ide" \
         -serial "file:$WIN_UART" -display none -no-reboot -m 64 \
         -device qemu-xhci -device usb-tablet \
         -device isa-debug-exit,iobase=0xf4,iosize=0x04 || true
@@ -360,6 +364,7 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "PROC READY" "$UART_LOG" || { echo "ERROR: PROC READY marker missing" >&2; ok=0; }
     grep -q "tablet ready" "$UART_LOG" || { echo "ERROR: USB xHCI tablet marker missing" >&2; ok=0; }
     grep -q "RING3 OK" "$UART_LOG" || { echo "ERROR: RING3 user-mode marker missing" >&2; ok=0; }
+    grep -q "DISK RW OK" "$UART_LOG" || { echo "ERROR: DISK RW marker missing (ata write test)" >&2; ok=0; }
     grep -q "MEM READY" "$UART_LOG" || { echo "ERROR: MEM READY marker missing" >&2; ok=0; }
     grep -Eq "initrd files=[1-9][0-9]*" "$UART_LOG" || { echo "ERROR: initrd/VFS marker missing" >&2; ok=0; }
     # ponytail: agent/model IPC round-trip pending the kenga-lang ABI migration

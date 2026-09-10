@@ -145,3 +145,38 @@ int64_t k_disk_write(uint64_t lba, uint16_t count, const void *buf) {
     wait_bsy();
     return 0;
 }
+
+/* Тест чтение-запись-чтение: честный гейт «диск умеет писать».
+   Безопасность: пишем ТОЛЬКО под гипервизором (QEMU/KVM/TCG и пр.) —
+   на голом железе никаких записей: return 2 = skip.
+   Скретч-сектор — в хвосте диска; исходное содержимое сохраняется
+   и восстанавливается (read-modify-write-verify-read). */
+#include <cpuid.h>
+int64_t k_disk_rw_test(void) {
+    if (!n_sectors) return 0;
+    uint32_t a = 0, b = 0, c = 0, d = 0;
+    if (!__get_cpuid_count(0x40000000, 0, &a, &b, &c, &d)) return 2;
+    const char *hv = (const char *)&b;
+    int virt = !__builtin_memcmp(hv, "KVMKVMKVM\0\0\0", 12)
+            || !__builtin_memcmp(hv, "TCGTCGTCGTCG", 12)
+            || !__builtin_memcmp(hv, "TCGTCGTCG", 9)
+            || !__builtin_memcmp(hv, "VMwareVMware", 12)
+            || !__builtin_memcmp(hv, "Microsoft Hv", 12)
+            || !__builtin_memcmp(hv, "XenVMMXenVMM", 12);
+    if (!virt) return 2;
+
+    if (n_sectors < 32) return 0;
+    uint64_t lba = n_sectors - 16;
+    static uint8_t orig[512], pat[512], back[512];
+    if (k_disk_read(lba, 1, orig)) return -1;
+    for (int i = 0; i < 512; i++)
+        pat[i] = (uint8_t)(0x4B ^ (i * 7) ^ (lba));   /* 'K' + позиция + LBA */
+    if (k_disk_write(lba, 1, pat)) return -2;
+    if (k_disk_read(lba, 1, back)) return -3;
+    if (__builtin_memcmp(pat, back, 512)) return -4;
+    /* вернуть как было */
+    if (k_disk_write(lba, 1, orig)) return -5;
+    if (k_disk_read(lba, 1, back)) return -6;
+    if (__builtin_memcmp(orig, back, 512)) return -7;
+    return 1;
+}

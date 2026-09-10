@@ -121,7 +121,7 @@ export const MonitorApp = ({ cpu = 12, ram = 41, uptime = '—', ipc = [] }) => 
                 </div>
               ))}
               <div className="mono pt-1.5 text-[9px] text-white/30">
-                переходов: {st.obs} · точность прогноза: {Math.round(st.accuracy * 100)}%
+                переходов: {st.obs} · точность: {Math.round(st.accuracy * 100)}% · surprise: {Math.round((st.surprise || 0) * 100)}%
               </div>
             </>
           );
@@ -243,15 +243,18 @@ on "start" {
 let имя: str = "мир";
 print("Привет, " + имя);`;
 
-const KENGA_PROPHET = `// prophet.kenga — пророк помнит и предсказывает
-let p = memory(8);          // память паттернов
-
-on "tick" {
-    learn(p, state());
-    let что_дальше = foresee(p);
-    if surprise(p) > 0.5 {
-        print("аномалия: " + что_дальше);
-    }
+const KENGA_PROPHET = `// prophet.kenga — тело в файле, учитель = surprise
+fn main() -> i64 {
+    let path = "minds/os.km";
+    let mind = memory_config(10, 32, 16);
+    if file_exists(path) { mind = load_mind(path); }
+    let obs = [2, 2, 9];
+    let pred = foresee(mind, obs);
+    let s = surprise(pred, obs);
+    if s > 0.2 { remember(mind, obs, s); }
+    consolidate(mind);
+    save_mind(mind, path);
+    return 0;
 }`;
 
 const KENGA_AGENT = `// agent.kenga — агент с правами

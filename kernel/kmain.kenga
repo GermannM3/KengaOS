@@ -28,6 +28,7 @@ import "../kenga-desktop/src/platform/kernel_bridge.kenga";
 @intrinsic fn timer_init() -> i64;
 @intrinsic fn disk_init() -> i64;
 @intrinsic fn disk_sectors() -> i64;
+@intrinsic fn disk_rw_test() -> i64;
 @intrinsic fn time_uptime_ms() -> i64;
 @intrinsic fn cpu_vendor(buf: i64, max: i64) -> i64;
 @intrinsic fn cpu_brand(buf: i64, max: i64) -> i64;
@@ -289,6 +290,13 @@ fn main() -> i64 {
     if dok == 1 { uart_puts("ok sec="); kf_puti(disk_sectors()); }
     else { uart_puts("FAIL"); }
     uart_putc(10);
+    /* RW-тест: пишем ТОЛЬКО под гипервизором (на живом диске — никогда) */
+    let drw: i64 = disk_rw_test();
+    if drw == 1 { kp_msg("KengaOS", "DISK RW OK"); }
+    else {
+        if drw == 2 { kp_msg("KengaOS", "DISK RW SKIP"); }
+        else { kp_msg("KengaOS", "DISK RW FAIL"); }
+    }
 
 
     let pf: i64 = mem_palloc();

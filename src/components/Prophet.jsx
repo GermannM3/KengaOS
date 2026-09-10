@@ -10,7 +10,7 @@
 
 const LSK = 'kenga-prophet-v1';
 
-let M = { pairs: [], markov: {}, lastApp: null, stats: { taught: 0, obs: 0, hits: 0 } };
+let M = { pairs: [], markov: {}, lastApp: null, stats: { taught: 0, obs: 0, hits: 0, surprise: 1 } };
 
 try {
   const saved = JSON.parse(localStorage.getItem(LSK) || 'null');
@@ -85,10 +85,12 @@ export const APP_NAMES = {
 export const observeApp = (id) => {
   const prev = M.lastApp;
   if (prev && prev !== id) {
+    // score the forecast made BEFORE this transition — otherwise accuracy is a lie
+    const top = foreseeApp(prev)[0];
+    M.stats.surprise = surpriseApp(prev, id);
     const row = (M.markov[prev] = M.markov[prev] || {});
     row[id] = (row[id] || 0) + 1;
     M.stats.obs++;
-    const top = foreseeApp(prev)[0];
     if (top && top.id === id) M.stats.hits++;
   }
   M.lastApp = id;
