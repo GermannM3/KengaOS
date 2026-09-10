@@ -162,8 +162,10 @@ static int sig_eq(const char *hv, const char *sig, int n) {
 }
 int64_t k_disk_rw_test(void) {
     if (!n_sectors) return 0;
+    /* сырой CPUID: __get_cpuid_count отбрасывает диапазон 0x40000000 */
     uint32_t a = 0, b = 0, c = 0, d = 0;
-    if (!__get_cpuid_count(0x40000000, 0, &a, &b, &c, &d)) return 2;
+    __asm__ __volatile__("cpuid" : "=a"(a), "=b"(b), "=c"(c), "=d"(d) : "a"(0x40000000), "c"(0));
+    if (!b && !c && !d) return 2;                 /* листа нет — не ВМ */
     const char *hv = (const char *)&b;
     int virt = sig_eq(hv, "KVMKVMKVM", 9)
             || sig_eq(hv, "TCGTCGTCG", 9)
