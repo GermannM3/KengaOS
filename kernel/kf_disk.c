@@ -40,13 +40,13 @@ static void delay400ns(void) {
 }
 
 static int wait_bsy(void) {
-    for (uint32_t i = 0; i < 2000000; i++)
+    for (uint32_t i = 0; i < 150000; i++)
         if (!(inb(ATA_STAT) & ST_BSY)) return 0;
     return -1;
 }
 
 static int wait_drq(void) {
-    for (uint32_t i = 0; i < 2000000; i++) {
+    for (uint32_t i = 0; i < 150000; i++) {
         uint8_t st = inb(ATA_STAT);
         if (st & ST_ERR) return -1;
         if (st & ST_DRQ) return 0;
