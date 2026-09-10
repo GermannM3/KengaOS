@@ -366,6 +366,7 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "tablet ready" "$UART_LOG" || { echo "ERROR: USB xHCI tablet marker missing" >&2; ok=0; }
     grep -q "RING3 OK" "$UART_LOG" || { echo "ERROR: RING3 user-mode marker missing" >&2; ok=0; }
     grep -q "DISK RW OK" "$UART_LOG" || { echo "ERROR: DISK RW marker missing (ata write test)" >&2; ok=0; }
+    grep -q "PIPE OK" "$UART_LOG" || { echo "ERROR: PIPE marker missing (shell pipes)" >&2; ok=0; }
     grep -q "MEM READY" "$UART_LOG" || { echo "ERROR: MEM READY marker missing" >&2; ok=0; }
     grep -Eq "initrd files=[1-9][0-9]*" "$UART_LOG" || { echo "ERROR: initrd/VFS marker missing" >&2; ok=0; }
     # ponytail: agent/model IPC round-trip pending the kenga-lang ABI migration
