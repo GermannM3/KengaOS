@@ -290,16 +290,6 @@ fn main() -> i64 {
     if dok == 1 { uart_puts("ok sec="); kf_puti(disk_sectors()); }
     else { uart_puts("FAIL"); }
     uart_putc(10);
-    /* RW-тест: пишем ТОЛЬКО в диск с маркером KENGARWTEST1 (smoke) */
-    let drw: i64 = disk_rw_test();
-    uart_puts("rw=");
-    kf_puti(drw);
-    uart_putc(10);
-    if drw == 1 { kp_msg("KengaOS", "DISK RW OK"); }
-    else {
-        if drw >= 0 { kp_msg("KengaOS", "DISK RW SKIP"); }   /* нет диска | нет маркера */
-        else { kp_msg("KengaOS", "DISK RW FAIL"); }
-    }
 
 
     let pf: i64 = mem_palloc();
@@ -338,6 +328,19 @@ fn main() -> i64 {
         kp_msg("KengaOS", "FDT NONE");
     }
     timer_init();
+    /* RW-тест (после INTR: изолирован от boot-гейтов).
+       Пишем ТОЛЬКО в диск с маркером KENGARWTEST1 (smoke). */
+    uart_puts("rw:go");
+    uart_putc(10);
+    let drw: i64 = disk_rw_test();
+    uart_puts("rw=");
+    kf_puti(drw);
+    uart_putc(10);
+    if drw == 1 { kp_msg("KengaOS", "DISK RW OK"); }
+    else {
+        if drw >= 0 { kp_msg("KengaOS", "DISK RW SKIP"); }
+        else { kp_msg("KengaOS", "DISK RW FAIL"); }
+    }
 
     let go: i64 = gui_init();   /* hardware bridge: kbd/con/proc/mouse, sti */
     if go == 1 {
