@@ -104,3 +104,4 @@ yarn.lock
 # Session/tool artifacts
 /.zcode/
 /.mimocode/
+dist-apk/
