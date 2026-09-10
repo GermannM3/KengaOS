@@ -156,17 +156,20 @@ static int memeq512(const uint8_t *a, const uint8_t *b) {
     for (int i = 0; i < 512; i++) if (a[i] != b[i]) return 0;
     return 1;
 }
+static int sig_eq(const char *hv, const char *sig, int n) {
+    for (int i = 0; i < n; i++) if (hv[i] != sig[i]) return 0;
+    return 1;
+}
 int64_t k_disk_rw_test(void) {
     if (!n_sectors) return 0;
     uint32_t a = 0, b = 0, c = 0, d = 0;
     if (!__get_cpuid_count(0x40000000, 0, &a, &b, &c, &d)) return 2;
     const char *hv = (const char *)&b;
-    int virt = !__builtin_memcmp(hv, "KVMKVMKVM\0\0\0", 12)
-            || !__builtin_memcmp(hv, "TCGTCGTCGTCG", 12)
-            || !__builtin_memcmp(hv, "TCGTCGTCG", 9)
-            || !__builtin_memcmp(hv, "VMwareVMware", 12)
-            || !__builtin_memcmp(hv, "Microsoft Hv", 12)
-            || !__builtin_memcmp(hv, "XenVMMXenVMM", 12);
+    int virt = sig_eq(hv, "KVMKVMKVM", 9)
+            || sig_eq(hv, "TCGTCGTCG", 9)
+            || sig_eq(hv, "VMwareVMware", 12)
+            || sig_eq(hv, "Microsoft Hv", 12)
+            || sig_eq(hv, "XenVMMXenVMM", 12);
     if (!virt) return 2;
 
     if (n_sectors < 32) return 0;
