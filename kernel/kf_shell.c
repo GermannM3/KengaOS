@@ -131,6 +131,21 @@ static int exec_pipe(char* line) {
     return 1;
 }
 
+/* boot self-test пайплайна: из kmain (шелл-таск в smoke не успевает) */
+int64_t k_shell_pipe_selftest(void) {
+    char stages[3][64];
+    char a[PIPE_BUF], b[PIPE_BUF];
+    const char* e = "echo kenga pipe test";
+    int i = 0; for (; e[i]; i++) stages[0][i] = e[i];
+    stages[0][i] = 0;
+    stages[1][0]='u';stages[1][1]='p';stages[1][2]='p';stages[1][3]='e';stages[1][4]='r';stages[1][5]=0;
+    stages[2][0]='c';stages[2][1]='o';stages[2][2]='u';stages[2][3]='n';stages[2][4]='t';stages[2][5]=0;
+    run_stage(stages[0], "", b);
+    run_stage(stages[1], b, a);
+    run_stage(stages[2], a, b);
+    return b[0]=='1' && b[1]==' ' && b[2]=='3' && b[3]==' ' && b[4]=='1' && b[5]=='6';
+}
+
 static void run_cmd(const char* cmd) {
     if (cmd[0] == 0) { k_fb_con_print("kenga> "); return; }
     if (exec_pipe((char*)cmd)) { k_fb_con_print("kenga> "); return; }
@@ -411,23 +426,6 @@ int64_t k_shell_init(void) {
         k_hw_cpu_brand(b, sizeof b); sh_uart("CPUB:"); sh_uart(b); sh_uart("\n");
         k_hw_rtc_str(b, sizeof b); sh_uart("RTC:"); sh_uart(b); sh_uart("\n");
         sh_uart("NREG:"); sh_uart(dec(k_mem_region_count())); sh_uart("\n");
-    }
-    /* PIPE self-test: echo kenga pipe test | upper | count -> "1 3 15" */
-    {
-        char stages[3][64];
-        char a[PIPE_BUF], b[PIPE_BUF];
-        const char* e = "echo kenga pipe test";
-        int i = 0; for (; e[i]; i++) stages[0][i] = e[i];
-        stages[0][i] = 0;
-        stages[1][0]='u';stages[1][1]='p';stages[1][2]='p';stages[1][3]='e';stages[1][4]='r';stages[1][5]=0;
-        stages[2][0]='c';stages[2][1]='o';stages[2][2]='u';stages[2][3]='n';stages[2][4]='t';stages[2][5]=0;
-        a[0] = 0;
-        run_stage(stages[0], "", b);
-        run_stage(stages[1], b, a);
-        run_stage(stages[2], a, b);
-        sh_uart(b[0]=='1' && b[1]==' ' && b[2]=='3' && b[3]==' ' && b[4]=='1' && b[5]=='6'
-                ? "PIPE OK" : "PIPE FAIL");
-        sh_uart("\n");
     }
     k_proc_init();          /* spawn logger + agent (IPC) */
     k_proc_spawn("shell", shell_task, CAP_ALL);   /* system agent: full caps */

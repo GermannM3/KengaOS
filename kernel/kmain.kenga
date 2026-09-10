@@ -29,6 +29,7 @@ import "../kenga-desktop/src/platform/kernel_bridge.kenga";
 @intrinsic fn disk_init() -> i64;
 @intrinsic fn disk_sectors() -> i64;
 @intrinsic fn disk_rw_test() -> i64;
+@intrinsic fn shell_pipe_selftest() -> i64;
 @intrinsic fn time_uptime_ms() -> i64;
 @intrinsic fn cpu_vendor(buf: i64, max: i64) -> i64;
 @intrinsic fn cpu_brand(buf: i64, max: i64) -> i64;
@@ -341,6 +342,9 @@ fn main() -> i64 {
         if drw >= 0 { kp_msg("KengaOS", "DISK RW SKIP"); }
         else { kp_msg("KengaOS", "DISK RW FAIL"); }
     }
+    /* пайпы шелла: echo | upper | count */
+    let pp: i64 = shell_pipe_selftest();
+    if pp == 1 { kp_msg("KengaOS", "PIPE OK"); } else { kp_msg("KengaOS", "PIPE FAIL"); }
 
     let go: i64 = gui_init();   /* hardware bridge: kbd/con/proc/mouse, sti */
     if go == 1 {
