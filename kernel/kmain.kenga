@@ -294,7 +294,7 @@ fn main() -> i64 {
     let drw: i64 = disk_rw_test();
     if drw == 1 { kp_msg("KengaOS", "DISK RW OK"); }
     else {
-        if drw == 2 { kp_msg("KengaOS", "DISK RW SKIP"); }
+        if drw >= 0 { kp_msg("KengaOS", "DISK RW SKIP"); }   /* нет диска | голое железо */
         else { kp_msg("KengaOS", "DISK RW FAIL"); }
     }
 
