@@ -46,6 +46,7 @@ static int     vblk_n = 0;
 static int     vblk_ready = 0;
 int64_t dbg_dump = 0;
 int64_t dbg_dump2 = 0;
+uint32_t dbg_st[8];
 
 static inline uint32_t r32(volatile uint32_t* b, int off) { return b[off / 4]; }
 static inline void     w32(volatile uint32_t* b, int off, uint32_t v) { b[off / 4] = v; }
@@ -63,8 +64,11 @@ static int vring_setup(vblk_t* d) {
             volatile uint8_t* m = (volatile uint8_t*)p1;
             for (int i = 0; i < VR_PAGES * 4096; i++) m[i] = 0;
             uint32_t qmax = r32(d->base, R_QNUMMAX);
+            dbg_st[3] = qmax;
             w32(d->base, R_QNUM, (qmax < VR_N ? qmax : VR_N));
+            dbg_st[4] = r32(d->base, R_STATUS);
             w32(d->base, R_QPFN, (uint32_t)(d->pa >> 12));  /* активирует очередь */
+            dbg_st[5] = r32(d->base, R_STATUS);
             d->last_used = 0;
             return 1;
         }
@@ -85,8 +89,11 @@ int k_vblk_init(void) {
         d->base = b;
         w32(b, R_STATUS, 0);                                /* reset */
         w32(b, R_STATUS, VSTAT_ACK | VSTAT_DRV);
+        dbg_st[0] = r32(b, R_STATUS);
         w32(b, R_GF, 0);                                    /* без фич — legacy blk хватает */
+        dbg_st[1] = r32(b, R_STATUS);
         w32(b, R_GPAGE, 4096);                              /* до настройки очереди */
+        dbg_st[2] = r32(b, R_STATUS);
         if (!vring_setup(d)) continue;
         d->cap = (uint64_t)r32(b, R_CFG) | ((uint64_t)r32(b, R_CFG + 4) << 32);
         w32(b, R_STATUS, VSTAT_ACK | VSTAT_DRV | VSTAT_OK);
