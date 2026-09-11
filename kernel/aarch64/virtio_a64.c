@@ -45,6 +45,7 @@ static vblk_t vblk[VBLK_MAX];
 static int     vblk_n = 0;
 static int     vblk_ready = 0;
 int64_t dbg_dump = 0;
+int64_t dbg_dump2 = 0;
 
 static inline uint32_t r32(volatile uint32_t* b, int off) { return b[off / 4]; }
 static inline void     w32(volatile uint32_t* b, int off, uint32_t v) { b[off / 4] = v; }
@@ -138,13 +139,16 @@ static int vblk_xfer(vblk_t* d, uint64_t sector, void* buf, int is_write) {
             return st == 0 ? 0 : -1;
         }
     }
-    /* dbg: intstatus (0x060) и readback queue pfn (0x040) — видно в lba0= */
+    /* dbg: полный статус устройства на момент таймаута */
     {
-        extern int64_t k_disk_dbg(void);
-        uint32_t ist = r32(d->base, R_INTST);
-        uint32_t qpf = r32(d->base, R_QPFN);
-        uint32_t used_u16 = *used_idx;
-        dbg_dump = (int64_t)((ist & 0xFF) | ((qpf & 0xFF) << 8) | ((used_u16 & 0xFF) << 16) | (1u << 31));
+        uint32_t ist   = r32(d->base, R_INTST);
+        uint32_t stat  = r32(d->base, R_STATUS);
+        uint32_t qnum  = r32(d->base, R_QNUM);
+        uint32_t nmax  = r32(d->base, R_QNUMMAX);
+        uint32_t feat  = r32(d->base, R_HF);
+        uint32_t aidx  = avail[1];
+        dbg_dump  = (ist & 0xFF) | ((stat & 0xFF) << 8) | ((qnum & 0xFF) << 16) | ((aidx & 0xFF) << 24);
+        dbg_dump2 = (nmax & 0xFFFF) | ((feat & 0xFFFF) << 16);
     }
     return -2;
 }
