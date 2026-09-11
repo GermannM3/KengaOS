@@ -11,19 +11,20 @@
 #define VMMIO_SLOTS 32
 #define VBLK_MAX    4
 
-/* legacy регистры */
+/* legacy регистры (virtio spec, legacy interface; у transports один vq) */
 #define R_MAGIC   0x000
 #define R_VERSION 0x004
 #define R_DEVID   0x008
 #define R_HF      0x010
 #define R_GF      0x020
-#define R_GPAGE   0x028   /* legacy: обязательный guest page size */
-#define R_QSEL    0x030
-#define R_QNUMMAX 0x038
-#define R_QNUM    0x03C
-#define R_QPFN    0x040
-#define R_QNOTIFY 0x050
-#define R_STATUS  0x070
+#define R_GPAGE   0x028   /* guest page size — обязателен, до очередей */
+#define R_QPFN    0x030   /* запись активирует очередь */
+#define R_QNUMMAX 0x034
+#define R_QNUM    0x038
+#define R_QNOTIFY 0x03C
+#define R_INTST   0x050
+#define R_INTACK  0x054
+#define R_STATUS  0x060
 #define R_CFG     0x100   /* blk: capacity u64 */
 
 #define VSTAT_ACK 1
@@ -60,10 +61,9 @@ static int vring_setup(vblk_t* d) {
             d->pa = (uint64_t)k_mem_virt_to_phys(p1);
             volatile uint8_t* m = (volatile uint8_t*)p1;
             for (int i = 0; i < VR_PAGES * 4096; i++) m[i] = 0;
-            w32(d->base, R_QSEL, 0);
             uint32_t qmax = r32(d->base, R_QNUMMAX);
             w32(d->base, R_QNUM, (qmax < VR_N ? qmax : VR_N));
-            w32(d->base, R_QPFN, (uint32_t)(d->pa >> 12));
+            w32(d->base, R_QPFN, (uint32_t)(d->pa >> 12));  /* активирует очередь */
             d->last_used = 0;
             return 1;
         }
@@ -85,7 +85,7 @@ int k_vblk_init(void) {
         w32(b, R_STATUS, 0);                                /* reset */
         w32(b, R_STATUS, VSTAT_ACK | VSTAT_DRV);
         w32(b, R_GF, 0);                                    /* без фич — legacy blk хватает */
-        w32(b, R_GPAGE, 4096);                              /* legacy: до настройки очереди */
+        w32(b, R_GPAGE, 4096);                              /* до настройки очереди */
         if (!vring_setup(d)) continue;
         d->cap = (uint64_t)r32(b, R_CFG) | ((uint64_t)r32(b, R_CFG + 4) << 32);
         w32(b, R_STATUS, VSTAT_ACK | VSTAT_DRV | VSTAT_OK);
@@ -141,7 +141,7 @@ static int vblk_xfer(vblk_t* d, uint64_t sector, void* buf, int is_write) {
     /* dbg: intstatus (0x060) и readback queue pfn (0x040) — видно в lba0= */
     {
         extern int64_t k_disk_dbg(void);
-        uint32_t ist = r32(d->base, 0x060);
+        uint32_t ist = r32(d->base, R_INTST);
         uint32_t qpf = r32(d->base, R_QPFN);
         uint32_t used_u16 = *used_idx;
         dbg_dump = (int64_t)((ist & 0xFF) | ((qpf & 0xFF) << 8) | ((used_u16 & 0xFF) << 16) | (1u << 31));
