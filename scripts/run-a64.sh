@@ -85,14 +85,15 @@ mcopy   -i "$ESP_IMG" "$INITRD" ::/boot/initrd.img
 echo "ESP: $ESP_IMG ($(stat -c%s "$ESP_IMG") bytes)"
 
 # scratch-диск RW-теста: маркер на LBA0 = разрешение на запись
+
 SCRATCH_IMG="$BUILD_DIR/a64-scratch.img"
 dd if=/dev/zero of="$SCRATCH_IMG" bs=1M count=64 status=none
 printf 'KENGARWTEST1' | dd of="$SCRATCH_IMG" bs=512 count=1 conv=notrunc status=none
-
 QEMU_ARGS=(-M virt,highmem-ecam=off -cpu cortex-a72 -m 512M
            -bios "$FW_WIN"
            -drive "file=$ESP_IMG,format=raw,if=virtio"
-           -drive "file=$SCRATCH_IMG,format=raw,if=virtio"
+           -drive "if=none,id=scr,file=$SCRATCH_IMG,format=raw"
+           -device virtio-blk-device,drive=scr
            -device ramfb \
            -device qemu-xhci -device usb-tablet
            -no-reboot)
