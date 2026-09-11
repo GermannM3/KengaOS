@@ -84,9 +84,15 @@ mcopy   -i "$ESP_IMG" "$BUILD_DIR/limine.conf" ::/boot/limine.conf
 mcopy   -i "$ESP_IMG" "$INITRD" ::/boot/initrd.img
 echo "ESP: $ESP_IMG ($(stat -c%s "$ESP_IMG") bytes)"
 
+# scratch-диск RW-теста: маркер на LBA0 = разрешение на запись
+SCRATCH_IMG="$BUILD_DIR/a64-scratch.img"
+dd if=/dev/zero of="$SCRATCH_IMG" bs=1M count=64 status=none
+printf 'KENGARWTEST1' | dd of="$SCRATCH_IMG" bs=512 count=1 conv=notrunc status=none
+
 QEMU_ARGS=(-M virt,highmem-ecam=off -cpu cortex-a72 -m 512M
            -bios "$FW_WIN"
            -drive "file=$ESP_IMG,format=raw,if=virtio"
+           -drive "file=$SCRATCH_IMG,format=raw,if=virtio"
            -device ramfb \
            -device qemu-xhci -device usb-tablet
            -no-reboot)
@@ -109,6 +115,7 @@ if [[ "$MODE" == "--headless" ]]; then
     grep -q  "BRK CAUGHT"        "$UART_LOG" || { echo "ERROR: BRK (vectors) marker missing" >&2; ok=0; }
     grep -q  "MEM READY"         "$UART_LOG" || { echo "ERROR: MEM READY marker missing" >&2; ok=0; }
     grep -q  "PROC READY"        "$UART_LOG" || { echo "ERROR: PROC READY marker missing" >&2; ok=0; }
+    grep -q  "DISK RW OK"        "$UART_LOG" || { echo "ERROR: DISK RW marker missing (virtio-blk)" >&2; ok=0; }
     [[ "$ok" == 1 ]] && echo "[a64-run] SMOKE OK" || { echo "[a64-run] SMOKE FAILED" >&2; exit 1; }
 
     # --- Store v1 test (только Linux CI: stdio-пайпы на Windows QEMU не дают
