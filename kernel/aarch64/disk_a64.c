@@ -13,12 +13,14 @@ int     k_vblk_write(int idx, uint64_t lba, uint16_t count, const void* buf);
 int     k_vblk_find_marker(void);
 
 static int64_t vblk_dbg = -999;
-int64_t k_disk_dbg(void) { return vblk_dbg; }
+extern int64_t dbg_dump;
+static int rr_g = 0;
+int64_t k_disk_dbg(void) { return (rr_g == 0) ? vblk_dbg : (int64_t)dbg_dump; }
 int64_t k_disk_init(void) {
     int64_t r = k_vblk_init();
     uint8_t b[512];
-    int rr = k_vblk_read(0, 0, 1, b);
-    if (rr) vblk_dbg = -100 - rr;
+    int rr = k_vblk_read(0, 0, 1, b); rr_g = rr;
+    if (rr) vblk_dbg = -100 - rr + (rr == -2 ? (int)(dbg_dump & 0xFFFFFF) * 0 : 0);
     else vblk_dbg = (int64_t)b[0] | ((int64_t)b[1] << 8) | ((int64_t)b[2] << 16) | ((int64_t)b[3] << 24);
     return r;
 }

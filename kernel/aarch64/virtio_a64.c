@@ -42,6 +42,7 @@ typedef struct { volatile uint32_t* base; uint64_t va; uint64_t pa; uint64_t cap
 static vblk_t vblk[VBLK_MAX];
 static int     vblk_n = 0;
 static int     vblk_ready = 0;
+int64_t dbg_dump = 0;
 
 static inline uint32_t r32(volatile uint32_t* b, int off) { return b[off / 4]; }
 static inline void     w32(volatile uint32_t* b, int off, uint32_t v) { b[off / 4] = v; }
@@ -134,6 +135,14 @@ static int vblk_xfer(vblk_t* d, uint64_t sector, void* buf, int is_write) {
             }
             return st == 0 ? 0 : -1;
         }
+    }
+    /* dbg: intstatus (0x060) и readback queue pfn (0x040) — видно в lba0= */
+    {
+        extern int64_t k_disk_dbg(void);
+        uint32_t ist = r32(d->base, 0x060);
+        uint32_t qpf = r32(d->base, R_QPFN);
+        uint32_t used_u16 = *used_idx;
+        dbg_dump = (int64_t)((ist & 0xFF) | ((qpf & 0xFF) << 8) | ((used_u16 & 0xFF) << 16) | (1u << 31));
     }
     return -2;
 }
