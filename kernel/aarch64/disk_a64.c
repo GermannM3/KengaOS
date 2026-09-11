@@ -12,7 +12,16 @@ int     k_vblk_read(int idx, uint64_t lba, uint16_t count, void* buf);
 int     k_vblk_write(int idx, uint64_t lba, uint16_t count, const void* buf);
 int     k_vblk_find_marker(void);
 
-int64_t k_disk_init(void)    { return k_vblk_init(); }
+static int64_t vblk_dbg = -999;
+int64_t k_disk_dbg(void) { return vblk_dbg; }
+int64_t k_disk_init(void) {
+    int64_t r = k_vblk_init();
+    uint8_t b[512];
+    int rr = k_vblk_read(0, 0, 1, b);
+    if (rr) vblk_dbg = -100 - rr;
+    else vblk_dbg = (int64_t)b[0] | ((int64_t)b[1] << 8) | ((int64_t)b[2] << 16) | ((int64_t)b[3] << 24);
+    return r;
+}
 int64_t k_disk_sectors(void) { return (int64_t)k_vblk_sectors(0); }
 int64_t k_disk_read(uint64_t lba, uint16_t count, void* buf) {
     return k_vblk_read(0, lba, count, buf);
