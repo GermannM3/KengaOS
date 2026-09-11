@@ -17,9 +17,10 @@
 #define R_DEVID   0x008
 #define R_HF      0x010
 #define R_GF      0x020
+#define R_GPAGE   0x028   /* legacy: обязательный guest page size */
 #define R_QSEL    0x030
 #define R_QNUMMAX 0x038
-#define R_QNUM    0x038
+#define R_QNUM    0x03C
 #define R_QPFN    0x040
 #define R_QNOTIFY 0x050
 #define R_STATUS  0x070
@@ -84,6 +85,7 @@ int k_vblk_init(void) {
         w32(b, R_STATUS, 0);                                /* reset */
         w32(b, R_STATUS, VSTAT_ACK | VSTAT_DRV);
         w32(b, R_GF, 0);                                    /* без фич — legacy blk хватает */
+        w32(b, R_GPAGE, 4096);                              /* legacy: до настройки очереди */
         if (!vring_setup(d)) continue;
         d->cap = (uint64_t)r32(b, R_CFG) | ((uint64_t)r32(b, R_CFG + 4) << 32);
         w32(b, R_STATUS, VSTAT_ACK | VSTAT_DRV | VSTAT_OK);
