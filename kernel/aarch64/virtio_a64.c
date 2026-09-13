@@ -11,20 +11,23 @@
 #define VMMIO_SLOTS 32
 #define VBLK_MAX    4
 
-/* legacy регистры (virtio spec, legacy interface; у transports один vq) */
+/* единая раскладка QEMU (include/standard-headers/linux/virtio_mmio.h) */
 #define R_MAGIC   0x000
 #define R_VERSION 0x004
 #define R_DEVID   0x008
 #define R_HF      0x010
 #define R_GF      0x020
-#define R_GPAGE   0x028   /* guest page size — обязателен, до очередей */
-#define R_QPFN    0x030   /* запись активирует очередь */
+#define R_GPAGE   0x028   /* legacy: guest page size */
+#define R_QSEL    0x030
 #define R_QNUMMAX 0x034
 #define R_QNUM    0x038
-#define R_QNOTIFY 0x03C
-#define R_INTST   0x050
-#define R_INTACK  0x054
-#define R_STATUS  0x060
+#define R_QALIGN  0x03C   /* legacy: выравнивание vring */
+#define R_QPFN    0x040   /* legacy: pfn — активирует очередь */
+#define R_QREADY  0x044   /* modern */
+#define R_QNOTIFY 0x050
+#define R_INTST   0x060
+#define R_INTACK  0x064
+#define R_STATUS  0x070
 #define R_CFG     0x100   /* blk: capacity u64 */
 
 #define VSTAT_ACK 1
@@ -52,6 +55,16 @@ static inline uint32_t r32(volatile uint32_t* b, int off) { return b[off / 4]; }
 static inline void     w32(volatile uint32_t* b, int off, uint32_t v) { b[off / 4] = v; }
 static void dmb(void) { __asm__ __volatile__("dmb ish" ::: "memory"); }
 
+/* кэш-операции: устройство читает RAM напрямую (DMA), кэш CPU надо
+   прибирать вручную — иначе QEMU видит мусор (флаттер rw-теста) */
+static void cache_op(uint64_t va, uint64_t len, int invalidate) {
+    for (uint64_t a = va & ~63ull; a < va + len; a += 64) {
+        if (invalidate) __asm__ __volatile__("dc ivac, %0" :: "r"(a) : "memory");
+        else            __asm__ __volatile__("dc cvac, %0" :: "r"(a) : "memory");
+    }
+    __asm__ __volatile__("dsb ish" ::: "memory");
+}
+
 static int vring_setup(vblk_t* d) {
     /* 2 последовательные страницы: palloc first-fit — почти всегда соседние */
     for (int t = 0; t < 16; t++) {
@@ -59,19 +72,24 @@ static int vring_setup(vblk_t* d) {
         int64_t p2 = k_mem_palloc();
         if (!p1 || !p2) { if (p1) k_mem_pfree(p1); if (p2) k_mem_pfree(p2); return 0; }
         if (p2 == p1 + 4096) {
+            uint64_t pa = (uint64_t)k_mem_virt_to_phys(p1);
+            /* ponytail: first-fit palloc может отдать страницу из головы RAM
+               (там живёт образ ядра!) — DMA-страницы только выше 0x42000000;
+               апгрейд: скип-лист занятых ядром кадров в kf_mem.c */
+            if (pa < 0x42000000ull) { k_mem_pfree(p1); k_mem_pfree(p2); continue; }
             d->va = (uint64_t)p1;
-            d->pa = (uint64_t)k_mem_virt_to_phys(p1);
+            d->pa = pa;
             volatile uint8_t* m = (volatile uint8_t*)p1;
             for (int i = 0; i < VR_PAGES * 4096; i++) m[i] = 0;
+            w32(d->base, R_QSEL, 0);                        /* одна vq */
             uint32_t qmax = r32(d->base, R_QNUMMAX);
             dbg_st[3] = qmax;
-            /* qmax читается 0? — не верим: legacy blk имеет одну vq >= 8 */
-            uint32_t qnum = (qmax >= VR_N) ? VR_N : (qmax ? qmax : VR_N);
-            w32(d->base, R_QNUM, qnum);
-            dbg_st[4] = r32(d->base, R_STATUS);
+            w32(d->base, R_QNUM, VR_N);
+            w32(d->base, R_QALIGN, 4096);
             w32(d->base, R_QPFN, (uint32_t)(d->pa >> 12));  /* активирует очередь */
-            dbg_st[5] = r32(d->base, R_STATUS);
-            dbg_st[6] = r32(d->base, R_QNUMMAX);
+            dbg_st[4] = r32(d->base, R_STATUS);
+            dbg_st[5] = r32(d->base, R_QNUM);
+            dbg_st[6] = r32(d->base, R_QPFN);
             dbg_st[7] = d->pa >> 12;
             d->last_used = 0;
             return 1;
@@ -83,6 +101,16 @@ static int vring_setup(vblk_t* d) {
 
 int k_vblk_init(void) {
     vblk_n = 0;
+    /* съесть низкие кадры: DMA только выше 0x42000000 (там образ ядра).
+       ponytail: кадры ниже порога занимаются навсегда (32 МБ) — дешевле,
+       чем скип-лист в kf_mem.c; апгрейд — там */
+    for (;;) {
+        int64_t p = k_mem_palloc();
+        if (!p) { dbg_st[7] = 0xDEAD0; break; }
+        uint64_t pa0 = (uint64_t)k_mem_virt_to_phys(p);
+        dbg_st[7] = (uint32_t)(pa0 >> 12);
+        if (pa0 >= 0x42000000ull) break;  /* p остаётся занят */
+    }
     for (int s = 0; s < VMMIO_SLOTS && vblk_n < VBLK_MAX; s++) {
         volatile uint32_t* b = (volatile uint32_t*)(uintptr_t)(VMMIO_BASE + s * VMMIO_STEP);
         if (r32(b, R_MAGIC) != 0x74726976u) continue;      /* "virt" */
@@ -92,6 +120,7 @@ int k_vblk_init(void) {
         vblk_t* d = &vblk[vblk_n];
         d->base = b;
         w32(b, R_STATUS, 0);                                /* reset */
+        w32(b, R_STATUS, VSTAT_ACK);
         w32(b, R_STATUS, VSTAT_ACK | VSTAT_DRV);
         dbg_st[0] = r32(b, R_STATUS);
         w32(b, R_GF, 0);                                    /* без фич — legacy blk хватает */
@@ -135,21 +164,42 @@ static int vblk_xfer(vblk_t* d, uint64_t sector, void* buf, int is_write) {
     avail[2 + (ai % VR_N)] = 0;             /* head desc */
     dmb();
     avail[1] = (uint16_t)(ai + 1);
+    /* сброс vring + буферов в RAM: устройство работает с памятью напрямую */
+    cache_op(d->va, 4096, 0);
     dmb();
     w32(d->base, R_QNOTIFY, 0);
 
-    /* поллинг used */
     volatile uint16_t* used_idx = (volatile uint16_t*)(m + 4096 + 2);
-    for (int t = 0; t < 5000000; t++) {
-        if (*used_idx != d->last_used) {
-            d->last_used = *used_idx;
-            uint8_t st = m[VR_STAT];
-            if (!is_write && st == 0) {
-                for (int i = 0; i < 512; i++) ((uint8_t*)buf)[i] = m[VR_DATA + i];
+
+    /* поллинг по ISR (MMIO, не кэшируется), данные инвалидируем после */
+    for (volatile int t = 0; t < 20000000; t++) {
+        if (r32(d->base, R_INTST) & 1) {
+            cache_op(d->va + 4096, 4096, 1);            /* used ring */
+            cache_op(d->va + VR_STAT, 8, 1);
+            if (!is_write) cache_op(d->va + VR_DATA, 512, 1);
+            dmb();
+            uint16_t unow = *used_idx;
+            w32(d->base, R_INTACK, 1);
+            if (unow != d->last_used) {
+                d->last_used = unow;
+                uint8_t st = m[VR_STAT];
+                if (!is_write && st == 0) {
+                    for (int i = 0; i < 512; i++) ((uint8_t*)buf)[i] = m[VR_DATA + i];
+                }
+                return st == 0 ? 0 : -1;
             }
-            return st == 0 ? 0 : -1;
+            r32(d->base, R_INTST); /* ещё pending? продолжаем ждать */
         }
     }
+    {
+        uint32_t stat = r32(d->base, R_STATUS);
+        uint32_t num  = r32(d->base, R_QNUM);
+        dbg_dump  = (int64_t)((r32(d->base, R_INTST) & 0xFF) | ((stat & 0xFF) << 8) | ((num & 0xFF) << 16));
+        dbg_dump2 = (int64_t)(avail[1] & 0xFFFF) | (1L << 60);
+    }
+    return -2;
+
+
     /* dbg: полный статус устройства на момент таймаута */
     {
         uint32_t ist   = r32(d->base, R_INTST);

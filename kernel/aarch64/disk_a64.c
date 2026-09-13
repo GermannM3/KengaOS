@@ -20,12 +20,13 @@ int64_t k_disk_dbg(void)  { return (rr_g == 0) ? vblk_dbg : (int64_t)dbg_dump; }
 int64_t k_disk_dbg2(void) { return (rr_g == 0) ? 0 : (int64_t)dbg_dump2; }
 extern uint32_t dbg_st[8];
 int64_t k_disk_dbg3(void) { return (int64_t)dbg_st[3]; }                      /* nummax */
-int64_t k_disk_dbg4(void) {                                                 /* статусы по шагам */
+int64_t k_disk_dbg4(void) {                                                  /* статусы по шагам */
     return (int64_t)(dbg_st[0] & 7) | ((int64_t)(dbg_st[1] & 7) << 4)
          | ((int64_t)(dbg_st[2] & 7) << 8) | ((int64_t)(dbg_st[4] & 7) << 12)
          | ((int64_t)(dbg_st[5] & 7) << 16) | ((int64_t)(dbg_st[6] & 7) << 20)
          | (0xC << 28);                                                     /* маркер C */
 }
+int64_t k_disk_dbg5(void) { return (int64_t)dbg_st[7]; }   /* первый pa>>12 */
 int64_t k_disk_init(void) {
     int64_t r = k_vblk_init();
     uint8_t b[512];
