@@ -12,29 +12,7 @@ int     k_vblk_read(int idx, uint64_t lba, uint16_t count, void* buf);
 int     k_vblk_write(int idx, uint64_t lba, uint16_t count, const void* buf);
 int     k_vblk_find_marker(void);
 
-static int64_t vblk_dbg = -999;
-extern int64_t dbg_dump;
-extern int64_t dbg_dump2;
-static int rr_g = 0;
-int64_t k_disk_dbg(void)  { return (rr_g == 0) ? vblk_dbg : (int64_t)dbg_dump; }
-int64_t k_disk_dbg2(void) { return (rr_g == 0) ? 0 : (int64_t)dbg_dump2; }
-extern uint32_t dbg_st[8];
-int64_t k_disk_dbg3(void) { return (int64_t)dbg_st[3]; }                      /* nummax */
-int64_t k_disk_dbg4(void) {                                                  /* статусы по шагам */
-    return (int64_t)(dbg_st[0] & 7) | ((int64_t)(dbg_st[1] & 7) << 4)
-         | ((int64_t)(dbg_st[2] & 7) << 8) | ((int64_t)(dbg_st[4] & 7) << 12)
-         | ((int64_t)(dbg_st[5] & 7) << 16) | ((int64_t)(dbg_st[6] & 7) << 20)
-         | (0xC << 28);                                                     /* маркер C */
-}
-int64_t k_disk_dbg5(void) { return (int64_t)dbg_st[7]; }   /* первый pa>>12 */
-int64_t k_disk_init(void) {
-    int64_t r = k_vblk_init();
-    uint8_t b[512];
-    int rr = k_vblk_read(0, 0, 1, b); rr_g = rr;
-    if (rr) vblk_dbg = -100 - rr + (rr == -2 ? (int)(dbg_dump & 0xFFFFFF) * 0 : 0);
-    else vblk_dbg = (int64_t)b[0] | ((int64_t)b[1] << 8) | ((int64_t)b[2] << 16) | ((int64_t)b[3] << 24);
-    return r;
-}
+int64_t k_disk_init(void)    { return k_vblk_init(); }
 int64_t k_disk_sectors(void) { return (int64_t)k_vblk_sectors(0); }
 int64_t k_disk_read(uint64_t lba, uint16_t count, void* buf) {
     return k_vblk_read(0, lba, count, buf);
@@ -52,8 +30,7 @@ int64_t k_disk_rw_test(void) {
     if (n < 32) return 0;
     uint64_t lba = n - 16;
     if (k_vblk_read(idx, lba, 1, orig)) return -1;
-    for (int i = 0; i < 512; i++)
-        pat[i] = (uint8_t)(0x4B ^ (i * 7) ^ (lba));
+    for (int i = 0; i < 512; i++) pat[i] = (uint8_t)(0x4B ^ (i * 7) ^ (lba));
     if (k_vblk_write(idx, lba, 1, pat)) return -2;
     if (k_vblk_read(idx, lba, 1, back)) return -3;
     for (int i = 0; i < 512; i++) if (pat[i] != back[i]) return -4;
