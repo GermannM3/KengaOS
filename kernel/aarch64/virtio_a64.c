@@ -65,10 +65,14 @@ static int vring_setup(vblk_t* d) {
             for (int i = 0; i < VR_PAGES * 4096; i++) m[i] = 0;
             uint32_t qmax = r32(d->base, R_QNUMMAX);
             dbg_st[3] = qmax;
-            w32(d->base, R_QNUM, (qmax < VR_N ? qmax : VR_N));
+            /* qmax читается 0? — не верим: legacy blk имеет одну vq >= 8 */
+            uint32_t qnum = (qmax >= VR_N) ? VR_N : (qmax ? qmax : VR_N);
+            w32(d->base, R_QNUM, qnum);
             dbg_st[4] = r32(d->base, R_STATUS);
             w32(d->base, R_QPFN, (uint32_t)(d->pa >> 12));  /* активирует очередь */
             dbg_st[5] = r32(d->base, R_STATUS);
+            dbg_st[6] = r32(d->base, R_QNUMMAX);
+            dbg_st[7] = d->pa >> 12;
             d->last_used = 0;
             return 1;
         }
