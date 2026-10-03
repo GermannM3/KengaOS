@@ -568,9 +568,14 @@ static int64_t fd_open(uint64_t path_uva) {
     if (s < 0) return -1;
     if (!uxfer || !&k_fs_syscall) return -1;
     ux_copy_str(path_uva, g_fd_path[s], 64);
+    /* Kenga-сгенерированный код нарушает SysV ABI (затирает callee-saved).
+       Барьеры запрещают компилятору держать через этот вызов живые значения
+       в rbx/rbp/r12-r15 — иначе они портятся, и наружу уходит мусор. */
+    __asm__ __volatile__("" ::: "rbx", "rbp", "r12", "r13", "r14", "r15");
     int64_t n = k_fs_syscall(ux_ino, ux_bmp, ux_io, ux_dat, ux_rw, ux_ok,
                              16, (int64_t)(uintptr_t)g_fd_path[s],
                              (int64_t)(uintptr_t)g_fd_buf[s], FD_BUF);
+    __asm__ __volatile__("" ::: "rbx", "rbp", "r12", "r13", "r14", "r15");
     if (n < 0) return -1;
     g_fd_size[s] = (int32_t)n;
     g_fd_off[s] = 0;
