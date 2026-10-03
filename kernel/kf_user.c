@@ -367,6 +367,23 @@ void k_syscall_handler(void* frame_v) {
         if (up_yield_current(frame_v) != 1) user_done = 1;
     } else if (num == 4) {      /* getpid */
         f[0] = (uint64_t)up_pid_current();
+    } else if (num == 24) {     /* spawn(path) -> pid: запустить приложение */
+        uint64_t path_uva = f[5];
+        int64_t pid = -1;
+        if (uxfer && &k_fs_syscall) {
+            ux_copy_str(path_uva, ux_path, (int)sizeof ux_path);
+            int64_t n = k_fs_syscall(ux_ino, ux_bmp, ux_io, ux_dat, ux_rw, ux_ok,
+                                     16, (int64_t)(uintptr_t)ux_path,
+                                     k_xbuf(), k_xbuf_size());
+            if (n > 0) {
+                /* exec_blob перезапишет global user_pml4 на PML4 ребёнка —
+                   родителю он ещё нужен для его собственных syscall'ов. */
+                uint64_t parent_pml4 = user_pml4;
+                pid = k_user_spawn_blob(k_xbuf(), n);
+                user_pml4 = parent_pml4;
+            }
+        }
+        f[0] = (uint64_t)pid;
     } else if (num == 23) {     /* exit_code(code): завершиться с кодом */
         f[0] = 0;
         if (up_exit_with_code(f[5]) != 1) user_done = 1;

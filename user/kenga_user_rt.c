@@ -86,6 +86,13 @@ int64_t k_sys_rm(const char* path) {
     return r;
 }
 
+/* Запустить приложение с диска: возвращает pid ребёнка или -1. */
+int64_t k_sys_spawn(const char* path) {
+    long r;
+    __asm__ __volatile__("int $0x80" : "=a"(r) : "a"(24L), "D"(path));
+    return r;
+}
+
 /* Завершить процесс с кодом (не возвращается). */
 int64_t k_sys_exit_code(int64_t code) {
     long r;

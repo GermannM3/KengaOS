@@ -15,6 +15,7 @@
 @intrinsic fn sys_sleep(ms: i64) -> i64;
 @intrinsic fn sys_uptime() -> i64;
 @intrinsic fn sys_exit_code(code: i64) -> i64;
+@intrinsic fn sys_spawn(path: str) -> i64;
 @intrinsic fn sys_mkdir(path: str) -> i64;
 @intrinsic fn sys_rm(path: str) -> i64;   /* реализован (syscall 19), в демо не зовём */
 @intrinsic fn sys_cat(path: str, dst: i64, max: i64) -> i64;
@@ -72,6 +73,13 @@ fn main() -> i64 {
             println("kenga-app: rm /apps/demo/bye.txt");
         }
     }
+    /* запускаем ДРУГОЕ приложение (pid 100, чтобы не плодить рекурсию) */
+    if pid == 100 {
+        if sys_spawn("/apps/hello.elf") > 0 {
+            println("kenga-app: spawn /apps/hello.elf");
+        }
+    }
+
     /* код завершения у каждого процесса свой — ядро его сохраняет и печатает */
     if pid == 100 {
         sys_exit_code(0);

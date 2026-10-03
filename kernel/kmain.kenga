@@ -340,6 +340,9 @@ fn user_app_from_disk(fs: FsState) -> i64 {
     kf_puti(n);
     uart_puts(" bytes\n");
     kp_msg("KengaOS", "STORE INSTALL OK");
+    /* второе приложение в /apps — его запускает приложение через sys_spawn */
+    let hn: i64 = vfs_cat64("user-hello.elf", xbuf(), xbuf_size());
+    if hn > 0 { fs_write_blob(fs, "/apps/hello.elf", xbuf(), hn); }
     let sz: i64 = fs_read(fs, "/apps/kenga-app.elf", xbuf(), xbuf_size());
     if sz <= 0 { kp_msg("KengaOS", "USERAPP READFAIL"); return 0; }
     uart_puts("userapp: elf="); kf_puti(sz); uart_puts(" bytes\n");
