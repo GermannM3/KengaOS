@@ -843,9 +843,9 @@ fn fs_cmd(fs: FsState, line: str) -> i64 {
        идёт в UART, десктоп логирует запуск и возврат. */
     if n > 4 && ord(line[0]) == 114 && ord(line[1]) == 117 && ord(line[2]) == 110 && ord(line[3]) == 32 {
         let p: str = fs_sub(line, 4, n - 4);
-        let sz: i64 = fs_read(fs, p, fs.dat, 4096);
+        let sz: i64 = fs_read(fs, p, xbuf(), xbuf_size());
         if sz <= 0 { ui_log("run: no such file"); return 1; }
-        let e: i64 = user_exec_blob(fs.dat, sz);
+        let e: i64 = user_exec_blob(xbuf(), sz);
         if e <= 0 { ui_log("run: not an ELF"); return 1; }
         ui_log("run " + p + " (ring3)");
         user_run(e);
