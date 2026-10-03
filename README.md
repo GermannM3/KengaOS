@@ -118,6 +118,12 @@ Agent-native десктоп KengaOS 0.6 Command Center (десктоп и лог
 Скриншот выше снят непосредственно из собранного ISO в QEMU через
 framebuffer monitor, а не из HTML-preview.
 
+KengaFS — персистентная ФС на диске (карточка FILES · KENGA-FS и команды
+input-бара `write /demo/note.txt hello`): файл реально лёг на диск
+(`write ok /demo/note.txt 5B`, inodes 7/32), а не в память:
+
+![KengaOS KengaFS на диске](docs/shots/desktop-kengafs.png)
+
 ### Визуальное направление
 
 Десктоп закреплён в стиле Aurora / glassmorphism: глубокий космический фон,
