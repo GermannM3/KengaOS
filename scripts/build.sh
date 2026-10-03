@@ -398,6 +398,7 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "preempt=0x" "$UART_LOG" || { echo "ERROR: timer preemption path did not report" >&2; ok=0; }
     grep -q "kenga-app dir: hi from kenga-app" "$UART_LOG" || { echo "ERROR: ring-3 app could not create a directory with a file" >&2; ok=0; }
     grep -q "kenga-app rm: (nothing)" "$UART_LOG" || { echo "ERROR: ring-3 app could not remove its file (syscall 19)" >&2; ok=0; }
+    grep -q "kenga-app: sleep ok" "$UART_LOG" || { echo "ERROR: sys_sleep did not wait (syscall 21)" >&2; ok=0; }
     grep -q "STORE INSTALL OK" "$UART_LOG" || { echo "ERROR: .kpkg v2 install from the store failed" >&2; ok=0; }
     grep -q "kenga-app: ring3 OK" "$UART_LOG" || { echo "ERROR: Kenga-compiled ring-3 app produced no output" >&2; ok=0; }
     grep -q "kenga-app wrote: kenga-app" "$UART_LOG" || { echo "ERROR: ring-3 app did not persist a file" >&2; ok=0; }

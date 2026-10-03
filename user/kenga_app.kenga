@@ -12,6 +12,8 @@
 
 @intrinsic fn sys_yield() -> i64;
 @intrinsic fn sys_getpid() -> i64;
+@intrinsic fn sys_sleep(ms: i64) -> i64;
+@intrinsic fn sys_uptime() -> i64;
 @intrinsic fn sys_mkdir(path: str) -> i64;
 @intrinsic fn sys_rm(path: str) -> i64;   /* реализован (syscall 19), в демо не зовём */
 @intrinsic fn sys_cat(path: str, dst: i64, max: i64) -> i64;
@@ -22,6 +24,16 @@
 fn main() -> i64 {
     let pid: i64 = sys_getpid();
     println("kenga-app: ring3 OK");
+
+    /* спим по-настоящему: ядро отдаёт CPU второму процессу, таймер будит */
+    let t0: i64 = sys_uptime();
+    sys_sleep(300);
+    let t1: i64 = sys_uptime();
+    if t1 - t0 >= 300 {
+        println("kenga-app: sleep ok");
+    } else {
+        println("kenga-app: sleep too short");
+    }
 
     /* три «тикта» с добровольной уступкой CPU — второй процесс перемежается */
     let t: i64 = 0;

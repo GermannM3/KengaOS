@@ -86,6 +86,18 @@ int64_t k_sys_rm(const char* path) {
     return r;
 }
 
+int64_t k_sys_sleep(int64_t ms) {
+    long r;
+    __asm__ __volatile__("int $0x80" : "=a"(r) : "a"(21L), "D"(ms));
+    return r;
+}
+
+int64_t k_sys_uptime(void) {
+    long r;
+    __asm__ __volatile__("int $0x80" : "=a"(r) : "a"(22L));
+    return r;
+}
+
 int64_t k_sys_getpid(void) {
     long r;
     __asm__ __volatile__("int $0x80" : "=a"(r) : "a"(4L));

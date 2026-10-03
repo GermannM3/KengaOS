@@ -46,6 +46,7 @@ static int up_yield_current(void* frame_v);
 static int up_exit_current(void);
 static int64_t up_pid_current(void);
 static void up_note_stack_use(void);
+static int up_sleep_current(uint64_t ms);
 
 /* k_mem_palloc возвращает УЖЕ отображённый VA (phys+hhdm).
    Для PTE нужен физический: va - hhdm. */
@@ -365,6 +366,11 @@ void k_syscall_handler(void* frame_v) {
         if (up_yield_current(frame_v) != 1) user_done = 1;
     } else if (num == 4) {      /* getpid */
         f[0] = (uint64_t)up_pid_current();
+    } else if (num == 21) {     /* sleep(ms): поспать, отдав CPU другим */
+        f[0] = 0;
+        up_sleep_current(f[5]);
+    } else if (num == 22) {     /* uptime_ms() */
+        f[0] = (uint64_t)k_time_uptime_ms();
     } else if (num == 16) {     /* cat(path, dst, max): файл KengaFS -> user */
         uint64_t path_uva = f[5], dst_uva = f[4], maxlen = f[3];
         int64_t n = -1;
@@ -499,7 +505,10 @@ typedef struct {
     uint64_t kstack_top;
     uint64_t frame;            /* сохранённый rsp кадра */
     uint64_t max_used;         /* максимум занятого kernel-стека (диагностика) */
+    uint64_t wake;             /* до какого времени (мс) процесс спит */
 } uproc_t;
+
+#define UP_SLEEP 4             /* процесс спит до g_up[i].wake */
 
 static uproc_t g_up[UP_MAX];
 static int     g_up_count = 0;
@@ -546,15 +555,36 @@ static int up_pick_next(void) {
     for (int k = 1; k <= g_up_count; k++) {
         int base = g_up_cur < 0 ? 0 : g_up_cur;
         int i = (base + k) % g_up_count;
+        if (g_up[i].state == UP_SLEEP) {
+            if ((uint64_t)k_time_uptime_ms() >= g_up[i].wake) g_up[i].state = 1;
+            else continue;                       /* ещё спит */
+        }
         if (g_up[i].state == 1) return i;
     }
     return -1;
 }
 
+static int up_any_sleeping(void) {
+    for (int i = 0; i < g_up_count; i++) if (g_up[i].state == UP_SLEEP) return 1;
+    return 0;
+}
+
+/* Ждать пробуждения, если все спят: idle-задачи нет, поэтому стоим на hlt,
+   пока таймер не разбудит спящего. Без этого выход последнего активного
+   процесса «забывал» спящих и ядро возвращалось раньше времени. */
+static int up_pick_wait(void) {
+    for (;;) {
+        int nx = up_pick_next();
+        if (nx >= 0) return nx;
+        if (!up_any_sleeping()) return -1;
+        __asm__ __volatile__("sti; hlt");
+    }
+}
+
 /* сохранить кадр текущего, переключиться; 1 = есть следующий процесс */
 static int up_switch_from(void* frame_v) {
     if (g_up_cur >= 0 && frame_v) g_up[g_up_cur].frame = (uint64_t)(uintptr_t)frame_v;
-    int nx = up_pick_next();
+    int nx = up_pick_wait();
     if (nx < 0) return 0;
     k_resume_frame = up_activate(nx);
     return 1;
@@ -564,6 +594,19 @@ static int up_yield_current(void* frame_v) {
     if (g_up_count == 0) return 0;
     if (g_up_cur >= 0) g_up[g_up_cur].state = 1;
     return up_switch_from(frame_v);
+}
+
+/* Поспать ms миллисекунд: пометить себя спящим и уступить CPU. Если будить
+   некого (idle-задачи нет) — не спим вовсе, чтобы не встать намертво. */
+static int up_sleep_current(uint64_t ms) {
+    if (g_up_count < 2 || g_up_cur < 0 || g_up_cur >= g_up_count) return 0;
+    if (ms > 5000) ms = 5000;
+    g_up[g_up_cur].wake = (uint64_t)k_time_uptime_ms() + ms;
+    g_up[g_up_cur].state = UP_SLEEP;
+    int nx = up_pick_next();
+    if (nx < 0) { g_up[g_up_cur].state = 2; return 0; }
+    k_resume_frame = up_activate(nx);
+    return 1;
 }
 
 static int up_exit_current(void) {
