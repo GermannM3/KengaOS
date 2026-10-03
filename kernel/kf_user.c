@@ -182,8 +182,14 @@ static int elf_load(uint64_t pml4_phys, const uint8_t* data, uint64_t size, uint
             uint64_t pp = va2pa(pp_va);
             uint8_t* kv = (uint8_t*)(uintptr_t)pp_va;
             for (int b = 0; b < 4096; b++) kv[b] = 0;
-            uint64_t foff = ph.offset + (page - va);
+            /* Смещение в файле для НАЧАЛА этой страницы. Первая страница
+               сегмента начинается не с начала файлового диапазона, а с inoff
+               внутри неё, поэтому для страниц ПОСЛЕ первой надо вычесть inoff:
+               иначе данные копируются со сдвигом на inoff и код/данные, как
+               только сегмент переходит через границу страницы, портятся.
+               Именно это роняло приложение при росте ELF выше ~4.6 КиБ. */
             uint64_t inoff = page == va ? (ph.vaddr & 0xFFFull) : 0;
+            uint64_t foff = ph.offset + (page - va) - (page == va ? 0 : inoff);
             uint64_t cp = PAGE_SIZE - inoff;
             /* Копируем ТОЛЬКО файловую часть сегмента (filesz); всё от filesz
                до memsz — это .bss и обязано остаться нулями. Без этой проверки
