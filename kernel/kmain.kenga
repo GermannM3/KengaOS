@@ -40,6 +40,10 @@ import "../kenga-desktop/src/platform/kernel_bridge.kenga";
 /* Block-device FFI для KengaFS (kernel/kf_blk.c) */
 @intrinsic fn disk_read64(lba: i64, count: i64, buf: i64) -> i64;
 @intrinsic fn disk_kind() -> i64;   /* 0 нет, 1 ATA PIO, 2 AHCI, 3 virtio-blk, 4 NVMe */
+/* ACPI (kf_acpi.c): мягкое выключение и перезагрузка */
+@intrinsic fn acpi_init() -> i64;
+@intrinsic fn power_shutdown() -> i64;
+@intrinsic fn power_reboot() -> i64;
 @intrinsic fn disk_write64(lba: i64, count: i64, buf: i64) -> i64;
 @intrinsic fn shell_pipe_selftest() -> i64;
 @intrinsic fn time_uptime_ms() -> i64;
@@ -417,6 +421,8 @@ fn main() -> i64 {
     kf_puti(mem_pages_free() * 4);
     uart_putc(10);
     kp_msg("KengaOS", "MEM READY");
+    /* ACPI: таблицы нужны для мягкого выключения/перезагрузки (kf_acpi.c) */
+    acpi_init();
     /* PIO-IDE диск (единое ядро: порт из legacy C-ядра) */
     let dok: i64 = disk_init();
     uart_puts("disk_init=");

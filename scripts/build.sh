@@ -180,6 +180,10 @@ if [[ -f "$KERNEL_DIR/kf_hw.c" ]]; then
     eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_hw.c\" -o \"$BUILD_DIR/kf_hw.o\""
 fi
 
+log "4j5/7" "Compiling kf_acpi.c (ACPI: shutdown/reboot) ($CC)"
+if [[ -f "$KERNEL_DIR/kf_acpi.c" ]]; then
+    eval "$CC -c $CFLAGS_C \"$KERNEL_DIR/kf_acpi.c\" -o \"$BUILD_DIR/kf_acpi.o\""
+fi
 log "4k/7" "Compiling kf_power.c (reboot/shutdown) ($CC)"
 if [[ -f "$KERNEL_DIR/kf_power.c" ]]; then
     eval "$CC -c $CFLAGS \"$KERNEL_DIR/kf_power.c\" -o \"$BUILD_DIR/kf_power.o\""
@@ -261,6 +265,7 @@ if [[ -f "$BUILD_DIR/fdt_stub.o" ]]; then OBJS+=("$BUILD_DIR/fdt_stub.o"); fi
 if [[ -f "$BUILD_DIR/kf_time.o" ]]; then OBJS+=("$BUILD_DIR/kf_time.o"); fi
 if [[ -f "$BUILD_DIR/kf_hw.o" ]]; then OBJS+=("$BUILD_DIR/kf_hw.o"); fi
 if [[ -f "$BUILD_DIR/kf_power.o" ]]; then OBJS+=("$BUILD_DIR/kf_power.o"); fi
+if [[ -f "$BUILD_DIR/kf_acpi.o" ]]; then OBJS+=("$BUILD_DIR/kf_acpi.o"); fi
 if [[ -f "$BUILD_DIR/kf_model.o" ]]; then OBJS+=("$BUILD_DIR/kf_model.o"); fi
 if [[ -f "$BUILD_DIR/kf_mouse.o" ]]; then OBJS+=("$BUILD_DIR/kf_mouse.o"); fi
 if [[ -f "$BUILD_DIR/kf_usb.o" ]]; then OBJS+=("$BUILD_DIR/kf_usb.o"); fi
@@ -393,6 +398,7 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "kenga-app: read /system/bootlog.txt" "$UART_LOG" || { echo "ERROR: ring-3 app could not read a KengaFS file" >&2; ok=0; }
     grep -q "KengaOS boot #" "$UART_LOG" || { echo "ERROR: file content did not reach the ring-3 app" >&2; ok=0; }
     grep -q "MEM READY" "$UART_LOG" || { echo "ERROR: MEM READY marker missing" >&2; ok=0; }
+    grep -q "ACPI READY" "$UART_LOG" || { echo "ERROR: ACPI tables not found (FADT/\_S5)" >&2; ok=0; }
     grep -Eq "initrd files=[1-9][0-9]*" "$UART_LOG" || { echo "ERROR: initrd/VFS marker missing" >&2; ok=0; }
     # ponytail: agent/model IPC round-trip pending the kenga-lang ABI migration
     # (compiler workstream, ~Aug 2026 regression). WARN only — re-enable as

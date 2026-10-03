@@ -200,7 +200,7 @@ Standalone HTML-preview дизайн-системы находится в
 | **KengaFS (диск)** | есть | Персистентная ФС на диске, целиком на Kenga (`kernel/fs.kenga`): дерево каталогов, mkdir -p, чтение/запись/удаление, 32 объекта × 8 КиБ, 4 МиБ данных. Гейты `FS OK` / `FS TEST OK`; персистентность — два QEMU-бота на одном образе (`scripts/test-fs-persistence.sh`). Пишем только на диск с маркером `KENGARWTEST1` или уже содержащий KengaFS |
 | Таймер / uptime | есть | PIT 100 Гц (x86) / generic timer CNTV (ARM64), команда `time` |
 | Аппаратура | есть | CPUID/MIDR (`cpuinfo`), RTC (`date`), память (`mmap`), FDT (ARM64) |
-| Power | есть | `reboot`, `poweroff` (x86: ACPI/PSCI-заглушки) |
+| Power / ACPI | есть | Настоящее **ACPI S5**: RSDP → RSDT/XSDT → FADT → `PM1a/PM1b_CNT_BLK`, разбор `\_S5` из DSDT (SLP_TYP), `SLP_EN`; перезагрузка — `RESET_REG` из FADT, иначе 8042. Из десктопа — `shutdown` / `reboot`. На ARM — PSCI (`SYSTEM_OFF`/`SYSTEM_RESET`). Батарея/термал — пока нет |
 | **UI-оболочки (прототипы)** | есть, v0.8 | Десктоп и мобилка без заглушек: браузер, терминал, файлы (VFS), агенты, чат, монитор, настройки, темы. Мобилка — APK (`scripts/build-apk.sh`): контакты, SMS, камера, звонки через системные приложения |
 | CI/CD | есть | 3 джобы: тесты релиза, x86 ISO + QEMU smoke (RING3-гейт), aarch64 smoke (store-тест) |
 | Developer preview | готовится | Рабочий x86_64 ISO; paging-изоляция, сеть и persistent storage ещё в roadmap |
@@ -268,6 +268,7 @@ KengaOS/
 │   ├── kf_disk.c           # ATA PIO диск (чтение+запись, RW-тест)
 │   ├── kf_ahci.c           # AHCI/SATA диск (DMA, command list + PRDT)
 │   ├── kf_nvme.c           # NVMe (PCIe SSD): admin/I-O очереди, PRP
+│   ├── kf_acpi.c           # ACPI: мягкое выключение (S5) и перезагрузка
 │   ├── fs.kenga            # KengaFS: персистентная ФС на диске (Kenga)
 │   ├── kf_blk.c            # Блочный FFI-мост для KengaFS
 │   ├── intr.c / isr.S      # GDT + IDT + обработчики

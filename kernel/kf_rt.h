@@ -70,9 +70,13 @@ int64_t k_mem_region_base(int64_t i);
 int64_t k_mem_region_len(int64_t i);
 int64_t k_mem_region_type(int64_t i);
 
-/* Power (kernel/kf_power.c). */
+/* Power (kernel/kf_power.c, ACPI — kernel/kf_acpi.c). */
 int64_t k_power_reboot(void);
 int64_t k_power_shutdown(void);
+int64_t k_acpi_init(void);
+int64_t k_acpi_ready(void);
+int64_t k_acpi_shutdown(void);
+int64_t k_acpi_reboot(void);
 
 /* Model (kernel/kf_model.c): tiny in-kernel MLP. */
 int64_t k_model_init(void);

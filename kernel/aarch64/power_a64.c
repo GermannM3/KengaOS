@@ -12,6 +12,12 @@ static void psci_call(uint64_t fn) {
                          : "x1", "x2", "x3", "memory");
 }
 
+/* ACPI — x86-only; на ARM выключение/перезагрузка через PSCI. */
+int64_t k_acpi_init(void)     { return 0; }
+int64_t k_acpi_ready(void)    { return 0; }
+int64_t k_acpi_shutdown(void) { return 0; }
+int64_t k_acpi_reboot(void)   { return 0; }
+
 int64_t k_power_reboot(void) {
     psci_call(0x84000009);   /* PSCI SYSTEM_RESET */
     for (;;) k_arch_hlt();

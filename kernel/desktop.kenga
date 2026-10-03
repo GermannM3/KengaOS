@@ -808,6 +808,17 @@ fn fs_cmd(fs: FsState, line: str) -> i64 {
         if r >= 0 { ui_log("write ok " + p + " " + r + "B"); } else { ui_log("write fail"); }
         return 1;
     }
+    /* shutdown / reboot — ACPI (S5 / RESET_REG) */
+    if n == 8 && ord(line[0]) == 115 && ord(line[1]) == 104 && ord(line[2]) == 117 && ord(line[3]) == 116 && ord(line[4]) == 100 && ord(line[5]) == 111 && ord(line[6]) == 119 && ord(line[7]) == 110 {
+        ui_log("ACPI: power off");
+        power_shutdown();
+        return 1;
+    }
+    if n == 6 && ord(line[0]) == 114 && ord(line[1]) == 101 && ord(line[2]) == 98 && ord(line[3]) == 111 && ord(line[4]) == 111 && ord(line[5]) == 116 {
+        ui_log("ACPI: reboot");
+        power_reboot();
+        return 1;
+    }
     /* install <file>.kpkg — магазин v2: бинарь из пакета -> /apps/<имя>.elf.
        Формы без точки ("install a") отдаём старому C-магазину (реестр). */
     if n > 8 && ord(line[0]) == 105 && ord(line[1]) == 110 && ord(line[2]) == 115 && ord(line[3]) == 116 && ord(line[4]) == 97 && ord(line[5]) == 108 && ord(line[6]) == 108 && ord(line[7]) == 32 {
