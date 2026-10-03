@@ -218,6 +218,8 @@ int64_t k_user_set_fs(int64_t ino, int64_t bmp, int64_t io, int64_t dat, int64_t
 int64_t k_user_spawn_vfs(const char* name);
 int64_t k_user_spawn_blob(int64_t addr, int64_t size);
 int64_t k_user_sched_run(void);
+/* Вытеснение ring-3 процесса по таймеру (вызывает intr.c). */
+int64_t k_user_timer_preempt(int64_t frame);
 
 /* FDT/DTB (aarch64; x86 — заглушка). */
 int64_t k_fdt_boot_test(void);

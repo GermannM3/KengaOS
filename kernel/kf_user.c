@@ -599,6 +599,21 @@ int64_t k_user_spawn_blob(int64_t addr, int64_t size) {
     return up_register(user_pml4, (uint64_t)e);
 }
 
+/* Вытеснение по таймеру: кадр прерванного ring-3 процесса -> следующий.
+   Тот же путь, что у sys_yield: isr_common вернётся по k_resume_frame. */
+static uint64_t g_preempt = 0;
+
+int64_t k_user_timer_preempt(int64_t frame) {
+    if (g_up_count < 2 || g_up_cur < 0 || g_up_cur >= g_up_count) return 0;
+    if (!frame) return 0;
+    g_up[g_up_cur].state = 1;
+    int r = up_switch_from((void*)(uintptr_t)frame);
+    if (r == 1) g_preempt++;
+    return r;
+}
+
+uint64_t k_user_preempt_count(void) { return g_preempt; }
+
 /* Запустить все зарегистрированные процессы кооперативно до конца. */
 int64_t k_user_sched_run(void) {
     if (g_up_count == 0) return 0;
@@ -616,6 +631,7 @@ int64_t k_user_sched_run(void) {
     for (int k = 0; k < g_up_count; k++) {
         u_putc('#'); u_putc((char)('0' + k));
         u_putc(' '); ulog_hx(g_up[k].max_used); u_putc('\n');
+        if (k == 0) { u_putc('p'); u_putc('r'); u_putc('e'); u_putc('e'); u_putc('m'); u_putc('p'); u_putc('t'); u_putc('='); ulog_hx(g_preempt); u_putc('\n'); }
         g_up[k].state = 3;
     }
     g_up_cur = -1;

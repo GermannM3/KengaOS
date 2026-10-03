@@ -172,8 +172,13 @@ static const char* vector_name(int v) {
     }
 }
 
+extern uint64_t k_resume_frame;
+extern int64_t k_user_timer_preempt(int64_t frame);
+
 void k_kf_intr_handler(void* regs) {
     kf_regs_t* r = (kf_regs_t*)regs;
+    /* Куда вернёмся. Планировщик может это переписать (вытеснение). */
+    k_resume_frame = (uint64_t)(uintptr_t)r;
 
     /* INT3 is a recoverable test fault: prove the full IDT round-trip works
        (fault -> stub -> handler -> iretq -> continue) without halting. */
@@ -189,7 +194,13 @@ void k_kf_intr_handler(void* regs) {
         }
         __asm__ __volatile__("outb %0, %1" : : "a"((uint8_t)0x20), "Nd"((uint16_t)0x20));
         if (r->vector == 33) k_kbd_irq();   /* IRQ1: keyboard */
-        if (r->vector == 32) k_timer_tick(); /* IRQ0: PIT timer */
+        if (r->vector == 32) {               /* IRQ0: PIT timer */
+            k_timer_tick();
+            /* Вытесняющая многозадачность: процесс, прерванный В RING 3,
+               уступает CPU следующему. Прерывание в ядре (cs=0x28) не
+               переключаем — syscall должен дойти до конца. */
+            if (r->cs == 0x1b) k_user_timer_preempt((int64_t)(uintptr_t)r);
+        }
         if (r->vector == 44) k_mouse_irq(); /* IRQ12: mouse */
         return;
     }

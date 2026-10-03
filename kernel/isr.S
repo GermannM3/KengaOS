@@ -4,6 +4,7 @@
    k_kf_intr_handler(kf_regs_t*), restores and iretq. */
 .intel_syntax noprefix
 .code64
+.extern k_resume_frame
 .global isr_0
 isr_0:
     push 0
@@ -1294,6 +1295,9 @@ isr_common:
     push rax
     mov rdi, rsp
     call k_kf_intr_handler
+    /* Планировщик мог решить вернуться в ДРУГОЙ процесс (вытеснение по
+       таймеру). Обработчик всегда кладёт сюда кадр возврата. */
+    mov rsp, [rip + k_resume_frame]
     pop rax
     pop rbx
     pop rcx
