@@ -404,6 +404,8 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     fi
     # Спать обязаны ОБА процесса: одного "sleep ok" недостаточно (16-й круг:
     # второй процесс печатал "too short", а гейт этого не замечал).
+    grep -q "userapp exit pid=0x64 code=0x0" "$UART_LOG" || { echo "ERROR: exit code of pid 100 not reported" >&2; ok=0; }
+    grep -q "userapp exit pid=0x65 code=0x7" "$UART_LOG" || { echo "ERROR: exit code of pid 101 not per-process" >&2; ok=0; }
     nsleep=$(grep -c "kenga-app: sleep ok" "$UART_LOG" || true)
     if [[ "$nsleep" != "2" ]]; then
         echo "ERROR: expected 2 processes to sleep, got $nsleep" >&2; ok=0

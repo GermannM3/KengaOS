@@ -86,6 +86,13 @@ int64_t k_sys_rm(const char* path) {
     return r;
 }
 
+/* Завершить процесс с кодом (не возвращается). */
+int64_t k_sys_exit_code(int64_t code) {
+    long r;
+    __asm__ __volatile__("int $0x80" : "=a"(r) : "a"(23L), "D"(code));
+    return r;
+}
+
 int64_t k_sys_sleep(int64_t ms) {
     long r;
     __asm__ __volatile__("int $0x80" : "=a"(r) : "a"(21L), "D"(ms));

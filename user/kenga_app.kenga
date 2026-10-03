@@ -14,6 +14,7 @@
 @intrinsic fn sys_getpid() -> i64;
 @intrinsic fn sys_sleep(ms: i64) -> i64;
 @intrinsic fn sys_uptime() -> i64;
+@intrinsic fn sys_exit_code(code: i64) -> i64;
 @intrinsic fn sys_mkdir(path: str) -> i64;
 @intrinsic fn sys_rm(path: str) -> i64;   /* реализован (syscall 19), в демо не зовём */
 @intrinsic fn sys_cat(path: str, dst: i64, max: i64) -> i64;
@@ -70,6 +71,12 @@ fn main() -> i64 {
         if sys_rm("/apps/demo/bye.txt") == 0 {
             println("kenga-app: rm /apps/demo/bye.txt");
         }
+    }
+    /* код завершения у каждого процесса свой — ядро его сохраняет и печатает */
+    if pid == 100 {
+        sys_exit_code(0);
+    } else {
+        sys_exit_code(7);
     }
     return 0;
 }

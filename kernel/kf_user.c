@@ -47,6 +47,7 @@ static int up_exit_current(void);
 static int64_t up_pid_current(void);
 static void up_note_stack_use(void);
 static int up_sleep_current(uint64_t ms);
+static int up_exit_with_code(uint64_t code);
 
 /* k_mem_palloc возвращает УЖЕ отображённый VA (phys+hhdm).
    Для PTE нужен физический: va - hhdm. */
@@ -366,6 +367,9 @@ void k_syscall_handler(void* frame_v) {
         if (up_yield_current(frame_v) != 1) user_done = 1;
     } else if (num == 4) {      /* getpid */
         f[0] = (uint64_t)up_pid_current();
+    } else if (num == 23) {     /* exit_code(code): завершиться с кодом */
+        f[0] = 0;
+        if (up_exit_with_code(f[5]) != 1) user_done = 1;
     } else if (num == 21) {     /* sleep(ms): поспать, отдав CPU другим */
         f[0] = 0;
         up_sleep_current(f[5]);
@@ -506,6 +510,7 @@ typedef struct {
     uint64_t frame;            /* сохранённый rsp кадра */
     uint64_t max_used;         /* максимум занятого kernel-стека (диагностика) */
     uint64_t wake;             /* до какого времени (мс) процесс спит */
+    uint64_t code;             /* код завершения (syscall 23) */
 } uproc_t;
 
 #define UP_SLEEP 4             /* процесс спит до g_up[i].wake */
@@ -596,6 +601,12 @@ static int up_yield_current(void* frame_v) {
     return up_switch_from(frame_v);
 }
 
+/* Завершиться с кодом: код остаётся в таблице процессов (аналог wait-статуса). */
+static int up_exit_with_code(uint64_t code) {
+    if (g_up_cur >= 0 && g_up_cur < g_up_count && code < 256) g_up[g_up_cur].code = code;
+    return up_exit_current();
+}
+
 /* Поспать ms миллисекунд: пометить себя спящим и уступить CPU. Если будить
    некого (idle-задачи нет) — не спим вовсе, чтобы не встать намертво. */
 static int up_sleep_current(uint64_t ms) {
@@ -678,6 +689,14 @@ int64_t k_user_sched_run(void) {
         u_putc('#'); u_putc((char)('0' + k));
         u_putc(' '); ulog_hx(g_up[k].max_used); u_putc('\n');
         if (k == 0) { u_putc('p'); u_putc('r'); u_putc('e'); u_putc('e'); u_putc('m'); u_putc('p'); u_putc('t'); u_putc('='); ulog_hx(g_preempt); u_putc('\n'); }
+        {   /* код завершения каждого процесса */
+            const char* t = "userapp exit pid=";
+            while (*t) u_putc(*t++);
+            ulog_hx((uint64_t)g_up[k].pid);
+            t = " code=";
+            while (*t) u_putc(*t++);
+            ulog_hx(g_up[k].code); u_putc('\n');
+        }
         g_up[k].state = 3;
     }
     g_up_cur = -1;
