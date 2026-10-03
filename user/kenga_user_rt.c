@@ -86,6 +86,13 @@ int64_t k_sys_rm(const char* path) {
     return r;
 }
 
+/* Код завершения ребёнка, если он уже вышел, иначе -1 (не блокирует). */
+int64_t k_sys_wait_status(int64_t pid) {
+    long r;
+    __asm__ __volatile__("int $0x80" : "=a"(r) : "a"(25L), "D"(pid));
+    return r;
+}
+
 /* Запустить приложение с диска: возвращает pid ребёнка или -1. */
 int64_t k_sys_spawn(const char* path) {
     long r;

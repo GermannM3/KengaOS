@@ -48,6 +48,7 @@ static int64_t up_pid_current(void);
 static void up_note_stack_use(void);
 static int up_sleep_current(uint64_t ms);
 static int up_exit_with_code(uint64_t code);
+static int64_t up_child_status(uint64_t pid);
 
 /* k_mem_palloc возвращает УЖЕ отображённый VA (phys+hhdm).
    Для PTE нужен физический: va - hhdm. */
@@ -367,6 +368,8 @@ void k_syscall_handler(void* frame_v) {
         if (up_yield_current(frame_v) != 1) user_done = 1;
     } else if (num == 4) {      /* getpid */
         f[0] = (uint64_t)up_pid_current();
+    } else if (num == 25) {     /* wait_status(pid) -> код завершения или -1 */
+        f[0] = (uint64_t)up_child_status(f[5]);
     } else if (num == 24) {     /* spawn(path) -> pid: запустить приложение */
         uint64_t path_uva = f[5];
         int64_t pid = -1;
@@ -616,6 +619,18 @@ static int up_yield_current(void* frame_v) {
     if (g_up_count == 0) return 0;
     if (g_up_cur >= 0) g_up[g_up_cur].state = 1;
     return up_switch_from(frame_v);
+}
+
+/* Статус ребёнка: его код, если он уже завершился, иначе -1 (опрос).
+   Записи завершённых процессов живут до конца k_user_sched_run. */
+static int64_t up_child_status(uint64_t pid) {
+    for (int i = 0; i < g_up_count; i++) {
+        if ((uint64_t)g_up[i].pid == pid) {
+            if (g_up[i].state == 3) return (int64_t)g_up[i].code;
+            return -1;
+        }
+    }
+    return -1;
 }
 
 /* Завершиться с кодом: код остаётся в таблице процессов (аналог wait-статуса). */

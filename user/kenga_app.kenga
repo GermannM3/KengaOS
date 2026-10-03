@@ -16,6 +16,7 @@
 @intrinsic fn sys_uptime() -> i64;
 @intrinsic fn sys_exit_code(code: i64) -> i64;
 @intrinsic fn sys_spawn(path: str) -> i64;
+@intrinsic fn sys_wait_status(pid: i64) -> i64;
 @intrinsic fn sys_mkdir(path: str) -> i64;
 @intrinsic fn sys_rm(path: str) -> i64;   /* реализован (syscall 19), в демо не зовём */
 @intrinsic fn sys_cat(path: str, dst: i64, max: i64) -> i64;
@@ -75,8 +76,22 @@ fn main() -> i64 {
     }
     /* запускаем ДРУГОЕ приложение (pid 100, чтобы не плодить рекурсию) */
     if pid == 100 {
-        if sys_spawn("/apps/hello.elf") > 0 {
+        let c: i64 = sys_spawn("/apps/hello.elf");
+        if c > 0 {
             println("kenga-app: spawn /apps/hello.elf");
+            /* ждём ребёнка опросом: пока не вышел, wait_status отдаёт -1 */
+            let w: i64 = -1;
+            let g: i64 = 0;
+            while w < 0 && g < 200 {
+                sys_sleep(20);
+                w = sys_wait_status(c);
+                g = g + 1;
+            }
+            if w == 0 {
+                println("kenga-app: child exit 0");
+            } else {
+                println("kenga-app: child exit ?");
+            }
         }
     }
 
