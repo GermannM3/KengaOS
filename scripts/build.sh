@@ -516,6 +516,11 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "DISK RW OK" "$NVME_LOG" || { echo "ERROR: NVMe disk write test failed" >&2; ok3=0; }
     grep -q "FS OK" "$NVME_LOG" || { echo "ERROR: KengaFS failed on NVMe disk" >&2; ok3=0; }
     grep -q "FS TEST OK" "$NVME_LOG" || { echo "ERROR: KengaFS selftest failed on NVMe disk" >&2; ok3=0; }
+    # приложение и его ФС-путь проверяем и здесь: на NVMe-диске оно раньше не
+    # гейтилось вообще, хотя запускается
+    grep -q "USERAPP OK" "$NVME_LOG" || { echo "ERROR: ring-3 app did not run on NVMe disk" >&2; ok3=0; }
+    grep -q "kenga-app cat file: KengaOS boot #1" "$NVME_LOG" || { echo "ERROR: sys_cat round-trip failed on NVMe disk" >&2; ok3=0; }
+    grep -q "kenga-app wrote: kenga-app" "$NVME_LOG" || { echo "ERROR: ring-3 app file write failed on NVMe disk" >&2; ok3=0; }
     if [[ $ok3 == 1 ]]; then
         echo "OK: kernel booted with NVMe disk + KengaFS"
     else
