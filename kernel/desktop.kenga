@@ -808,6 +808,20 @@ fn fs_cmd(fs: FsState, line: str) -> i64 {
         if r >= 0 { ui_log("write ok " + p + " " + r + "B"); } else { ui_log("write fail"); }
         return 1;
     }
+    /* run <path> — пользовательский ELF с диска в ring 3.
+       Ядро уходит в user-mode и возвращается по sys_exit; вывод программы
+       идёт в UART, десктоп логирует запуск и возврат. */
+    if n > 4 && ord(line[0]) == 114 && ord(line[1]) == 117 && ord(line[2]) == 110 && ord(line[3]) == 32 {
+        let p: str = fs_sub(line, 4, n - 4);
+        let sz: i64 = fs_read(fs, p, fs.dat, 4096);
+        if sz <= 0 { ui_log("run: no such file"); return 1; }
+        let e: i64 = user_exec_blob(fs.dat, sz);
+        if e <= 0 { ui_log("run: not an ELF"); return 1; }
+        ui_log("run " + p + " (ring3)");
+        user_run(e);
+        ui_log("exit ok");
+        return 1;
+    }
     return 0;
 }
 

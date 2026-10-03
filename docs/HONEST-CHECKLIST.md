@@ -48,8 +48,12 @@
   или уже содержащий KengaFS — чужие диски не трогаются. Персистентность
   проверяется двумя QEMU-ботами на одном образе: `fs:boot=1` →
   `fs:boot=2` (`scripts/test-fs-persistence.sh`).
-- **Ring 3**: ядро при загрузке запускает пользовательскую ELF-программу
-  (user-страницы, GDT/TSS, `int 0x80` write/exit) — фундамент приложений.
+- **Ring 3 + приложение на диске**: ядро запускает пользовательские ELF
+  (user-страницы, GDT/TSS, `int 0x80` write/exit). Полный путь приложения:
+  initrd → **KengaFS `/apps/hello.elf`** → чтение с диска → `elf_load` →
+  ring 3, с возвратом по `sys_exit`. Работает и на загрузке (гейт
+  `USERAPP OK`), и из десктопа командой `run /apps/hello.elf`
+  (`user_exec_blob` + `user_run`), т.е. программа живёт на диске, а не в ядре.
 - **xHCI USB**: работает в QEMU на обеих архитектурах (тач-планшет,
   ECAM-скан, слоты, CONFIG_EP); на живом железе не проверен.
 - **Две архитектуры одним исходником**: x86_64 ISO + aarch64 (QEMU, CI).
@@ -99,7 +103,7 @@
 
 | Область | Реальность | Что нужно |
 |---|---|---|
-| **Kenga-программы пользователей** | Ring 3 работает, но в store лежат манифесты, а не Kenga-приложения | Kenga→ELF user-runtime (emit-c уже умеет freestanding C → gcc → ELF = .kpkg с бинарём) |
+| **Kenga-программы пользователей** | Ring 3 умеет брать ELF **с диска** (KengaFS `/apps`, команда `run`), но сама программа пока написана на C; `.kpkg` v1 — манифесты | Kenga→ELF user-runtime: `emit-c --freestanding` + syscall-шим (`write`/`exit`) → `.kpkg` v2 с бинарём |
 | **Многозадачность user-mode** | Ring 3 v1 = один foreground-процесс; на aarch64 тредов нет (агенты cooperative) | aarch64 context switch, вытесняющий планировщик |
 | **USB мышь/клавиатура на реальном железе** | xHCI работает в QEMU (обе арх); на ноутбуке не проверен | Тест на живом ноутбуке |
 | **Диск: запись** | ✅ три пути: x86 — **ATA PIO** (`-M pc`) и **AHCI/SATA** (`-M q35`, `kf_ahci.c`: command list + FIS + PRDT, DMA, поллинг), aarch64 — virtio-blk. Гейты `AHCI READY`, `DISK RW OK` на обеих машинах | NVMe |

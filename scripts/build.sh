@@ -379,6 +379,7 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "PIPE OK" "$UART_LOG" || { echo "ERROR: PIPE marker missing (shell pipes)" >&2; ok=0; }
     grep -q "FS OK" "$UART_LOG" || { echo "ERROR: KengaFS marker missing (disk filesystem)" >&2; ok=0; }
     grep -q "FS TEST OK" "$UART_LOG" || { echo "ERROR: KengaFS selftest failed (write/read/rm)" >&2; ok=0; }
+    grep -q "USERAPP OK" "$UART_LOG" || { echo "ERROR: ring-3 app from KengaFS did not run" >&2; ok=0; }
     grep -q "MEM READY" "$UART_LOG" || { echo "ERROR: MEM READY marker missing" >&2; ok=0; }
     grep -Eq "initrd files=[1-9][0-9]*" "$UART_LOG" || { echo "ERROR: initrd/VFS marker missing" >&2; ok=0; }
     # ponytail: agent/model IPC round-trip pending the kenga-lang ABI migration
@@ -425,6 +426,7 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "DISK RW OK" "$AHCI_LOG" || { echo "ERROR: AHCI disk write test failed" >&2; ok2=0; }
     grep -q "FS OK" "$AHCI_LOG" || { echo "ERROR: KengaFS failed on AHCI disk" >&2; ok2=0; }
     grep -q "FS TEST OK" "$AHCI_LOG" || { echo "ERROR: KengaFS selftest failed on AHCI disk" >&2; ok2=0; }
+    grep -q "USERAPP OK" "$AHCI_LOG" || { echo "ERROR: ring-3 app from KengaFS failed on AHCI disk" >&2; ok2=0; }
     if [[ $ok2 == 1 ]]; then
         echo "OK: kernel booted on q35 — AHCI/SATA disk + KengaFS"
     else

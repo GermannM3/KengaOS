@@ -4,4 +4,5 @@
 
 int64_t k_user_boot_test(void)   { return 0; }
 int64_t k_user_exec_vfs(const char* name) { (void)name; return 0; }
+int64_t k_user_exec_blob(int64_t a, int64_t s) { (void)a; (void)s; return 0; }
 int64_t k_user_run(int64_t entry) { (void)entry; return 0; }

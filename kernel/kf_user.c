@@ -217,6 +217,22 @@ int64_t k_user_exec_vfs(const char* name) {
     return 0;   /* не найден */
 }
 
+/* --- ELF из произвольного буфера (файл на KengaFS, ROM, что угодно) ---
+   Тот же elf_load, что и для initrd: отделяем «откуда байты» от «как грузить».
+   Возвращает entry point (>0) или <0; запуск — отдельно, через k_user_run(). */
+int64_t k_user_exec_blob(int64_t addr, int64_t size) {
+    if (!hhdm) hhdm = (uint64_t)k_kf_get_hhdm();
+    if (!addr || size <= 0) return -1;
+    user_pml4 = pml4_create();
+    if (!user_pml4) return -1;
+    uint64_t entry = 0;
+    if (!elf_load(user_pml4, (const uint8_t*)(uintptr_t)addr, (uint64_t)size, &entry)) {
+        user_pml4 = 0;
+        return -2;
+    }
+    return (int64_t)entry;
+}
+
 /* запуск: не возвращается до sys_exit пользователя; возвращает 0 (exit). */
 static uint64_t kernel_cr3 = 0;   /* CR3 ядра, сохранён до ухода в user */
 

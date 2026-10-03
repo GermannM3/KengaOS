@@ -15,3 +15,9 @@ int64_t k_disk_read64(int64_t lba, int64_t count, int64_t buf) {
 int64_t k_disk_write64(int64_t lba, int64_t count, int64_t buf) {
     return k_disk_write((uint64_t)lba, (uint16_t)count, (const void*)(uintptr_t)buf);
 }
+
+/* k_vfs_cat с i64-адресом приёмника: Kenga копирует файл initrd в кадр,
+   чтобы затем записать его в KengaFS (например, user-ELF в /apps). */
+int64_t k_vfs_cat64(const char* name, int64_t out, int64_t max) {
+    return k_vfs_cat(name, (char*)(uintptr_t)out, (int)max);
+}

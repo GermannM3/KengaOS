@@ -25,6 +25,11 @@ import "../kenga-desktop/src/platform/kernel_bridge.kenga";
 @intrinsic fn vfs_init_rd(addr: i64, size: i64) -> i64;
 @intrinsic fn vfs_version_addr() -> i64;
 @intrinsic fn user_boot_test() -> i64;
+/* user-mode: ELF из произвольного буфера + запуск (ring 3) */
+@intrinsic fn user_exec_blob(addr: i64, size: i64) -> i64;
+@intrinsic fn user_run(entry: i64) -> i64;
+/* k_vfs_cat с i64-адресом приёмника (kf_blk.c) */
+@intrinsic fn vfs_cat64(name: str, out: i64, max: i64) -> i64;
 @intrinsic fn fdt_boot_test() -> i64;
 @intrinsic fn timer_init() -> i64;
 @intrinsic fn disk_init() -> i64;
@@ -228,6 +233,7 @@ fn fs_boot_gate() -> i64 {
     fs_write(fs, "/system/bootlog.txt", "KengaOS boot #" + n);
     if fs_selftest(fs) == 1 { kp_msg("KengaOS", "FS TEST OK"); }
     else { kp_msg("KengaOS", "FS TEST FAIL"); }
+    user_app_from_disk(fs);
     uart_puts("fs:boot=");
     kf_puti(n);
     uart_puts(" inodes=");
@@ -236,6 +242,28 @@ fn fs_boot_gate() -> i64 {
     kf_puti(fs_blocks_used(fs));
     uart_putc(10);
     kp_msg("KengaOS", "FS OK");
+    return 1;
+}
+
+/* --- Ring 3 приложение с диска -------------------------------------------
+   Полный путь приложения: initrd (user-hello.elf) -> KengaFS (/apps/hello.elf)
+   -> чтение обратно с диска -> elf_load -> пользовательский режим.
+   Это и есть «приложение лежит на диске и запускается», а не вшито в ядро. */
+fn user_app_from_disk(fs: FsState) -> i64 {
+    let n: i64 = vfs_cat64("user-hello.elf", fs.dat, 4096);
+    if n <= 0 { kp_msg("KengaOS", "USERAPP NOELF"); return 0; }
+    if fs_write_blob(fs, "/apps/hello.elf", fs.dat, n) < 0 {
+        kp_msg("KengaOS", "USERAPP WRITEFAIL");
+        return 0;
+    }
+    let sz: i64 = fs_read(fs, "/apps/hello.elf", fs.dat, 4096);
+    if sz <= 0 { kp_msg("KengaOS", "USERAPP READFAIL"); return 0; }
+    uart_puts("userapp: elf="); kf_puti(sz); uart_puts(" bytes\n");
+    let e: i64 = user_exec_blob(fs.dat, sz);
+    if e <= 0 { kp_msg("KengaOS", "USERAPP BADELF"); return 0; }
+    uart_puts("userapp: exec from KengaFS (/apps/hello.elf)\n");
+    user_run(e);
+    kp_msg("KengaOS", "USERAPP OK");
     return 1;
 }
 

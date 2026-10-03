@@ -207,6 +207,7 @@ void k_timer_tick(void);
 /* User-mode ring 3 (kernel/kf_user.c, x86_64; a64 — заглушки). */
 int64_t k_user_boot_test(void);
 int64_t k_user_exec_vfs(const char* name);
+int64_t k_user_exec_blob(int64_t addr, int64_t size);
 int64_t k_user_run(int64_t entry);
 
 /* FDT/DTB (aarch64; x86 — заглушка). */
@@ -224,6 +225,7 @@ int64_t k_disk_kind(void);
 /* Block device FFI for the Kenga filesystem (kernel/fs.kenga, kf_blk.c). */
 int64_t k_disk_read64(int64_t lba, int64_t count, int64_t buf);
 int64_t k_disk_write64(int64_t lba, int64_t count, int64_t buf);
+int64_t k_vfs_cat64(const char* name, int64_t out, int64_t max);
 
 /* Virtual filesystem (kernel/kf_vfs.c). */
 int64_t k_vfs_count(void);

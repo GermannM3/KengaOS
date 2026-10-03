@@ -332,6 +332,64 @@ fn fs_write(st: FsState, path: str, data: str) -> i64 {
     return size;
 }
 
+/* --- запись бинарного блока (ELF, образы) из памяти ---
+   Байты берутся из src (mmio_read8), а 512-байтные блоки собираются в st.io —
+   поэтому src может быть st.dat, не затирая ещё не прочитанные данные. --- */
+fn fs_write_blob(st: FsState, path: str, src: i64, size: i64) -> i64 {
+    if st.ok != 1 || st.rw != 1 { return -1; }
+    if size < 0 { return -1; }
+    let n: i64 = len(path);
+    let last: i64 = -1;
+    let i: i64 = 0;
+    while i < n {
+        if ord(path[i]) == 47 { last = i; }
+        i = i + 1;
+    }
+    let loff: i64 = last + 1;
+    let llen: i64 = n - loff;
+    if llen <= 0 { return -1; }
+    let parent: i64 = 0;
+    if last > 0 {
+        parent = fs_ensure_dir(st, path, last);
+        if parent < 0 { return -1; }
+    }
+    let ino: i64 = fs_find(st, parent, path, loff, llen);
+    if ino < 0 {
+        ino = fs_new_ino(st, parent, path, loff, llen, 1);
+        if ino < 0 { return -1; }
+    }
+    let k: i64 = 0;
+    while k < 16 {
+        let b: i64 = fs_block(st, ino, k);
+        if b != 4294967295 { fs_bit_clr(st, b); }
+        fs_set_block(st, ino, k, fs_no_block());
+        k = k + 1;
+    }
+    let nb: i64 = (size + 511) / 512;
+    if nb > 16 { return -1; }
+    k = 0;
+    while k < nb {
+        let b: i64 = fs_alloc_block(st);
+        if b < 0 { return -1; }
+        fs_set_block(st, ino, k, b);
+        let j: i64 = 0;
+        while j < 512 {
+            let pos: i64 = k * 512 + j;
+            let v: i64 = 0;
+            if pos < size { v = mmio_read8(src + pos); }
+            mmio_write8(st.io + j, v);
+            j = j + 1;
+        }
+        if disk_write64(4096 + b, 1, st.io) != 0 { return -1; }
+        k = k + 1;
+    }
+    fs_set_size(st, ino, size);
+    fs_set_mtime(st, ino, time_uptime_ms() / 1000);
+    if fs_flush_ino(st) != 0 { return -1; }
+    if fs_flush_bmp(st) != 0 { return -1; }
+    return size;
+}
+
 /* --- чтение файла в буфер вызывающего (NUL-terminated) --- */
 fn fs_read(st: FsState, path: str, dst: i64, max: i64) -> i64 {
     if st.ok != 1 { return -1; }

@@ -64,7 +64,10 @@ const char* k_vfs_name(int64_t idx) {
     return vfs_files[idx].name;
 }
 
-/* Find a file by name; returns 1 and fills content if found. */
+/* Find a file by name and copy it out. Возвращает число скопированных
+   байт (0 = не найден). Вызывающие используют это и как булев признак;
+   Kenga (k_vfs_cat64) читает initrd-файлы и пишет их в KengaFS, поэтому
+   размер нужен по-настоящему. */
 int64_t k_vfs_cat(const char* name, char* out, int max) {
     if (!name || !out || max <= 0) return 0;
     for (int i = 0; i < vfs_count; i++) {
@@ -74,7 +77,7 @@ int64_t k_vfs_cat(const char* name, char* out, int max) {
             int k = 0;
             for (; k < (int)vfs_files[i].size && k < max - 1; k++) out[k] = vfs_files[i].content[k];
             out[k] = 0;
-            return 1;
+            return (int64_t)k;
         }
     }
     return 0;
