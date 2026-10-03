@@ -117,6 +117,8 @@ if [[ "$MODE" == "--headless" ]]; then
     grep -q  "MEM READY"         "$UART_LOG" || { echo "ERROR: MEM READY marker missing" >&2; ok=0; }
     grep -q  "PROC READY"        "$UART_LOG" || { echo "ERROR: PROC READY marker missing" >&2; ok=0; }
     grep -q  "DISK RW OK"        "$UART_LOG" || { echo "ERROR: DISK RW marker missing (virtio-blk)" >&2; ok=0; }
+    grep -q  "FS OK"             "$UART_LOG" || { echo "ERROR: KengaFS marker missing (virtio-blk)" >&2; ok=0; }
+    grep -q  "FS TEST OK"        "$UART_LOG" || { echo "ERROR: KengaFS selftest failed" >&2; ok=0; }
     [[ "$ok" == 1 ]] && echo "[a64-run] SMOKE OK" || { echo "[a64-run] SMOKE FAILED" >&2; exit 1; }
 
     # --- Store v1 test (только Linux CI: stdio-пайпы на Windows QEMU не дают

@@ -230,6 +230,10 @@ log "4d/7" "Compiling kf_disk.c (PIO-IDE disk) ($CC)"
 if [[ -f "$KERNEL_DIR/kf_disk.c" ]]; then
     eval "$CC -c $CFLAGS_C \"$KERNEL_DIR/kf_disk.c\" -o \"$BUILD_DIR/kf_disk.o\""
 fi
+log "4d2/7" "Compiling kf_blk.c (block-device FFI for KengaFS) ($CC)"
+if [[ -f "$KERNEL_DIR/kf_blk.c" ]]; then
+    eval "$CC -c $CFLAGS_C \"$KERNEL_DIR/kf_blk.c\" -o \"$BUILD_DIR/kf_blk.o\""
+fi
 log "5/7" "Linking kengaos.elf ($LD)"
 OBJS=("$BUILD_DIR/start.o" "$BUILD_DIR/kmain.o")
 if [[ -f "$BUILD_DIR/kf_mem.o" ]]; then OBJS+=("$BUILD_DIR/kf_mem.o"); fi
@@ -258,6 +262,7 @@ if [[ -f "$BUILD_DIR/kf_font_aa.o" ]]; then OBJS+=("$BUILD_DIR/kf_font_aa.o"); f
 if [[ -f "$BUILD_DIR/kf_gui.o" ]]; then OBJS+=("$BUILD_DIR/kf_gui.o"); fi
 if [[ -f "$BUILD_DIR/kf_design.o" ]]; then OBJS+=("$BUILD_DIR/kf_design.o"); fi
 if [[ -f "$BUILD_DIR/kf_disk.o" ]]; then OBJS+=("$BUILD_DIR/kf_disk.o"); fi
+if [[ -f "$BUILD_DIR/kf_blk.o" ]]; then OBJS+=("$BUILD_DIR/kf_blk.o"); fi
 $LD -n -nostdlib -T "$KERNEL_DIR/linker.ld" "${OBJS[@]}" -o "$BUILD_DIR/kengaos.elf"
 ls -la "$BUILD_DIR/kengaos.elf"
 
@@ -367,6 +372,8 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "RING3 OK" "$UART_LOG" || { echo "ERROR: RING3 user-mode marker missing" >&2; ok=0; }
     grep -q "DISK RW OK" "$UART_LOG" || { echo "ERROR: DISK RW marker missing (ata write test)" >&2; ok=0; }
     grep -q "PIPE OK" "$UART_LOG" || { echo "ERROR: PIPE marker missing (shell pipes)" >&2; ok=0; }
+    grep -q "FS OK" "$UART_LOG" || { echo "ERROR: KengaFS marker missing (disk filesystem)" >&2; ok=0; }
+    grep -q "FS TEST OK" "$UART_LOG" || { echo "ERROR: KengaFS selftest failed (write/read/rm)" >&2; ok=0; }
     grep -q "MEM READY" "$UART_LOG" || { echo "ERROR: MEM READY marker missing" >&2; ok=0; }
     grep -Eq "initrd files=[1-9][0-9]*" "$UART_LOG" || { echo "ERROR: initrd/VFS marker missing" >&2; ok=0; }
     # ponytail: agent/model IPC round-trip pending the kenga-lang ABI migration

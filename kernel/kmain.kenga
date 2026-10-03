@@ -1,5 +1,6 @@
 import "ui.kenga";
 import "desktop.kenga";
+import "fs.kenga";
 import "../kenga-desktop/src/platform/kernel_bridge.kenga";
 
 @intrinsic fn kf_get_boot_info() -> i64;
@@ -29,6 +30,9 @@ import "../kenga-desktop/src/platform/kernel_bridge.kenga";
 @intrinsic fn disk_init() -> i64;
 @intrinsic fn disk_sectors() -> i64;
 @intrinsic fn disk_rw_test() -> i64;
+/* Block-device FFI для KengaFS (kernel/kf_blk.c) */
+@intrinsic fn disk_read64(lba: i64, count: i64, buf: i64) -> i64;
+@intrinsic fn disk_write64(lba: i64, count: i64, buf: i64) -> i64;
 @intrinsic fn shell_pipe_selftest() -> i64;
 @intrinsic fn time_uptime_ms() -> i64;
 @intrinsic fn cpu_vendor(buf: i64, max: i64) -> i64;
@@ -209,6 +213,48 @@ fn fb_boot_screen(bi: i64, ver: i64) -> i64 {
     return 1;
 }
 
+/* --- KengaFS: персистентная ФС, целиком на Kenga (kernel/fs.kenga) ---
+   Монтирует/форматирует диск, инкрементирует /boots — это и есть проверка,
+   что данные переживают перезагрузку (см. scripts/test-fs-persistence.sh). */
+fn fs_boot_gate() -> i64 {
+    let fs: FsState = fs_mount();
+    if fs.ok != 1 {
+        kp_msg("KengaOS", "FS NONE");
+        return 0;
+    }
+    let n: i64 = fs_boot_count(fs);
+    /* заодно проверяем mkdir -p и запись текста: /system/bootlog.txt */
+    fs_write(fs, "/system/bootlog.txt", "KengaOS boot #" + n);
+    if fs_selftest(fs) == 1 { kp_msg("KengaOS", "FS TEST OK"); }
+    else { kp_msg("KengaOS", "FS TEST FAIL"); }
+    uart_puts("fs:boot=");
+    kf_puti(n);
+    uart_puts(" inodes=");
+    kf_puti(fs_used(fs));
+    uart_puts(" blocks=");
+    kf_puti(fs_blocks_used(fs));
+    uart_putc(10);
+    kp_msg("KengaOS", "FS OK");
+    return 1;
+}
+
+/* Самотест KengaFS: mkdir -p, запись, чтение+сверка, удаление. */
+fn fs_selftest(fs: FsState) -> i64 {
+    let want: str = "kenga-fs-selftest";
+    if fs_write(fs, "/tmp/t.txt", want) < 0 { return 0; }
+    let got: i64 = fs_read(fs, "/tmp/t.txt", fs.dat, 4096);
+    if got != len(want) { return 0; }
+    let s: str = kf_str(fs.dat);
+    let i: i64 = 0;
+    while i < len(want) {
+        if ord(s[i]) != ord(want[i]) { return 0; }
+        i = i + 1;
+    }
+    if fs_rm(fs, "/tmp/t.txt") != 1 { return 0; }
+    if fs_lookup(fs, "/tmp/t.txt") >= 0 { return 0; }
+    return 1;
+}
+
 /* --- PS/2 mouse (polling; IRQ/IDT появится на шаге про прерывания) --- */
 
 fn main() -> i64 {
@@ -345,6 +391,8 @@ fn main() -> i64 {
     /* пайпы шелла: echo | upper | count */
     let pp: i64 = shell_pipe_selftest();
     if pp == 1 { kp_msg("KengaOS", "PIPE OK"); } else { kp_msg("KengaOS", "PIPE FAIL"); }
+    /* KengaFS: персистентная ФС на диске (логика — kernel/fs.kenga) */
+    fs_boot_gate();
 
     let go: i64 = gui_init();   /* hardware bridge: kbd/con/proc/mouse, sti */
     if go == 1 {

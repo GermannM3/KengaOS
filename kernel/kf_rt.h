@@ -218,6 +218,10 @@ int64_t k_kd_prophet_tick(int64_t mx, int64_t my, int64_t app);
 int64_t k_kd_prophet_next_app(void);
 int64_t k_kd_prophet_surprise(void);
 
+/* Block device FFI for the Kenga filesystem (kernel/fs.kenga, kf_blk.c). */
+int64_t k_disk_read64(int64_t lba, int64_t count, int64_t buf);
+int64_t k_disk_write64(int64_t lba, int64_t count, int64_t buf);
+
 /* Virtual filesystem (kernel/kf_vfs.c). */
 int64_t k_vfs_count(void);
 const char* k_vfs_name(int64_t idx);

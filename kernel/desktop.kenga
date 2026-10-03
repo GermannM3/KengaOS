@@ -6,7 +6,7 @@
  */
 
 /* --- state threaded through the desktop (Kenga has no globals) --- */
-struct DesktopState { cur_app: i64, sel_pid: i64, model_a: i64, model_b: i64, model_out: i64, drag_win: i64, drag_ox: i64, drag_oy: i64, hist: list }
+struct DesktopState { cur_app: i64, sel_pid: i64, model_a: i64, model_b: i64, model_out: i64, drag_win: i64, drag_ox: i64, drag_oy: i64, hist: list, fs_ino: i64, fs_bmp: i64, fs_io: i64, fs_dat: i64, fs_rw: i64, fs_ok: i64 }
 
 /* --- cursor (XOR draw; calling fb_cursor twice erases it) --- */
 fn cur_draw(mx: i64, my: i64) -> i64 {
@@ -122,8 +122,33 @@ fn draw_command_center(w: i64, h: i64, st: DesktopState) -> i64 {
     let psx: i64 = kd_prophet_surprise();
     let papp: i64 = kd_prophet_next_app();
     let pcol: i64 = 0x7ee7d3;
-    fb_text_aa(rx + 18, y + 290, dim, panel, "PROPHET");
-    fb_text_aa(rx + 18, y + 316, pcol, panel, "next app " + papp + "  surprise " + psx + "%");
+    fb_text_aa(rx + 18, y + 300, dim, panel, "PROPHET");
+    fb_text_aa(rx + 18, y + 322, pcol, panel, "next app " + papp + "  surprise " + psx + "%");
+
+    /* FILES: KengaFS — персистентная ФС на диске (kernel/fs.kenga).
+       Данные читаются прямо из inode-таблицы в RAM, которую держит ФС. */
+    let fs: FsState = FsState{ ino: st.fs_ino, bmp: st.fs_bmp, io: st.fs_io, dat: st.fs_dat, rw: st.fs_rw, ok: st.fs_ok };
+    fb_blend_rrect_grad(rx, y + 348, rw, 178, 18, 0x1a294a, 0x0e172b, 205);
+    fb_text_aa(rx + 18, y + 368, dim, panel, "FILES  ·  KENGA-FS");
+    if fs.ok != 1 {
+        fb_text_aa(rx + 18, y + 396, 0xf0a35e, panel, "no FS on this disk");
+        return 0;
+    }
+    fb_text_aa(rx + 18, y + 396, cyan, panel, "inodes " + fs_used(fs) + "/32   blocks " + fs_blocks_used(fs));
+    let fi: i64 = 0;
+    let fr: i64 = 0;
+    while fi < 32 {
+        if fs_type(fs, fi) != 0 && fi != 0 {
+            if fr < 5 {
+                let mark: str = "  ";
+                if fs_type(fs, fi) == 2 { mark = "/ "; }
+                fb_text_aa(rx + 18, y + 422 + fr * 20, text, panel, mark + fs_name(fs, fi));
+                fb_text_aa(rx + 150, y + 422 + fr * 20, dim, panel, fs_size(fs, fi) + " B");
+                fr = fr + 1;
+            }
+        }
+        fi = fi + 1;
+    }
     return 0;
 }
 
@@ -522,17 +547,46 @@ fn draw_model(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
     return 0;
 }
 
+/* Files: дерево KengaFS с диска (имя, тип, размер) + initrd-раздел. */
 fn draw_files(x: i64, y: i64, w: i64, h: i64, st: DesktopState) -> i64 {
     let C_BG: i64 = 0x10131c;
     let C_TEXT: i64 = 0xe6edf3;
     let C_DIM: i64 = 0x8fb3d9;
-    dtext(x, y, C_TEXT, C_BG, "Files (VFS)");
+    let C_GREEN: i64 = 0x22d3ee;
+    let C_WARN: i64 = 0xf0a35e;
+    let fs: FsState = FsState{ ino: st.fs_ino, bmp: st.fs_bmp, io: st.fs_io, dat: st.fs_dat, rw: st.fs_rw, ok: st.fs_ok };
+    dtext(x, y, C_TEXT, C_BG, "Files — KengaFS (persistent, Kenga)");
+    if fs.ok != 1 {
+        dtext(x + 8, y + 24, C_WARN, C_BG, "no KengaFS on this disk — read-only initrd below");
+    } else {
+        dtext(x + 8, y + 24, C_DIM, C_BG, "inodes " + fs_used(fs) + "/32   blocks " + fs_blocks_used(fs) + "/8192   rw=" + fs.rw);
+        let i: i64 = 0;
+        let row: i64 = 0;
+        while i < 32 {
+            if fs_type(fs, i) != 0 {
+                /* отступ = глубина в дереве (идём по parent вверх) */
+                let ind: i64 = 0;
+                let p: i64 = fs_parent(fs, i);
+                let guard: i64 = 0;
+                while p != 0 && guard < 8 { ind = ind + 1; p = fs_parent(fs, p); guard = guard + 1; }
+                let tag: str = "file";
+                if fs_type(fs, i) == 2 { tag = "dir "; }
+                dtext(x + 8 + ind * 18, y + 50 + row * 20, C_TEXT, C_BG, fs_name(fs, i));
+                dtext(x + 340, y + 50 + row * 20, C_DIM, C_BG, tag + "  " + fs_size(fs, i) + " B");
+                row = row + 1;
+                if row >= 15 { i = 33; }
+            }
+            i = i + 1;
+        }
+        if row == 0 { dtext(x + 8, y + 50, C_DIM, C_BG, "(empty)"); }
+    }
+    let ly: i64 = y + 50 + 16 * 20 + 12;
+    dtext(x + 8, ly, C_GREEN, C_BG, "initrd / VFS (read-only, bootstrap):");
     let n: i64 = vfs_count();
-    let i: i64 = 0;
-    while i < n && i < 20 {
-        dtext(x + 8, y + 24 + i * 20, C_TEXT, C_BG, vfs_name(i));
-        dtext(x + 120, y + 24 + i * 20, C_DIM, C_BG, "cat to view");
-        i = i + 1;
+    let j: i64 = 0;
+    while j < n && j < 4 {
+        dtext(x + 24 + (j % 2) * 200, ly + 20 + (j / 2) * 18, C_DIM, C_BG, vfs_name(j));
+        j = j + 1;
     }
     return 0;
 }
@@ -681,9 +735,88 @@ fn lock_screen() -> i64 {
     return 0;
 }
 
+/* --- KengaFS CLI: команды в input-баре обрабатываются ДО отправки агенту.
+   ls / df / cat <path> / touch <path> / mkdir <path> / rm <path> /
+   write <path> <text>. Так файловая система управляется из Kenga-десктопа. --- */
+fn fs_sub(s: str, off: i64, n: i64) -> str {
+    let out: str = "";
+    let i: i64 = 0;
+    while i < n {
+        out = out + s[off + i];
+        i = i + 1;
+    }
+    return out;
+}
+
+fn fs_cmd(fs: FsState, line: str) -> i64 {
+    let n: i64 = len(line);
+    if n == 0 { return 0; }
+    /* ls */
+    if n == 2 && ord(line[0]) == 108 && ord(line[1]) == 115 {
+        ui_log("KengaFS /");
+        let i: i64 = 0;
+        let c: i64 = 0;
+        while i < 32 {
+            if fs_type(fs, i) != 0 && i != 0 {
+                if c < 5 { ui_log(fs_name(fs, i)); c = c + 1; }
+            }
+            i = i + 1;
+        }
+        return 1;
+    }
+    /* df */
+    if n == 2 && ord(line[0]) == 100 && ord(line[1]) == 102 {
+        ui_log("inodes " + fs_used(fs) + "/32  blocks " + fs_blocks_used(fs) + "/8192");
+        return 1;
+    }
+    /* touch <path> */
+    if n > 6 && ord(line[0]) == 116 && ord(line[1]) == 111 && ord(line[2]) == 117 && ord(line[3]) == 99 && ord(line[4]) == 104 && ord(line[5]) == 32 {
+        let p: str = fs_sub(line, 6, n - 6);
+        if fs_write(fs, p, "") >= 0 { ui_log("touch ok " + p); } else { ui_log("touch fail"); }
+        return 1;
+    }
+    /* mkdir <path> */
+    if n > 6 && ord(line[0]) == 109 && ord(line[1]) == 107 && ord(line[2]) == 100 && ord(line[3]) == 105 && ord(line[4]) == 114 && ord(line[5]) == 32 {
+        let p: str = fs_sub(line, 6, n - 6);
+        if fs_mkdir(fs, p) >= 0 { ui_log("mkdir ok " + p); } else { ui_log("mkdir fail"); }
+        return 1;
+    }
+    /* cat <path> */
+    if n > 4 && ord(line[0]) == 99 && ord(line[1]) == 97 && ord(line[2]) == 116 && ord(line[3]) == 32 {
+        let p: str = fs_sub(line, 4, n - 4);
+        if fs_read(fs, p, fs.dat, 64) >= 0 { ui_log(kf_str(fs.dat)); } else { ui_log("cat: no such file"); }
+        return 1;
+    }
+    /* rm <path> */
+    if n > 3 && ord(line[0]) == 114 && ord(line[1]) == 109 && ord(line[2]) == 32 {
+        let p: str = fs_sub(line, 3, n - 3);
+        if fs_rm(fs, p) == 1 { ui_log("rm ok " + p); } else { ui_log("rm fail"); }
+        return 1;
+    }
+    /* write <path> <text> */
+    if n > 6 && ord(line[0]) == 119 && ord(line[1]) == 114 && ord(line[2]) == 105 && ord(line[3]) == 116 && ord(line[4]) == 101 && ord(line[5]) == 32 {
+        let sp: i64 = -1;
+        let i: i64 = 6;
+        while i < n {
+            if ord(line[i]) == 32 && sp < 0 { sp = i; }
+            i = i + 1;
+        }
+        if sp < 0 { ui_log("usage: write <path> <text>"); return 1; }
+        let p: str = fs_sub(line, 6, sp - 6);
+        let t: str = fs_sub(line, sp + 1, n - sp - 1);
+        let r: i64 = fs_write(fs, p, t);
+        if r >= 0 { ui_log("write ok " + p + " " + r + "B"); } else { ui_log("write fail"); }
+        return 1;
+    }
+    return 0;
+}
+
 /* --- desktop event loop (Kenga) --- */
 fn desktop_main() -> i64 {
-    let st: DesktopState = DesktopState{ cur_app: 0, sel_pid: 0, model_a: 0, model_b: 1, model_out: 0, drag_win: -1, drag_ox: 0, drag_oy: 0, hist: [] };
+    /* KengaFS: персистентная ФС на диске; состояние живёт в DesktopState
+       (в Kenga нет глобальных переменных, состояние течёт явно). */
+    let dfs: FsState = fs_mount();
+    let st: DesktopState = DesktopState{ cur_app: 0, sel_pid: 0, model_a: 0, model_b: 1, model_out: 0, drag_win: -1, drag_ox: 0, drag_oy: 0, hist: [], fs_ino: dfs.ino, fs_bmp: dfs.bmp, fs_io: dfs.io, fs_dat: dfs.dat, fs_rw: dfs.rw, fs_ok: dfs.ok };
     init_screen();
     lock_screen();
     /* let agents run once so a CAP_UI agent can open its window before first draw */
@@ -747,7 +880,10 @@ fn desktop_main() -> i64 {
             } else {
                 let chg: i64 = 0;
                 if c == 10 || c == 13 {
-                    kd_input_submit();
+                    /* сначала KengaFS-команды, иначе — чат с агентом */
+                    let fs2: FsState = FsState{ ino: s.fs_ino, bmp: s.fs_bmp, io: s.fs_io, dat: s.fs_dat, rw: s.fs_rw, ok: s.fs_ok };
+                    if fs_cmd(fs2, kd_input_text()) == 1 { kd_input_clear(); }
+                    else { kd_input_submit(); }
                     chg = 1;
                 } else {
                     chg = kd_input_putc(c);

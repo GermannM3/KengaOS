@@ -170,6 +170,7 @@ Standalone HTML-preview дизайн-системы находится в
 | **Prophet (v1)** | есть | Пророки: в ядре — kf_prophet.c; в оболочках — ассистенты, обучающиеся на ходу («учи: вопрос => ответ»), предсказание следующего приложения (цепь Маркова), surprise. Всё локально |
 | **aarch64** | есть | То же ядро без изменений на ARM64 (QEMU virt, CI-гейт) |
 | VFS + initrd | есть | Виртуальная ФС + initrd через Limine (git-лог, инфо хоста) |
+| **KengaFS (диск)** | есть | Персистентная ФС на диске, целиком на Kenga (`kernel/fs.kenga`): дерево каталогов, mkdir -p, чтение/запись/удаление, 32 объекта × 8 КиБ, 4 МиБ данных. Гейты `FS OK` / `FS TEST OK`; персистентность — два QEMU-бота на одном образе (`scripts/test-fs-persistence.sh`). Пишем только на диск с маркером `KENGARWTEST1` или уже содержащий KengaFS |
 | Таймер / uptime | есть | PIT 100 Гц (x86) / generic timer CNTV (ARM64), команда `time` |
 | Аппаратура | есть | CPUID/MIDR (`cpuinfo`), RTC (`date`), память (`mmap`), FDT (ARM64) |
 | Power | есть | `reboot`, `poweroff` (x86: ACPI/PSCI-заглушки) |
@@ -237,7 +238,9 @@ KengaOS/
 │   ├── kf_prophet.c        # Пророк: память паттернов, foresee
 │   ├── kf_pkg.c            # Магазин .kpkg
 │   ├── kf_usb*.c           # USB: xHCI + UHCI + HID
-│   ├── kf_disk.c           # ATA PIO диск (чтение)
+│   ├── kf_disk.c           # ATA PIO диск (чтение+запись, RW-тест)
+│   ├── fs.kenga            # KengaFS: персистентная ФС на диске (Kenga)
+│   ├── kf_blk.c            # Блочный FFI-мост для KengaFS
 │   ├── intr.c / isr.S      # GDT + IDT + обработчики
 │   └── linker.ld           # Скрипт компоновщика (x86_64)
 ├── src/                    # Оболочки (прототипы): десктоп + мобилка, темы

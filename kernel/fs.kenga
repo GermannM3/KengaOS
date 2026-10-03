@@ -1,0 +1,420 @@
+/* fs.kenga — KengaFS v1: маленькая персистентная файловая система на диске.
+ *
+ * ЦЕЛИКОМ на Kenga (kernel/fs.kenga). Диск трогается через два FFI-стаба
+ * disk_read64/disk_write64 (kernel/kf_blk.c) — те же 512-байтные сектора,
+ * что у ATA PIO (x86) и virtio-blk (aarch64), поэтому раскладка одна.
+ *
+ * Раскладка (LBA, 512-байтные сектора):
+ *   2048        superblock (1 сектор)
+ *   2049..2050  битмап занятости блоков данных (2 сектора = 1024 байта = 8192 блока)
+ *   2052..2059  таблица inode (8 секторов = 4096 байт = 32 inode × 128 байт)
+ *   4096..      блоки данных (8192 × 512 байт = 4 МиБ)
+ *
+ * inode (128 байт):
+ *   0   u8  type   (0 free, 1 file, 2 dir)
+ *   1   u8  flags
+ *   2   u16 name_len
+ *   4   u32 size
+ *   8   u32 parent
+ *   12  u32 mtime
+ *   16  u32 block[16]   (16×4 = 64 → 16..79; 0xFFFFFFFF = нет блока)
+ *   80  char name[48]   (80..127, NUL-terminated)
+ *
+ * Пределы v1: 32 файла/каталога, 16 блоков на файл (8 КиБ), путей — до 47
+ * символов в имени. Запись разрешена только если диск помечен как scratch
+ * (маркер KENGARWTEST1 на LBA0) или уже содержит нашу ФС — так чужие диски
+ * не трогаются, а персистентность проверяется на scratch-диске.
+ */
+
+struct FsState { ino: i64, bmp: i64, io: i64, dat: i64, rw: i64, ok: i64 }
+
+/* --- константы раскладки --- */
+fn fs_lba_sb() -> i64 { return 2048; }
+fn fs_lba_bmp() -> i64 { return 2049; }
+fn fs_lba_ino() -> i64 { return 2052; }
+fn fs_lba_dat() -> i64 { return 4096; }
+fn fs_dat_blocks() -> i64 { return 8192; }
+fn fs_ino_max() -> i64 { return 32; }
+fn fs_iblk() -> i64 { return 128; }
+fn fs_no_block() -> i64 { return 4294967295; }
+
+/* --- inode-поля (чтение) --- */
+fn fs_type(st: FsState, i: i64) -> i64 { return mmio_read8(st.ino + i * 128); }
+fn fs_name_len(st: FsState, i: i64) -> i64 { return mmio_read16(st.ino + i * 128 + 2); }
+fn fs_size(st: FsState, i: i64) -> i64 { return mmio_read32(st.ino + i * 128 + 4); }
+fn fs_parent(st: FsState, i: i64) -> i64 { return mmio_read32(st.ino + i * 128 + 8); }
+fn fs_block(st: FsState, i: i64, k: i64) -> i64 { return mmio_read32(st.ino + i * 128 + 16 + k * 4); }
+fn fs_name(st: FsState, i: i64) -> str { return kf_str(st.ino + i * 128 + 80); }
+
+/* --- inode-поля (запись) --- */
+fn fs_set_type(st: FsState, i: i64, v: i64) -> i64 { mmio_write8(st.ino + i * 128, v); return 0; }
+fn fs_set_flags(st: FsState, i: i64, v: i64) -> i64 { mmio_write8(st.ino + i * 128 + 1, v); return 0; }
+fn fs_set_namelen(st: FsState, i: i64, v: i64) -> i64 { mmio_write16(st.ino + i * 128 + 2, v); return 0; }
+fn fs_set_size(st: FsState, i: i64, v: i64) -> i64 { mmio_write32(st.ino + i * 128 + 4, v); return 0; }
+fn fs_set_parent(st: FsState, i: i64, v: i64) -> i64 { mmio_write32(st.ino + i * 128 + 8, v); return 0; }
+fn fs_set_mtime(st: FsState, i: i64, v: i64) -> i64 { mmio_write32(st.ino + i * 128 + 12, v); return 0; }
+fn fs_set_block(st: FsState, i: i64, k: i64, v: i64) -> i64 { mmio_write32(st.ino + i * 128 + 16 + k * 4, v); return 0; }
+
+/* --- сигнатуры --- */
+fn fs_cmp_sig(addr: i64, sig: str) -> i64 {
+    let n: i64 = len(sig);
+    let i: i64 = 0;
+    while i < n {
+        if mmio_read8(addr + i) != ord(sig[i]) { return 0; }
+        i = i + 1;
+    }
+    return 1;
+}
+fn fs_is_scratch(addr: i64) -> i64 { return fs_cmp_sig(addr, "KENGARWTEST1"); }
+fn fs_is_fs(addr: i64) -> i64 { return fs_cmp_sig(addr, "KENGAFS1"); }
+
+/* --- битмап блоков данных --- */
+fn fs_bit_get(st: FsState, b: i64) -> i64 {
+    let byte: i64 = mmio_read8(st.bmp + b / 8);
+    return (byte >> (b % 8)) & 1;
+}
+fn fs_bit_set(st: FsState, b: i64) -> i64 {
+    let at: i64 = st.bmp + b / 8;
+    mmio_write8(at, mmio_read8(at) | (1 << (b % 8)));
+    return 0;
+}
+fn fs_bit_clr(st: FsState, b: i64) -> i64 {
+    let at: i64 = st.bmp + b / 8;
+    mmio_write8(at, mmio_read8(at) & ~(1 << (b % 8)));
+    return 0;
+}
+fn fs_alloc_block(st: FsState) -> i64 {
+    let b: i64 = 0;
+    while b < 8192 {
+        if fs_bit_get(st, b) == 0 {
+            fs_bit_set(st, b);
+            return b;
+        }
+        b = b + 1;
+    }
+    return -1;
+}
+
+/* --- формат диска (только когда разрешено вызывающим) --- */
+fn fs_format(st: FsState) -> i64 {
+    let sb: i64 = st.io;
+    let j: i64 = 0;
+    while j < 512 { mmio_write8(sb + j, 0); j = j + 1; }
+    let sig: str = "KENGAFS1";
+    j = 0;
+    while j < 8 { mmio_write8(sb + j, ord(sig[j])); j = j + 1; }
+    mmio_write32(sb + 8, 1);            /* version */
+    mmio_write32(sb + 12, 32);          /* inode count */
+    mmio_write32(sb + 16, 4096);        /* data start */
+    mmio_write32(sb + 20, 8192);        /* data blocks */
+    mmio_write32(sb + 24, 2049);        /* bitmap start */
+    mmio_write32(sb + 28, 2052);        /* inode start */
+    mmio_write32(sb + 32, 512);         /* block size */
+    if disk_write64(2048, 1, sb) != 0 { return 0; }
+    /* битмап = 0 */
+    j = 0;
+    while j < 1024 { mmio_write8(st.bmp + j, 0); j = j + 1; }
+    if disk_write64(2049, 2, st.bmp) != 0 { return 0; }
+    /* таблица inode = 0 */
+    j = 0;
+    while j < 4096 { mmio_write8(st.ino + j, 0); j = j + 1; }
+    /* корень: inode 0, каталог "/", parent = себя */
+    fs_set_type(st, 0, 2);
+    fs_set_namelen(st, 0, 1);
+    fs_set_size(st, 0, 0);
+    fs_set_parent(st, 0, 0);
+    mmio_write8(st.ino + 80, 47);
+    mmio_write8(st.ino + 81, 0);
+    j = 0;
+    while j < 16 { fs_set_block(st, 0, j, fs_no_block()); j = j + 1; }
+    if disk_write64(2052, 8, st.ino) != 0 { return 0; }
+    return 1;
+}
+
+fn fs_load(st: FsState) -> i64 {
+    if disk_read64(2049, 2, st.bmp) != 0 { return 0; }
+    if disk_read64(2052, 8, st.ino) != 0 { return 0; }
+    return 1;
+}
+fn fs_flush_ino(st: FsState) -> i64 { return disk_write64(2052, 8, st.ino); }
+fn fs_flush_bmp(st: FsState) -> i64 { return disk_write64(2049, 2, st.bmp); }
+
+fn fs_bad() -> FsState { return FsState{ ino: 0, bmp: 0, io: 0, dat: 0, rw: 0, ok: 0 }; }
+
+fn fs_mount() -> FsState {
+    if disk_sectors() < 16384 { return fs_bad(); }
+    let ino: i64 = mem_palloc();
+    let bmp: i64 = mem_palloc();
+    let io: i64 = mem_palloc();
+    let dat: i64 = mem_palloc();
+    if ino == 0 || bmp == 0 || io == 0 || dat == 0 { return fs_bad(); }
+    let st: FsState = FsState{ ino: ino, bmp: bmp, io: io, dat: dat, rw: 0, ok: 0 };
+    let scratch: i64 = 0;
+    if disk_read64(0, 1, io) == 0 { scratch = fs_is_scratch(io); }
+    let hasfs: i64 = 0;
+    if disk_read64(2048, 1, io) == 0 { hasfs = fs_is_fs(io); }
+    if hasfs == 0 && scratch == 1 {
+        if fs_format(st) == 1 { hasfs = 1; }
+    }
+    if hasfs == 0 { return fs_bad(); }
+    if fs_load(st) == 0 { return fs_bad(); }
+    /* наша ФС — можно писать; чужой диск с маркером — тоже */
+    return FsState{ ino: ino, bmp: bmp, io: io, dat: dat, rw: 1, ok: 1 };
+}
+
+/* --- поиск --- */
+fn fs_name_eq(st: FsState, i: i64, path: str, off: i64, ln: i64) -> i64 {
+    if fs_name_len(st, i) != ln { return 0; }
+    let k: i64 = 0;
+    while k < ln {
+        if mmio_read8(st.ino + i * 128 + 80 + k) != ord(path[off + k]) { return 0; }
+        k = k + 1;
+    }
+    return 1;
+}
+fn fs_find(st: FsState, parent: i64, path: str, off: i64, ln: i64) -> i64 {
+    let i: i64 = 0;
+    while i < 32 {
+        if fs_type(st, i) != 0 {
+            if fs_parent(st, i) == parent {
+                if fs_name_eq(st, i, path, off, ln) == 1 { return i; }
+            }
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+/* разбор пути path[0..end) без создания: inode или -1 */
+fn fs_walk(st: FsState, path: str, end: i64) -> i64 {
+    let cur: i64 = 0;
+    let n: i64 = end;
+    if n > len(path) { n = len(path); }
+    let i: i64 = 0;
+    while i < n && ord(path[i]) == 47 { i = i + 1; }
+    let cs: i64 = i;
+    while i <= n {
+        if i == n || ord(path[i]) == 47 {
+            if i > cs {
+                if i - cs == 2 && ord(path[cs]) == 46 && ord(path[cs + 1]) == 46 {
+                    cur = fs_parent(st, cur);
+                } else {
+                    let nx: i64 = fs_find(st, cur, path, cs, i - cs);
+                    if nx < 0 { return -1; }
+                    cur = nx;
+                }
+            }
+            cs = i + 1;
+        }
+        i = i + 1;
+    }
+    return cur;
+}
+
+fn fs_lookup(st: FsState, path: str) -> i64 { return fs_walk(st, path, len(path)); }
+
+/* --- создание --- */
+fn fs_alloc_ino(st: FsState) -> i64 {
+    let i: i64 = 0;
+    while i < 32 {
+        if fs_type(st, i) == 0 { return i; }
+        i = i + 1;
+    }
+    return -1;
+}
+
+fn fs_new_ino(st: FsState, parent: i64, path: str, off: i64, ln: i64, typ: i64) -> i64 {
+    if ln <= 0 || ln > 47 { return -1; }
+    let i: i64 = fs_alloc_ino(st);
+    if i < 0 { return -1; }
+    fs_set_type(st, i, typ);
+    fs_set_flags(st, i, 0);
+    fs_set_namelen(st, i, ln);
+    fs_set_size(st, i, 0);
+    fs_set_parent(st, i, parent);
+    fs_set_mtime(st, i, time_uptime_ms() / 1000);
+    let k: i64 = 0;
+    while k < 16 { fs_set_block(st, i, k, fs_no_block()); k = k + 1; }
+    k = 0;
+    while k < ln {
+        mmio_write8(st.ino + i * 128 + 80 + k, ord(path[off + k]));
+        k = k + 1;
+    }
+    mmio_write8(st.ino + i * 128 + 80 + k, 0);
+    return i;
+}
+
+/* mkdir -p по path[0..end): вернуть inode каталога или -1 */
+fn fs_ensure_dir(st: FsState, path: str, end: i64) -> i64 {
+    if st.rw != 1 { return -1; }
+    let cur: i64 = 0;
+    let n: i64 = end;
+    if n > len(path) { n = len(path); }
+    let i: i64 = 0;
+    while i < n && ord(path[i]) == 47 { i = i + 1; }
+    let cs: i64 = i;
+    let made: i64 = 0;
+    while i <= n {
+        if i == n || ord(path[i]) == 47 {
+            if i > cs {
+                let nx: i64 = fs_find(st, cur, path, cs, i - cs);
+                if nx < 0 {
+                    nx = fs_new_ino(st, cur, path, cs, i - cs, 2);
+                    if nx < 0 { return -1; }
+                    made = 1;
+                }
+                cur = nx;
+            }
+            cs = i + 1;
+        }
+        i = i + 1;
+    }
+    if made == 1 { fs_flush_ino(st); }
+    return cur;
+}
+
+fn fs_mkdir(st: FsState, path: str) -> i64 { return fs_ensure_dir(st, path, len(path)); }
+
+/* --- запись файла --- */
+fn fs_write(st: FsState, path: str, data: str) -> i64 {
+    if st.ok != 1 || st.rw != 1 { return -1; }
+    let n: i64 = len(path);
+    let last: i64 = -1;
+    let i: i64 = 0;
+    while i < n {
+        if ord(path[i]) == 47 { last = i; }
+        i = i + 1;
+    }
+    let loff: i64 = last + 1;
+    let llen: i64 = n - loff;
+    if llen <= 0 { return -1; }
+    let parent: i64 = 0;
+    if last > 0 {
+        parent = fs_ensure_dir(st, path, last);
+        if parent < 0 { return -1; }
+    }
+    let ino: i64 = fs_find(st, parent, path, loff, llen);
+    if ino < 0 {
+        ino = fs_new_ino(st, parent, path, loff, llen, 1);
+        if ino < 0 { return -1; }
+    }
+    /* освободить прежние блоки */
+    let k: i64 = 0;
+    while k < 16 {
+        let b: i64 = fs_block(st, ino, k);
+        if b != 4294967295 { fs_bit_clr(st, b); }
+        fs_set_block(st, ino, k, fs_no_block());
+        k = k + 1;
+    }
+    let size: i64 = len(data);
+    let nb: i64 = (size + 511) / 512;
+    if nb > 16 { return -1; }
+    k = 0;
+    while k < nb {
+        let b: i64 = fs_alloc_block(st);
+        if b < 0 { return -1; }
+        fs_set_block(st, ino, k, b);
+        let j: i64 = 0;
+        while j < 512 {
+            let pos: i64 = k * 512 + j;
+            let v: i64 = 0;
+            if pos < size { v = ord(data[pos]); }
+            mmio_write8(st.dat + j, v);
+            j = j + 1;
+        }
+        if disk_write64(4096 + b, 1, st.dat) != 0 { return -1; }
+        k = k + 1;
+    }
+    fs_set_size(st, ino, size);
+    fs_set_mtime(st, ino, time_uptime_ms() / 1000);
+    if fs_flush_ino(st) != 0 { return -1; }
+    if fs_flush_bmp(st) != 0 { return -1; }
+    return size;
+}
+
+/* --- чтение файла в буфер вызывающего (NUL-terminated) --- */
+fn fs_read(st: FsState, path: str, dst: i64, max: i64) -> i64 {
+    if st.ok != 1 { return -1; }
+    let ino: i64 = fs_lookup(st, path);
+    if ino < 0 { return -1; }
+    if fs_type(st, ino) != 1 { return -1; }
+    let size: i64 = fs_size(st, ino);
+    let lim: i64 = size;
+    if lim > max - 1 { lim = max - 1; }
+    let k: i64 = 0;
+    let done: i64 = 0;
+    while k < 16 && done < lim {
+        let b: i64 = fs_block(st, ino, k);
+        if b == 4294967295 { break; }
+        if disk_read64(4096 + b, 1, st.io) != 0 { return -1; }
+        let j: i64 = 0;
+        while j < 512 && done < lim {
+            mmio_write8(dst + done, mmio_read8(st.io + j));
+            done = done + 1;
+            j = j + 1;
+        }
+        k = k + 1;
+    }
+    mmio_write8(dst + done, 0);
+    return done;
+}
+
+/* --- удаление файла --- */
+fn fs_rm(st: FsState, path: str) -> i64 {
+    if st.ok != 1 || st.rw != 1 { return -1; }
+    let ino: i64 = fs_lookup(st, path);
+    if ino <= 0 { return -1; }
+    if fs_type(st, ino) != 1 { return -1; }
+    let k: i64 = 0;
+    while k < 16 {
+        let b: i64 = fs_block(st, ino, k);
+        if b != 4294967295 { fs_bit_clr(st, b); }
+        fs_set_block(st, ino, k, fs_no_block());
+        k = k + 1;
+    }
+    fs_set_type(st, ino, 0);
+    fs_set_namelen(st, ino, 0);
+    fs_set_size(st, ino, 0);
+    mmio_write8(st.ino + ino * 128 + 80, 0);
+    fs_flush_ino(st);
+    fs_flush_bmp(st);
+    return 1;
+}
+
+/* --- персистентность: /boots хранит число загрузок --- */
+fn fs_boot_count(st: FsState) -> i64 {
+    let n: i64 = 0;
+    if fs_read(st, "/boots", st.dat, 64) > 0 {
+        let s: str = kf_str(st.dat);
+        let i: i64 = 0;
+        while i < len(s) {
+            let c: i64 = ord(s[i]);
+            if c >= 48 && c <= 57 { n = n * 10 + (c - 48); }
+            i = i + 1;
+        }
+    }
+    n = n + 1;
+    fs_write(st, "/boots", n);
+    return n;
+}
+
+/* сколько занятых inode (для UI) */
+fn fs_used(st: FsState) -> i64 {
+    let i: i64 = 0;
+    let c: i64 = 0;
+    while i < 32 {
+        if fs_type(st, i) != 0 { c = c + 1; }
+        i = i + 1;
+    }
+    return c;
+}
+
+fn fs_blocks_used(st: FsState) -> i64 {
+    let i: i64 = 0;
+    let c: i64 = 0;
+    while i < 8192 {
+        if fs_bit_get(st, i) == 1 { c = c + 1; }
+        i = i + 1;
+    }
+    return c;
+}
