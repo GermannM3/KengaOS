@@ -439,6 +439,9 @@ void k_syscall_handler(void* frame_v) {
         uint64_t path_uva = f[5], dst_uva = f[4], maxlen = f[3];
         int64_t n = -1;
         if (maxlen > 4096) maxlen = 4096;
+        /* Kenga-код затирает callee-saved: барьеры запрещают компилятору
+           держать через вызов живые значения (иначе ломается и этот путь). */
+        __asm__ __volatile__("" ::: "rbx", "rbp", "r12", "r13", "r14", "r15");
         if (uxfer && maxlen > 0 && &k_fs_syscall) {
             ux_copy_str(path_uva, ux_path, (int)sizeof ux_path);
             n = k_fs_syscall(ux_ino, ux_bmp, ux_io, ux_dat, ux_rw, ux_ok,
