@@ -54,7 +54,7 @@ static int wait_drq(void) {
     return -1;
 }
 
-int64_t k_disk_init(void) {
+static int64_t ata_init(void) {
     /* Поллинг: прерывания диска (IRQ14) не нужны - замаскировать в PIC2.
        Иначе пост-состояние после первого WRITE сбивает шину. */
     outb(0xA1, inb(0xA1) | 0x40);
@@ -90,7 +90,7 @@ int64_t k_disk_init(void) {
     return 1;
 }
 
-int64_t k_disk_sectors(void) { return n_sectors; }
+static int64_t ata_sectors(void) { return (int64_t)n_sectors; }
 
 /* Регистры + device. ext=0 -> LBA28, 1 -> LBA48. */
 static void setup_cmd_lba(uint64_t lba, uint16_t count, int ext) {
@@ -114,7 +114,7 @@ static void setup_cmd_lba(uint64_t lba, uint16_t count, int ext) {
     delay400ns();
 }
 
-int64_t k_disk_read(uint64_t lba, uint16_t count, void *buf) {
+static int64_t ata_read(uint64_t lba, uint16_t count, void *buf) {
     if (!n_sectors || !count || count > 8) return -1;
     if (wait_bsy()) return -2;
     int ext = lba >= (1ULL << 28);
@@ -130,7 +130,7 @@ int64_t k_disk_read(uint64_t lba, uint16_t count, void *buf) {
     return 0;
 }
 
-int64_t k_disk_write(uint64_t lba, uint16_t count, const void *buf) {
+static int64_t ata_write(uint64_t lba, uint16_t count, const void *buf) {
     if (!n_sectors || !count || count > 8) return -1;
     if (wait_bsy()) return -2;
     int ext = lba >= (1ULL << 28);
@@ -144,6 +144,47 @@ int64_t k_disk_write(uint64_t lba, uint16_t count, const void *buf) {
     }
     wait_bsy();
     return 0;
+}
+
+/* --- единая точка входа для ядра и KengaFS -----------------------------
+   Сначала legacy ATA PIO (машины в IDE/compat-режиме, QEMU -M pc),
+   затем AHCI (SATA/DMA: реальные ноутбуки, QEMU -M q35). Kenga видит один
+   контракт k_disk_* и не знает, какой контроллер реально нашёлся. */
+int64_t k_ahci_init(void);
+int64_t k_ahci_read(uint64_t lba, uint16_t count, void* buf);
+int64_t k_ahci_write(uint64_t lba, uint16_t count, const void* buf);
+int64_t k_ahci_sectors(void);
+int64_t k_ahci_ready(void);
+
+#define DISK_NONE 0
+#define DISK_ATA  1
+#define DISK_AHCI 2
+static int disk_backend = DISK_NONE;
+
+int64_t k_disk_init(void) {
+    disk_backend = DISK_NONE;
+    if (ata_init() == 1) { disk_backend = DISK_ATA; return 1; }
+    if (k_ahci_init() == 1) { disk_backend = DISK_AHCI; return 1; }
+    return 0;
+}
+
+int64_t k_disk_sectors(void) {
+    if (disk_backend == DISK_AHCI) return k_ahci_sectors();
+    if (disk_backend == DISK_ATA) return ata_sectors();
+    return 0;
+}
+
+/* 0 = нет, 1 = ATA PIO, 2 = AHCI (диагностика для десктопа) */
+int64_t k_disk_kind(void) { return disk_backend; }
+
+int64_t k_disk_read(uint64_t lba, uint16_t count, void* buf) {
+    if (disk_backend == DISK_AHCI) return k_ahci_read(lba, count, buf);
+    return ata_read(lba, count, buf);
+}
+
+int64_t k_disk_write(uint64_t lba, uint16_t count, const void* buf) {
+    if (disk_backend == DISK_AHCI) return k_ahci_write(lba, count, buf);
+    return ata_write(lba, count, buf);
 }
 
 /* Тест чтение-запись-чтение: честный гейт «диск умеет писать».
@@ -167,9 +208,10 @@ static int sig_eq(const char *hv, const char *sig, int n) {
    Исходное содержимое скретч-сектора сохраняется и восстанавливается. */
 int64_t k_disk_rw_test(void) {
     static uint8_t zero[512];
-    if (!n_sectors) return 0;
-    if (n_sectors < 32) return 0;
-    uint64_t lba = n_sectors - 16;
+    uint64_t total = (uint64_t)k_disk_sectors();
+    if (!total) return 0;
+    if (total < 32) return 0;
+    uint64_t lba = total - 16;
     static uint8_t orig[512], pat[512], back[512];
     if (k_disk_read(0, 1, zero)) return -1;            /* LBA0: маркер? */
     if (!sig_eq((const char *)zero, "KENGARWTEST1", 12)) return 2;

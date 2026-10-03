@@ -12,6 +12,7 @@ BUILD="$ROOT/build"
 ISO="$BUILD/kengaos.iso"
 DISK="$BUILD/fs-persist.img"
 QEMU="${QEMU:-qemu-system-x86_64}"
+MACHINE="${MACHINE:-pc}"   # pc = legacy ATA PIO, q35 = SATA/AHCI (kf_ahci.c)
 
 if [[ ! -f "$ISO" ]]; then echo "error: $ISO not found — run scripts/build.sh first" >&2; exit 2; fi
 if ! command -v "$QEMU" >/dev/null 2>&1; then echo "error: $QEMU not found" >&2; exit 2; fi
@@ -28,7 +29,7 @@ boot() {
     else
         wdisk="$DISK"; wlog="$log"
     fi
-    timeout 12 "$QEMU" -M pc -cdrom "$ISO" \
+    timeout 12 "$QEMU" -M "$MACHINE" -cdrom "$ISO" \
         -drive "file=$wdisk,format=raw,if=ide" \
         -serial "file:$wlog" -display none -no-reboot -m 64 \
         -device qemu-xhci -device usb-tablet \

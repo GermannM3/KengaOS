@@ -176,6 +176,7 @@ Standalone HTML-preview дизайн-системы находится в
 | **Prophet (v1)** | есть | Пророки: в ядре — kf_prophet.c; в оболочках — ассистенты, обучающиеся на ходу («учи: вопрос => ответ»), предсказание следующего приложения (цепь Маркова), surprise. Всё локально |
 | **aarch64** | есть | То же ядро без изменений на ARM64 (QEMU virt, CI-гейт) |
 | VFS + initrd | есть | Виртуальная ФС + initrd через Limine (git-лог, инфо хоста) |
+| **AHCI/SATA** | есть | `kernel/kf_ahci.c`: PCI-поиск, command list + FIS + PRDT, DMA, поллинг; бэкенд диска выбирается автоматически (ATA PIO → AHCI → virtio-blk). CI-гейт `AHCI READY` на QEMU `-M q35` — путь реального ноутбука |
 | **KengaFS (диск)** | есть | Персистентная ФС на диске, целиком на Kenga (`kernel/fs.kenga`): дерево каталогов, mkdir -p, чтение/запись/удаление, 32 объекта × 8 КиБ, 4 МиБ данных. Гейты `FS OK` / `FS TEST OK`; персистентность — два QEMU-бота на одном образе (`scripts/test-fs-persistence.sh`). Пишем только на диск с маркером `KENGARWTEST1` или уже содержащий KengaFS |
 | Таймер / uptime | есть | PIT 100 Гц (x86) / generic timer CNTV (ARM64), команда `time` |
 | Аппаратура | есть | CPUID/MIDR (`cpuinfo`), RTC (`date`), память (`mmap`), FDT (ARM64) |
@@ -197,7 +198,7 @@ Standalone HTML-preview дизайн-системы находится в
 Кратко, ближайшее:
 
 - **Десктоп до ежедневной пригодности**: xHCI на живом железе →
-  AHCI/NVMe (запись) → ACPI → Wi-Fi.
+  NVMe (запись; **AHCI/SATA уже есть**) → ACPI → Wi-Fi.
 - **Kenga-приложения в магазине**: `.kpkg` v2 = Kenga-исходник → ELF в ring 3.
 - **Телефон**: беспроводной adb → mtkclient (POCO M4 Pro, MediaTek) →
   `fastboot boot kengaos-phone.img` из RAM (без сноса) → чек-лист
@@ -245,6 +246,7 @@ KengaOS/
 │   ├── kf_pkg.c            # Магазин .kpkg
 │   ├── kf_usb*.c           # USB: xHCI + UHCI + HID
 │   ├── kf_disk.c           # ATA PIO диск (чтение+запись, RW-тест)
+│   ├── kf_ahci.c           # AHCI/SATA диск (DMA, command list + PRDT)
 │   ├── fs.kenga            # KengaFS: персистентная ФС на диске (Kenga)
 │   ├── kf_blk.c            # Блочный FFI-мост для KengaFS
 │   ├── intr.c / isr.S      # GDT + IDT + обработчики

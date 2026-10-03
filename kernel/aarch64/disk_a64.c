@@ -13,6 +13,8 @@ int     k_vblk_write(int idx, uint64_t lba, uint16_t count, const void* buf);
 int     k_vblk_find_marker(void);
 
 int64_t k_disk_init(void)    { return k_vblk_init(); }
+/* Backend для Kenga (disk_kind): 0 нет, 1 ATA PIO, 2 AHCI, 3 virtio-blk. */
+int64_t k_disk_kind(void)    { return 3; }
 int64_t k_disk_sectors(void) { return (int64_t)k_vblk_sectors(0); }
 int64_t k_disk_read(uint64_t lba, uint16_t count, void* buf) {
     return k_vblk_read(0, lba, count, buf);

@@ -102,7 +102,7 @@
 | **Kenga-программы пользователей** | Ring 3 работает, но в store лежат манифесты, а не Kenga-приложения | Kenga→ELF user-runtime (emit-c уже умеет freestanding C → gcc → ELF = .kpkg с бинарём) |
 | **Многозадачность user-mode** | Ring 3 v1 = один foreground-процесс; на aarch64 тредов нет (агенты cooperative) | aarch64 context switch, вытесняющий планировщик |
 | **USB мышь/клавиатура на реальном железе** | xHCI работает в QEMU (обе арх); на ноутбуке не проверен | Тест на живом ноутбуке |
-| **Диск: запись** | ✅ обе арх: x86 — ATA PIO, **aarch64 — virtio-blk** (CI-гейт `DISK RW OK`, DMA + кэш-обслуживание) | AHCI/NVMe |
+| **Диск: запись** | ✅ три пути: x86 — **ATA PIO** (`-M pc`) и **AHCI/SATA** (`-M q35`, `kf_ahci.c`: command list + FIS + PRDT, DMA, поллинг), aarch64 — virtio-blk. Гейты `AHCI READY`, `DISK RW OK` на обеих машинах | NVMe |
 | **Файловая система на диске** | ✅ **KengaFS v1** (`kernel/fs.kenga`): superblock + битмап + 32 inode + 4 МиБ данных, дерево каталогов, mkdir -p, чтение/запись/удаление; гейты `FS OK` + `FS TEST OK`, персистентность доказана двумя загрузками (`scripts/test-fs-persistence.sh`). Пределы: 32 объекта, 8 КиБ/файл, без журнала и прав | Журнал, ACL-права, больше inode, большие файлы |
 | **Wi-Fi / BT / звук / батарея / ACPI** | Ничего | По порядку: ACPI → Wi-Fi → звук |
 | **Телефон** | Основной кандидат — **POCO M4 Pro (MediaTek)**: подключен, режим разработчика включён, adb ждёт беспроводного сопряжения; Oppo A5 2020 — пауза (загрузчик закрыт) | Путь и порядок — `docs/PHONE-TRACK.md` |
@@ -121,7 +121,7 @@
    `emit-c --freestanding` → gcc → ELF в ring 3. Цикл сборки уже есть,
    не хватает packaging-конвейера и syscall-обвязки для Kenga-рантайма.
 3. **Ежедневная пригодность ноутбука**: xHCI на живом железе →
-   AHCI/NVMe (чтение+запись) → ACPI → Wi-Fi.
+   ~~AHCI~~ (сделано: `kf_ahci.c`, гейт `AHCI READY` на `-M q35`) → NVMe → ACPI → Wi-Fi.
 4. **Телефон**: adb (беспроводное сопряжение) → mtkclient →
    `fastboot boot` из RAM → чек-лист железа (`docs/PHONE-TRACK.md`).
 

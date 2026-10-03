@@ -230,6 +230,10 @@ log "4d/7" "Compiling kf_disk.c (PIO-IDE disk) ($CC)"
 if [[ -f "$KERNEL_DIR/kf_disk.c" ]]; then
     eval "$CC -c $CFLAGS_C \"$KERNEL_DIR/kf_disk.c\" -o \"$BUILD_DIR/kf_disk.o\""
 fi
+log "4d1/7" "Compiling kf_ahci.c (AHCI/SATA DMA disk) ($CC)"
+if [[ -f "$KERNEL_DIR/kf_ahci.c" ]]; then
+    eval "$CC -c $CFLAGS_C \"$KERNEL_DIR/kf_ahci.c\" -o \"$BUILD_DIR/kf_ahci.o\""
+fi
 log "4d2/7" "Compiling kf_blk.c (block-device FFI for KengaFS) ($CC)"
 if [[ -f "$KERNEL_DIR/kf_blk.c" ]]; then
     eval "$CC -c $CFLAGS_C \"$KERNEL_DIR/kf_blk.c\" -o \"$BUILD_DIR/kf_blk.o\""
@@ -263,6 +267,7 @@ if [[ -f "$BUILD_DIR/kf_gui.o" ]]; then OBJS+=("$BUILD_DIR/kf_gui.o"); fi
 if [[ -f "$BUILD_DIR/kf_design.o" ]]; then OBJS+=("$BUILD_DIR/kf_design.o"); fi
 if [[ -f "$BUILD_DIR/kf_disk.o" ]]; then OBJS+=("$BUILD_DIR/kf_disk.o"); fi
 if [[ -f "$BUILD_DIR/kf_blk.o" ]]; then OBJS+=("$BUILD_DIR/kf_blk.o"); fi
+if [[ -f "$BUILD_DIR/kf_ahci.o" ]]; then OBJS+=("$BUILD_DIR/kf_ahci.o"); fi
 $LD -n -nostdlib -T "$KERNEL_DIR/linker.ld" "${OBJS[@]}" -o "$BUILD_DIR/kengaos.elf"
 ls -la "$BUILD_DIR/kengaos.elf"
 
@@ -385,6 +390,43 @@ if [[ "$QEMU_RAN" == 1 ]]; then
         || echo "WARN: agent IPC round-trip missing (pending kenga-lang ABI migration)" >&2
     if [[ $ok == 1 ]]; then
         echo "OK: kernel booted — BOOT/UART/FB markers present"
+    else
+        exit 1
+    fi
+fi
+
+# ---------------------------------------------------------------------------
+# AHCI smoke: на -M q35 диск висит на SATA-контроллере, поэтому это проверяет
+# kf_ahci.c (путь реального ноутбука), а не legacy ATA PIO.
+# ---------------------------------------------------------------------------
+if [[ "$QEMU_RAN" == 1 ]]; then
+    AHCI_LOG="$BUILD_DIR/uart-ahci.log"
+    AHCI_DISK="$BUILD_DIR/ahci-smoke.img"
+    : > "$AHCI_LOG"
+    dd if=/dev/zero of="$AHCI_DISK" bs=1M count=64 status=none
+    printf 'KENGARWTEST1' | dd of="$AHCI_DISK" bs=512 count=1 conv=notrunc status=none
+    if command -v cygpath >/dev/null 2>&1; then
+        WIN_AHCI_LOG="$(cygpath -m "$AHCI_LOG")"
+        WIN_AHCI_DISK="$(cygpath -m "$AHCI_DISK")"
+    elif [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* || "$(uname -s)" == CYGWIN* ]]; then
+        WIN_AHCI_LOG="${AHCI_LOG#/}"; WIN_AHCI_LOG="${WIN_AHCI_LOG%%/*}:${WIN_AHCI_LOG#*/}"
+        WIN_AHCI_DISK="${AHCI_DISK#/}"; WIN_AHCI_DISK="${WIN_AHCI_DISK%%/*}:${WIN_AHCI_DISK#*/}"
+    else
+        WIN_AHCI_LOG="$AHCI_LOG"; WIN_AHCI_DISK="$AHCI_DISK"
+    fi
+    timeout 10 qemu-system-x86_64 -M q35 -cdrom "$BUILD_DIR/kengaos.iso" \
+        -drive "file=$WIN_AHCI_DISK,format=raw,if=ide" \
+        -serial "file:$WIN_AHCI_LOG" -display none -no-reboot -m 64 \
+        -device qemu-xhci -device usb-tablet \
+        -device isa-debug-exit,iobase=0xf4,iosize=0x04 || true
+    ok2=1
+    grep -q "AHCI READY" "$AHCI_LOG" || { echo "ERROR: AHCI controller not detected (q35/SATA)" >&2; ok2=0; }
+    grep -q "kind=2" "$AHCI_LOG" || { echo "ERROR: disk backend is not AHCI on q35" >&2; ok2=0; }
+    grep -q "DISK RW OK" "$AHCI_LOG" || { echo "ERROR: AHCI disk write test failed" >&2; ok2=0; }
+    grep -q "FS OK" "$AHCI_LOG" || { echo "ERROR: KengaFS failed on AHCI disk" >&2; ok2=0; }
+    grep -q "FS TEST OK" "$AHCI_LOG" || { echo "ERROR: KengaFS selftest failed on AHCI disk" >&2; ok2=0; }
+    if [[ $ok2 == 1 ]]; then
+        echo "OK: kernel booted on q35 — AHCI/SATA disk + KengaFS"
     else
         exit 1
     fi
