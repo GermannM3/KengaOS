@@ -408,6 +408,7 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "userapp exit pid=0x66" "$UART_LOG" || { echo "ERROR: spawned child process did not run" >&2; ok=0; }
     grep -q "kenga-app: child exit 0" "$UART_LOG" || { echo "ERROR: parent could not collect child status" >&2; ok=0; }
     grep -q "kenga-app cat file: KengaOS boot #1" "$UART_LOG" || { echo "ERROR: sys_cat content did not round-trip through the app" >&2; ok=0; }
+    grep -q "kenga-app fd file: open ok" "$UART_LOG" || { echo "ERROR: sys_open did not return a working descriptor (syscall 27)" >&2; ok=0; }
     grep -q "kenga-app: blocking wait done" "$UART_LOG" || { echo "ERROR: blocking wait() did not return (syscall 26)" >&2; ok=0; }
     grep -q "userapp exit pid=0x64 code=0x0" "$UART_LOG" || { echo "ERROR: exit code of pid 100 not reported" >&2; ok=0; }
     grep -q "userapp exit pid=0x65 code=0x7" "$UART_LOG" || { echo "ERROR: exit code of pid 101 not per-process" >&2; ok=0; }
