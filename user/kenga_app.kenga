@@ -24,6 +24,7 @@
 @intrinsic fn sys_save(path: str, data: str, n: i64) -> i64;
 @intrinsic fn rt_buf() -> i64;      /* 4 КиБ буфер приложения (runtime) */
 @intrinsic fn rt_str(addr: i64) -> str;
+@intrinsic fn sys_open(path: str) -> i64;
 
 fn main() -> i64 {
     let pid: i64 = sys_getpid();
@@ -55,6 +56,13 @@ fn main() -> i64 {
         sys_save("/apps/cat.txt", rt_str(rt_buf()), n);
     } else {
         sys_save("/apps/cat.txt", "cat BAD", 7);
+    }
+
+    /* дескрипторы: open перед записью файла; остальные гейты (cat, dir, rm,
+       spawn, коды завершения) обязаны остаться зелёными */
+    let fd: i64 = sys_open("/system/bootlog.txt");
+    if fd >= 0 {
+        sys_save("/apps/fd.txt", "open ok", 7);
     }
 
     /* пишем свой файл на диск (syscall 17) */
