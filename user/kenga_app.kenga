@@ -12,6 +12,8 @@
 
 @intrinsic fn sys_yield() -> i64;
 @intrinsic fn sys_getpid() -> i64;
+@intrinsic fn sys_mkdir(path: str) -> i64;
+@intrinsic fn sys_rm(path: str) -> i64;   /* реализован (syscall 19), в демо не зовём */
 @intrinsic fn sys_cat(path: str, dst: i64, max: i64) -> i64;
 @intrinsic fn sys_save(path: str, data: str, n: i64) -> i64;
 @intrinsic fn rt_buf() -> i64;      /* 4 КиБ буфер приложения (runtime) */
@@ -40,5 +42,9 @@ fn main() -> i64 {
     let msg: str = "kenga-app was here: pid=" + pid;
     sys_save("/apps/state.txt", msg, len(msg));
     println("kenga-app: saved /apps/state.txt");
+
+    /* syscalls 18 (mkdir) и 19 (rm) ядро принимает; fs_mkdir сейчас портит
+       KengaFS (после него файл уже не читается) — зовём только когда починим,
+       см. docs/HONEST-CHECKLIST.md. */
     return 0;
 }

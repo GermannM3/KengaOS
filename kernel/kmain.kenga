@@ -273,6 +273,8 @@ fn fs_syscall(ino: i64, bmp: i64, io: i64, dat: i64, rw: i64, ok: i64, num: i64,
     if num == 17 {                       /* save: буфер приложения -> файл */
         return fs_write_blob(fs, kf_str(a), b, c);
     }
+    if num == 18 { return fs_mkdir(fs, kf_str(a)); }   /* приложение: создать каталог */
+    if num == 19 { return fs_rm(fs, kf_str(a)); }      /* приложение: удалить объект */
     return -1;
 }
 

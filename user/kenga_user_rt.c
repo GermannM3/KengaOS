@@ -74,6 +74,18 @@ int64_t k_sys_yield(void) {
     return r;
 }
 
+int64_t k_sys_mkdir(const char* path) {
+    long r;
+    __asm__ __volatile__("int $0x80" : "=a"(r) : "a"(18L), "D"(path));
+    return r;
+}
+
+int64_t k_sys_rm(const char* path) {
+    long r;
+    __asm__ __volatile__("int $0x80" : "=a"(r) : "a"(19L), "D"(path));
+    return r;
+}
+
 int64_t k_sys_getpid(void) {
     long r;
     __asm__ __volatile__("int $0x80" : "=a"(r) : "a"(4L));

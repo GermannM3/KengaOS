@@ -396,7 +396,8 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "SCHED OK" "$UART_LOG" || { echo "ERROR: user-mode process scheduler failed" >&2; ok=0; }
     grep -q "STORE INSTALL OK" "$UART_LOG" || { echo "ERROR: .kpkg v2 install from the store failed" >&2; ok=0; }
     grep -q "kenga-app: ring3 OK" "$UART_LOG" || { echo "ERROR: Kenga-compiled ring-3 app produced no output" >&2; ok=0; }
-    grep -q "kenga-app wrote:" "$UART_LOG" || { echo "ERROR: ring-3 app did not persist a file" >&2; ok=0; }
+    grep -q "kenga-app wrote: kenga-app" "$UART_LOG" || { echo "ERROR: ring-3 app did not persist a file" >&2; ok=0; }
+    grep -q "kenga-app wrote: kenga-app" "$UART_LOG" || { echo "ERROR: file written by ring-3 app has no content" >&2; ok=0; }
     grep -q "kenga-app: read /system/bootlog.txt" "$UART_LOG" || { echo "ERROR: ring-3 app could not read a KengaFS file" >&2; ok=0; }
     grep -q "KengaOS boot #" "$UART_LOG" || { echo "ERROR: file content did not reach the ring-3 app" >&2; ok=0; }
     grep -q "MEM READY" "$UART_LOG" || { echo "ERROR: MEM READY marker missing" >&2; ok=0; }

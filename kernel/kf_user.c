@@ -45,6 +45,7 @@ uint64_t k_resume_frame = 0;
 static int up_yield_current(void* frame_v);
 static int up_exit_current(void);
 static int64_t up_pid_current(void);
+static void up_note_stack_use(void);
 
 /* k_mem_palloc возвращает УЖЕ отображённый VA (phys+hhdm).
    Для PTE нужен физический: va - hhdm. */
@@ -333,6 +334,7 @@ void k_syscall_handler(void* frame_v) {
     /* frame: rax,rbx,rcx,rdx,rsi,rdi,rbp,r8..r15,vector,error,rip,cs,rflags,rsp,ss */
     k_resume_frame = (uint64_t)(uintptr_t)frame_v;   /* по умолчанию — вернуться сюда */
     uint64_t num = f[0];
+    up_note_stack_use();
 
     if (num == 1) {   /* write: rdi=buf(user va), rsi=len */
         uint64_t uva = f[5], len = f[4];
@@ -389,6 +391,15 @@ void k_syscall_handler(void* frame_v) {
                                  17, (int64_t)(uintptr_t)ux_path,
                                  (int64_t)(uintptr_t)uxfer, (int64_t)len);
             }
+        }
+        f[0] = (uint64_t)n;
+    } else if (num == 18 || num == 19) {   /* mkdir(path) / rm(path) */
+        uint64_t path_uva = f[5];
+        int64_t n = -1;
+        if (uxfer && &k_fs_syscall) {
+            ux_copy_str(path_uva, ux_path, (int)sizeof ux_path);
+            n = k_fs_syscall(ux_ino, ux_bmp, ux_io, ux_dat, ux_rw, ux_ok,
+                             (int64_t)num, (int64_t)(uintptr_t)ux_path, 0, 0);
         }
         f[0] = (uint64_t)n;
     } else {
@@ -476,7 +487,9 @@ static void k_user_gdt_install(void) {
    user_done=1, и asm возвращается в ядро по k_save_rsp/k_save_ret.
    Планировщик кооперативный: переключение только по syscall. */
 #define UP_MAX   4
-#define UP_STACK 16384
+#define UP_STACK 65536        /* KengaFS-код в syscall-контексте уходит глубоко:
+                                 на 16 КиБ переполнение уезжало в СОСЕДНИЙ стек
+                                 и затирало сохранённый кадр соседнего процесса */
 #define UP_FRAME 22            /* 15 GPR + vector + dummy + 5 iretq-слов */
 
 typedef struct {
@@ -485,6 +498,7 @@ typedef struct {
     uint64_t pml4;
     uint64_t kstack_top;
     uint64_t frame;            /* сохранённый rsp кадра */
+    uint64_t max_used;         /* максимум занятого kernel-стека (диагностика) */
 } uproc_t;
 
 static uproc_t g_up[UP_MAX];
@@ -562,6 +576,15 @@ static int64_t up_pid_current(void) {
     return (g_up_cur >= 0) ? g_up[g_up_cur].pid : 0;
 }
 
+/* Насколько глубоко syscall-контекст залез в kernel-стек процесса. */
+static void up_note_stack_use(void) {
+    if (g_up_cur < 0 || g_up_cur >= g_up_count) return;
+    uint64_t rsp_now;
+    __asm__ __volatile__("mov %%rsp, %0" : "=r"(rsp_now));
+    uint64_t used = g_up[g_up_cur].kstack_top - rsp_now;
+    if (used > g_up[g_up_cur].max_used) g_up[g_up_cur].max_used = used;
+}
+
 /* Загрузить ELF по имени из initrd в НОВЫЙ процесс. Возвращает pid или 0. */
 int64_t k_user_spawn_vfs(const char* name) {
     int64_t e = k_user_exec_vfs(name);
@@ -590,7 +613,11 @@ int64_t k_user_sched_run(void) {
     extern int user_enter(uint64_t frame, uint64_t pml4);
     user_enter(f, g_up[i].pml4);
     if (kernel_cr3) wr_cr3(kernel_cr3);
-    for (int k = 0; k < g_up_count; k++) g_up[k].state = 3;
+    for (int k = 0; k < g_up_count; k++) {
+        u_putc('#'); u_putc((char)('0' + k));
+        u_putc(' '); ulog_hx(g_up[k].max_used); u_putc('\n');
+        g_up[k].state = 3;
+    }
     g_up_cur = -1;
     return 1;
 }
