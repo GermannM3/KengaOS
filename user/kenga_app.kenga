@@ -10,6 +10,8 @@
 
 /* 16 = cat: файл из KengaFS в буфер приложения, возвращает число байт */
 @intrinsic fn sys_cat(path: str, dst: i64, max: i64) -> i64;
+/* 17 = save: буфер приложения в файл KengaFS, возвращает число записанных байт */
+@intrinsic fn sys_save(path: str, data: str, n: i64) -> i64;
 @intrinsic fn rt_buf() -> i64;      /* 4 КиБ буфер приложения (runtime) */
 @intrinsic fn rt_str(addr: i64) -> str;
 
@@ -31,6 +33,15 @@ fn main() -> i64 {
         println(rt_str(rt_buf()));
     } else {
         println("kenga-app: file read failed");
+    }
+
+    /* пишем свой файл на диск (syscall 17): приложение живёт на KengaFS */
+    let msg: str = "kenga-app was here: fib(12)=" + fib(12);
+    let w: i64 = sys_save("/apps/state.txt", msg, len(msg));
+    if w > 0 {
+        println("kenga-app: saved /apps/state.txt");
+    } else {
+        println("kenga-app: save failed");
     }
     return 0;
 }

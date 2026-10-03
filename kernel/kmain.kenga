@@ -259,9 +259,12 @@ fn fs_boot_gate() -> i64 {
    нет глобальных переменных), а байты гоняет через кадр обмена.
    a = путь (адрес в ядре), b = кадр приёмника, c = максимум байт. */
 fn fs_syscall(ino: i64, bmp: i64, io: i64, dat: i64, rw: i64, ok: i64, num: i64, a: i64, b: i64, c: i64) -> i64 {
-    if num == 16 {
-        let fs: FsState = FsState{ ino: ino, bmp: bmp, io: io, dat: dat, rw: rw, ok: ok };
+    let fs: FsState = FsState{ ino: ino, bmp: bmp, io: io, dat: dat, rw: rw, ok: ok };
+    if num == 16 {                       /* cat: файл -> буфер приложения */
         return fs_read(fs, kf_str(a), b, c);
+    }
+    if num == 17 {                       /* save: буфер приложения -> файл */
+        return fs_write_blob(fs, kf_str(a), b, c);
     }
     return -1;
 }
@@ -310,6 +313,15 @@ fn store_install(fs: FsState, pkg: str, dest: str) -> i64 {
    -> чтение обратно с диска -> elf_load -> пользовательский режим.
    Это и есть «приложение лежит на диске и запускается», а не вшито в ядро. */
 fn user_app_from_disk(fs: FsState) -> i64 {
+    /* Файл, который приложение записало в ПРОШЛУЮ загрузку: это доказательство
+       настоящей персистентности на уровне приложения (boot 2 видит файл boot 1).
+       Читаем до запуска — приложение его перезапишет. */
+    let prev: i64 = fs_read(fs, "/apps/state.txt", fs.dat, 256);
+    if prev > 0 {
+        uart_puts("kenga-app prev: ");
+        uart_puts(kf_str(fs.dat));
+        uart_putc(10);
+    }
     /* ставим приложение ИЗ ПАКЕТА магазина (initrd -> /apps на диске) */
     let n: i64 = store_install(fs, "kenga-app.kpkg", "/apps/kenga-app.elf");
     if n <= 0 { kp_msg("KengaOS", "USERAPP NOELF"); return 0; }
@@ -325,6 +337,15 @@ fn user_app_from_disk(fs: FsState) -> i64 {
     uart_puts("userapp: exec from KengaFS (/apps/kenga-app.elf)\n");
     user_run(e);
     kp_msg("KengaOS", "USERAPP OK");
+    /* приложение записало свой файл — читаем его обратно с диска */
+    let r: i64 = fs_read(fs, "/apps/state.txt", fs.dat, 256);
+    if r > 0 {
+        uart_puts("kenga-app wrote: ");
+        uart_puts(kf_str(fs.dat));
+        uart_putc(10);
+    } else {
+        uart_puts("kenga-app wrote: (nothing)\n");
+    }
     return 1;
 }
 

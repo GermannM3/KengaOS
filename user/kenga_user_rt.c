@@ -58,6 +58,15 @@ int64_t k_sys_cat(const char* path, int64_t dst, int64_t max) {
     return r;
 }
 
+/* --- запись файла: save(path, data, len) -> байты (KengaFS на стороне ядра) --- */
+int64_t k_sys_save(const char* path, const char* data, int64_t len) {
+    long r;
+    __asm__ __volatile__("int $0x80"
+                         : "=a"(r)
+                         : "a"(17L), "D"(path), "S"(data), "d"(len));
+    return r;
+}
+
 /* --- буфер приложения для принимаемых данных + приведение адреса к str --- */
 static char g_ubuf[4096];
 

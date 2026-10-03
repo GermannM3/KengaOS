@@ -395,6 +395,7 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "USERAPP OK" "$UART_LOG" || { echo "ERROR: ring-3 app from KengaFS did not run" >&2; ok=0; }
     grep -q "STORE INSTALL OK" "$UART_LOG" || { echo "ERROR: .kpkg v2 install from the store failed" >&2; ok=0; }
     grep -q "kenga-app: ring3 OK" "$UART_LOG" || { echo "ERROR: Kenga-compiled ring-3 app produced no output" >&2; ok=0; }
+    grep -q "kenga-app wrote:" "$UART_LOG" || { echo "ERROR: ring-3 app did not persist a file" >&2; ok=0; }
     grep -q "kenga-app: read /system/bootlog.txt" "$UART_LOG" || { echo "ERROR: ring-3 app could not read a KengaFS file" >&2; ok=0; }
     grep -q "KengaOS boot #" "$UART_LOG" || { echo "ERROR: file content did not reach the ring-3 app" >&2; ok=0; }
     grep -q "MEM READY" "$UART_LOG" || { echo "ERROR: MEM READY marker missing" >&2; ok=0; }
@@ -447,6 +448,7 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "USERAPP OK" "$AHCI_LOG" || { echo "ERROR: ring-3 app from KengaFS failed on AHCI disk" >&2; ok2=0; }
     grep -q "STORE INSTALL OK" "$AHCI_LOG" || { echo "ERROR: .kpkg v2 install failed on AHCI disk" >&2; ok2=0; }
     grep -q "kenga-app: ring3 OK" "$AHCI_LOG" || { echo "ERROR: Kenga-compiled ring-3 app failed on AHCI disk" >&2; ok2=0; }
+    grep -q "kenga-app wrote:" "$AHCI_LOG" || { echo "ERROR: ring-3 app file write failed on AHCI disk" >&2; ok2=0; }
     grep -q "kenga-app: read /system/bootlog.txt" "$AHCI_LOG" || { echo "ERROR: ring-3 file read failed on AHCI disk" >&2; ok2=0; }
     if [[ $ok2 == 1 ]]; then
         echo "OK: kernel booted on q35 — AHCI/SATA disk + KengaFS"

@@ -51,6 +51,12 @@ eval "$CC $CFLAGS -c \"$ROOT/user/kenga_user_rt.c\" -o \"$UDIR/kenga_user_rt.o\"
 eval "$LD -nostdlib --gc-sections --strip-all -e _start \"$UDIR/kenga_app.o\" \"$UDIR/kenga_user_rt.o\" -o \"$UDIR/kenga-app.elf\""
 ls -la "$UDIR/kenga-app.elf"
 
+# sstrip-lite: таблица секций/символов в образ не грузится, но раздувает файл,
+# а файл целиком читается с KengaFS в 4 КиБ буфер ядра (st.dat).
+"$PY" "$ROOT/scripts/elf-shrink.py" "$UDIR/kenga-app.elf" "$UDIR/kenga-app.shrunk"
+mv -f "$UDIR/kenga-app.shrunk" "$UDIR/kenga-app.elf"
+ls -la "$UDIR/kenga-app.elf"
+
 ELF_SIZE=$(wc -c < "$UDIR/kenga-app.elf")
 USERAPP_MAX=4096
 if [[ "$ELF_SIZE" -gt "$USERAPP_MAX" ]]; then

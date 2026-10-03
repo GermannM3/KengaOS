@@ -288,6 +288,22 @@ static int ux_copy_str(uint64_t uva, char* out, int max) {
     return i;
 }
 
+/* user -> ядро: побайтово через страницы user-адреса */
+static uint64_t ux_from_user(uint64_t uva, uint8_t* dst, uint64_t n) {
+    uint64_t off = 0;
+    while (off < n) {
+        uint64_t pa = user_v2p(user_pml4, uva + off);
+        if (!pa) break;
+        uint64_t inpage = pa & 0xFFF;
+        uint64_t chunk = 0x1000 - inpage;
+        if (chunk > n - off) chunk = n - off;
+        const uint8_t* ksrc = (const uint8_t*)(uintptr_t)(pv(pa & ~0xFFFull)) + inpage;
+        for (uint64_t b = 0; b < chunk; b++) dst[off + b] = ksrc[b];
+        off += chunk;
+    }
+    return off;
+}
+
 /* ядро -> user: побайтово через страницы user-адреса */
 static uint64_t ux_to_user(uint64_t uva, const uint8_t* src, uint64_t n) {
     uint64_t off = 0;
@@ -344,6 +360,19 @@ void k_syscall_handler(void* frame_v) {
             if (n > 0) {
                 if ((uint64_t)n > maxlen) n = (int64_t)maxlen;
                 ux_to_user(dst_uva, uxfer, (uint64_t)n);
+            }
+        }
+        f[0] = (uint64_t)n;
+    } else if (num == 17) {     /* save(path, data, len): буфер приложения -> KengaFS */
+        uint64_t path_uva = f[5], data_uva = f[4], len = f[3];
+        int64_t n = -1;
+        if (len > 4096) len = 4096;
+        if (uxfer && len > 0 && &k_fs_syscall) {
+            ux_copy_str(path_uva, ux_path, (int)sizeof ux_path);
+            if (ux_from_user(data_uva, uxfer, len) == len) {
+                n = k_fs_syscall(ux_ino, ux_bmp, ux_io, ux_dat, ux_rw, ux_ok,
+                                 17, (int64_t)(uintptr_t)ux_path,
+                                 (int64_t)(uintptr_t)uxfer, (int64_t)len);
             }
         }
         f[0] = (uint64_t)n;

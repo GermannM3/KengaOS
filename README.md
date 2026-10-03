@@ -190,7 +190,7 @@ Standalone HTML-preview дизайн-системы находится в
 | **Живой лог** | есть | Панель событий агентов (IPC-трафик) над input-баром |
 | **Магазин .kpkg** | есть, v2 | v1 — текстовые манифесты в initrd; **v2 = манифест + бинарный payload** (`kenga-app.kpkg`). Установка целиком на Kenga: пакет читается из initrd, payload пишется в KengaFS `/apps/<имя>.elf`. Из input-бара: `install kenga-app.kpkg` (формы без точки, `install a`, по-прежнему идут в старый C-реестр) |
 | **Ring 3 приложения** | есть | Пользовательские ELF (user-страницы, GDT/TSS, `int 0x80` write/exit). Приложение лежит **на диске**: ядро ставит ELF в KengaFS (`/apps/kenga-app.elf`), читает обратно и запускает в ring 3 — при загрузке и командой `run <path>` из input-бара (`user_exec_blob` + `user_run`) |
-| **Kenga-приложение (ring 3)** | есть | `user/kenga_app.kenga` — исходник **на Kenga** (`println`, рекурсия `fib`) → `emit-c --freestanding` → патч `println` в `int 0x80 write` (`scripts/patch-kenga-user.py`) → clang/ld.lld (strip) → ELF 3.5 КиБ → **упакован в `.kpkg` v2** → установлен в KengaFS `/apps/kenga-app.elf` → ring 3. Читает файлы: `sys_cat` (syscall 16) возвращает содержимое файла KengaFS в буфер приложения — C-обработчик зовёт Kenga-функцию `fs_syscall`, состояние ФС идёт аргументами. CI проверяет вывод программы (`ring3 OK`, `fib(12) = 144`, прочитанный `KengaOS boot #`) |
+| **Kenga-приложение (ring 3)** | есть | `user/kenga_app.kenga` — исходник **на Kenga** (`println`, рекурсия `fib`) → `emit-c --freestanding` → патч `println` в `int 0x80 write` (`scripts/patch-kenga-user.py`) → clang/ld.lld (strip) → ELF 3.5 КиБ → **упакован в `.kpkg` v2** → установлен в KengaFS `/apps/kenga-app.elf` → ring 3. Работает с диском: `sys_cat` (syscall 16) читает файл KengaFS, `sys_save` (17) пишет свой файл — C-обработчик зовёт Kenga-функцию `fs_syscall`, состояние ФС идёт аргументами. CI проверяет вывод программы (`ring3 OK`, `fib(12) = 144`, прочитанный `KengaOS boot #`) и что записанный файл читается обратно (`kenga-app wrote:`). В тесте персистентности boot 2 видит файл, записанный приложением в boot 1 (`kenga-app prev:`). Сборка приложения дополнительно прогоняется через `scripts/elf-shrink.py` (sstrip-lite: 4576 → 3216 байт) |
 | **xHCI USB** | QEMU | Тач-планшет на x86_64 и aarch64; на живом железе не проверен |
 | **Prophet (v1)** | есть | Пророки: в ядре — kf_prophet.c; в оболочках — ассистенты, обучающиеся на ходу («учи: вопрос => ответ»), предсказание следующего приложения (цепь Маркова), surprise. Всё локально |
 | **aarch64** | есть | То же ядро без изменений на ARM64 (QEMU virt, CI-гейт) |
@@ -275,7 +275,7 @@ KengaOS/
 │   └── linker.ld           # Скрипт компоновщика (x86_64)
 ├── user/                   # Ring-3 программы: kenga_app.kenga (Kenga→ELF), kenga_user_rt.c
 ├── src/                    # Оболочки (прототипы): десктоп + мобилка, темы
-├── scripts/                # build.sh (ISO), build-a64.sh, build-user.sh (Kenga→ring-3 ELF), run-a64.sh, mkbootimg.py
+├── scripts/                # build.sh (ISO), build-a64.sh, build-user.sh (Kenga→ring-3 ELF), elf-shrink.py, run-a64.sh, mkbootimg.py
 ├── docs/                   # Документация: статус, железо, порты
 ├── .github/workflows/      # CI (3 джобы) + release
 └── kenga-lang/             # Компилятор Kenga (submodule)
