@@ -517,6 +517,21 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     fi
 fi
 
+# ---------------------------------------------------------------------------
+# Персистентность: ОДИН диск, две загрузки. Это самая сильная проверка того,
+# что ФС и данные живут между перезагрузками, поэтому она часть CI, а не
+# ручной сценарий.
+# ---------------------------------------------------------------------------
+if [[ "$QEMU_RAN" == 1 ]]; then
+    if MACHINE=q35 bash "$ROOT/scripts/test-fs-persistence.sh" >"$BUILD_DIR/persist.log" 2>&1; then
+        echo "OK: KengaFS persistence — один диск, boot 1 -> boot 2"
+    else
+        echo "ERROR: KengaFS persistence failed (см. $BUILD_DIR/persist.log)" >&2
+        tail -20 "$BUILD_DIR/persist.log" >&2 || true
+        exit 1
+    fi
+fi
+
 echo
 echo "Build artifacts in $BUILD_DIR"
 ls -la "$BUILD_DIR"
