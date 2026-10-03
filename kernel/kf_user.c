@@ -253,6 +253,57 @@ int64_t k_user_run(int64_t entry) {
 }
 
 
+/* --- Мост к KengaFS для ring-3 приложений -------------------------------
+   Файловая система целиком на Kenga, поэтому C-обработчик int 0x80 не лезет
+   в неё сам: состояние ФС кладёт Kenga (k_user_set_fs), а файловые запросы
+   уходят обратно в Kenga-функцию k_fs_syscall. Так логика ФС остаётся в
+   одном месте (kernel/fs.kenga), а C — только перевозчик байтов между
+   user-адресом и кадром обмена. */
+static int64_t ux_ino = 0, ux_bmp = 0, ux_io = 0, ux_dat = 0, ux_rw = 0, ux_ok = 0;
+static uint8_t* uxfer = 0;            /* кадр обмена (ядро <-> KengaFS) */
+static char ux_path[128];
+
+extern int64_t k_fs_syscall(int64_t ino, int64_t bmp, int64_t io, int64_t dat,
+                            int64_t rw, int64_t ok, int64_t num,
+                            int64_t a, int64_t b, int64_t c) __attribute__((weak));
+
+int64_t k_user_set_fs(int64_t ino, int64_t bmp, int64_t io, int64_t dat,
+                      int64_t rw, int64_t ok) {
+    ux_ino = ino; ux_bmp = bmp; ux_io = io; ux_dat = dat; ux_rw = rw; ux_ok = ok;
+    if (!uxfer) uxfer = (uint8_t*)(uintptr_t)k_mem_palloc();
+    return uxfer ? 1 : 0;
+}
+
+/* скопировать NUL-terminated строку из user-памяти ядра в ux_path */
+static int ux_copy_str(uint64_t uva, char* out, int max) {
+    int i = 0;
+    while (i < max - 1) {
+        uint64_t pa = user_v2p(user_pml4, uva + (uint64_t)i);
+        if (!pa) break;
+        char c = *(char*)(uintptr_t)(pv(pa & ~0xFFFull) + (pa & 0xFFF));
+        if (!c) break;
+        out[i++] = c;
+    }
+    out[i] = 0;
+    return i;
+}
+
+/* ядро -> user: побайтово через страницы user-адреса */
+static uint64_t ux_to_user(uint64_t uva, const uint8_t* src, uint64_t n) {
+    uint64_t off = 0;
+    while (off < n) {
+        uint64_t pa = user_v2p(user_pml4, uva + off);
+        if (!pa) break;
+        uint64_t inpage = pa & 0xFFF;
+        uint64_t chunk = 0x1000 - inpage;
+        if (chunk > n - off) chunk = n - off;
+        uint8_t* kdst = (uint8_t*)(uintptr_t)(pv(pa & ~0xFFFull)) + inpage;
+        for (uint64_t b = 0; b < chunk; b++) kdst[b] = src[off + b];
+        off += chunk;
+    }
+    return off;
+}
+
 void k_syscall_handler(void* frame_v) {
     uint64_t* f = (uint64_t*)frame_v;
     /* frame: rax,rbx,rcx,rdx,rsi,rdi,rbp,r8..r15,vector,error,rip,cs,rflags,rsp,ss */
@@ -281,6 +332,21 @@ void k_syscall_handler(void* frame_v) {
     } else if (num == 2) {      /* exit */
         user_done = 1;
         f[0] = 0;
+    } else if (num == 16) {     /* cat(path, dst, max): файл KengaFS -> user */
+        uint64_t path_uva = f[5], dst_uva = f[4], maxlen = f[3];
+        int64_t n = -1;
+        if (maxlen > 4096) maxlen = 4096;
+        if (uxfer && maxlen > 0 && &k_fs_syscall) {
+            ux_copy_str(path_uva, ux_path, (int)sizeof ux_path);
+            n = k_fs_syscall(ux_ino, ux_bmp, ux_io, ux_dat, ux_rw, ux_ok,
+                             16, (int64_t)(uintptr_t)ux_path,
+                             (int64_t)(uintptr_t)uxfer, (int64_t)maxlen);
+            if (n > 0) {
+                if ((uint64_t)n > maxlen) n = (int64_t)maxlen;
+                ux_to_user(dst_uva, uxfer, (uint64_t)n);
+            }
+        }
+        f[0] = (uint64_t)n;
     } else {
         f[0] = (uint64_t)-1;
     }

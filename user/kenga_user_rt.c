@@ -47,6 +47,23 @@ void* kf_alloc(size_t n) {
     return p;
 }
 
+/* --- файловый syscall: cat(path, dst, max) -> байты из KengaFS ---
+   Файловая система целиком на стороне ядра/Kenga; здесь только int 0x80
+   и буфер приложения. */
+int64_t k_sys_cat(const char* path, int64_t dst, int64_t max) {
+    long r;
+    __asm__ __volatile__("int $0x80"
+                         : "=a"(r)
+                         : "a"(16L), "D"(path), "S"(dst), "d"(max));
+    return r;
+}
+
+/* --- буфер приложения для принимаемых данных + приведение адреса к str --- */
+static char g_ubuf[4096];
+
+int64_t k_rt_buf(void) { return (int64_t)(uintptr_t)g_ubuf; }
+const char* k_rt_str(int64_t addr) { return (const char*)(uintptr_t)addr; }
+
 /* --- точка входа ELF --- */
 int64_t main(void);
 

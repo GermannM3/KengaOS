@@ -28,6 +28,8 @@ import "../kenga-desktop/src/platform/kernel_bridge.kenga";
 /* user-mode: ELF из произвольного буфера + запуск (ring 3) */
 @intrinsic fn user_exec_blob(addr: i64, size: i64) -> i64;
 @intrinsic fn user_run(entry: i64) -> i64;
+/* отдать C-мосту состояние KengaFS, чтобы ring-3 syscalls дошли до ФС */
+@intrinsic fn user_set_fs(ino: i64, bmp: i64, io: i64, dat: i64, rw: i64, ok: i64) -> i64;
 /* k_vfs_cat с i64-адресом приёмника (kf_blk.c) */
 @intrinsic fn vfs_cat64(name: str, out: i64, max: i64) -> i64;
 @intrinsic fn fdt_boot_test() -> i64;
@@ -228,6 +230,8 @@ fn fs_boot_gate() -> i64 {
         kp_msg("KengaOS", "FS NONE");
         return 0;
     }
+    /* C-мост получает состояние ФС до запуска ring-3 приложения */
+    user_set_fs(fs.ino, fs.bmp, fs.io, fs.dat, fs.rw, fs.ok);
     let n: i64 = fs_boot_count(fs);
     /* заодно проверяем mkdir -p и запись текста: /system/bootlog.txt */
     fs_write(fs, "/system/bootlog.txt", "KengaOS boot #" + n);
@@ -245,6 +249,19 @@ fn fs_boot_gate() -> i64 {
     return 1;
 }
 
+/* --- Syscall-мост KengaFS (int 0x80, num 16 = cat) ------------------------
+   Файловая система живёт на Kenga, поэтому C-обработчик прерывания не читает
+   её сам: он зовёт эту функцию, передавая состояние ФС аргументами (в Kenga
+   нет глобальных переменных), а байты гоняет через кадр обмена.
+   a = путь (адрес в ядре), b = кадр приёмника, c = максимум байт. */
+fn fs_syscall(ino: i64, bmp: i64, io: i64, dat: i64, rw: i64, ok: i64, num: i64, a: i64, b: i64, c: i64) -> i64 {
+    if num == 16 {
+        let fs: FsState = FsState{ ino: ino, bmp: bmp, io: io, dat: dat, rw: rw, ok: ok };
+        return fs_read(fs, kf_str(a), b, c);
+    }
+    return -1;
+}
+
 /* --- Ring 3 приложение с диска -------------------------------------------
    Полный путь приложения: initrd (user-hello.elf) -> KengaFS (/apps/hello.elf)
    -> чтение обратно с диска -> elf_load -> пользовательский режим.
@@ -252,6 +269,7 @@ fn fs_boot_gate() -> i64 {
 fn user_app_from_disk(fs: FsState) -> i64 {
     let n: i64 = vfs_cat64("user-kenga.elf", fs.dat, 4096);
     if n <= 0 { kp_msg("KengaOS", "USERAPP NOELF"); return 0; }
+    if n >= 4096 { kp_msg("KengaOS", "USERAPP TOOBIG"); return 0; }
     if fs_write_blob(fs, "/apps/kenga.elf", fs.dat, n) < 0 {
         kp_msg("KengaOS", "USERAPP WRITEFAIL");
         return 0;

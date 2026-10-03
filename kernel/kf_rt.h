@@ -209,6 +209,7 @@ int64_t k_user_boot_test(void);
 int64_t k_user_exec_vfs(const char* name);
 int64_t k_user_exec_blob(int64_t addr, int64_t size);
 int64_t k_user_run(int64_t entry);
+int64_t k_user_set_fs(int64_t ino, int64_t bmp, int64_t io, int64_t dat, int64_t rw, int64_t ok);
 
 /* FDT/DTB (aarch64; x86 — заглушка). */
 int64_t k_fdt_boot_test(void);

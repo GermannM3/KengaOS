@@ -45,5 +45,17 @@ echo "[user] kenga emit-c --freestanding user/kenga_app.kenga"
 
 eval "$CC $CFLAGS -c \"$UDIR/kenga_app.c\" -o \"$UDIR/kenga_app.o\""
 eval "$CC $CFLAGS -c \"$ROOT/user/kenga_user_rt.c\" -o \"$UDIR/kenga_user_rt.o\""
-eval "$LD -nostdlib --gc-sections -e _start \"$UDIR/kenga_app.o\" \"$UDIR/kenga_user_rt.o\" -o \"$UDIR/kenga-app.elf\""
+# --strip-all: таблицы символов не грузятся, но входят в размер файла, а файл
+# целиком читается с KengaFS в 4 КиБ буфер ядра (fs.dat). Без strip ELF
+# раздувается вдвое и молча обрезается.
+eval "$LD -nostdlib --gc-sections --strip-all -e _start \"$UDIR/kenga_app.o\" \"$UDIR/kenga_user_rt.o\" -o \"$UDIR/kenga-app.elf\""
 ls -la "$UDIR/kenga-app.elf"
+
+ELF_SIZE=$(wc -c < "$UDIR/kenga-app.elf")
+USERAPP_MAX=4096
+if [[ "$ELF_SIZE" -gt "$USERAPP_MAX" ]]; then
+    echo "error: kenga-app.elf is $ELF_SIZE bytes > $USERAPP_MAX (KengaFS exec buffer)" >&2
+    echo "       уменьшите приложение или увеличьте буфер в kernel/fs.kenga (st.dat)" >&2
+    exit 1
+fi
+echo "[user] kenga-app.elf: $ELF_SIZE bytes (limit $USERAPP_MAX)"
