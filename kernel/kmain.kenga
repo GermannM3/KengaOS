@@ -348,8 +348,9 @@ fn user_app_from_disk(fs: FsState) -> i64 {
        по sys_yield, у каждого своя PML4 и свой kernel-стек. */
     let p1: i64 = user_spawn_blob(xbuf(), sz);
     if p1 <= 0 { kp_msg("KengaOS", "USERAPP BADELF"); return 0; }
-    uart_puts("userapp: exec from KengaFS, pid ");
-    kf_puti(p1); uart_putc(10);
+    let p2: i64 = user_spawn_vfs("user-kenga.elf");
+    uart_puts("userapp: pids ");
+    kf_puti(p1); uart_puts(" "); kf_puti(p2); uart_putc(10);
     let sr: i64 = user_sched_run();
     if sr == 1 { kp_msg("KengaOS", "SCHED OK"); }
     kp_msg("KengaOS", "USERAPP OK");

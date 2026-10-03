@@ -15,6 +15,30 @@
 .extern k_save_ret
 .extern k_resume_frame
 
+/* Восстановить ВСЕ GPR из кадра (порядок обратен push в isr_syscall):
+   rax, rbx, rcx, rdx, rsi, rdi, rbp, r8..r15. Обязательно и в user_enter,
+   и в isr_syscall: без этого процесс получал регистры ядра (наблюдали
+   rdi = адрес кадра) — компилятор вправе держать указатели в caller-saved
+   регистрах сквозь int 0x80, и приложение падало тем вернее, чем больше
+   программа. */
+.macro POP_GPRS
+    pop rax
+    pop rbx
+    pop rcx
+    pop rdx
+    pop rsi
+    pop rdi
+    pop rbp
+    pop r8
+    pop r9
+    pop r10
+    pop r11
+    pop r12
+    pop r13
+    pop r14
+    pop r15
+.endm
+
 /* int64_t user_jump(u64 entry, u64 user_rsp, u64 pml4)
    rdi=entry, rsi=user_rsp, rdx=pml4.
    Сохраняем kernel-контекст, переключаем CR3, iretq в ring 3.
@@ -79,10 +103,15 @@ user_enter:
     mov ds, ax
     mov es, ax
     mov rsp, rdi
-    mov rax, [rsp]
-    add rsp, 17*8
+    POP_GPRS
+    add rsp, 16          /* vector + error; дальше iretq-фрейм */
     iretq
 
+/* Восстановить ВСЕ GPR из кадра (порядок обратен push в isr_syscall):
+   rax, rbx, rcx, rdx, rsi, rdi, rbp, r8..r15.
+   БЕЗ этого процесс получал регистры ядра (наблюдали rdi = адрес кадра) —
+   компилятор вправе держать указатели в caller-saved регистрах через int 0x80,
+   и приложение падало тем вернее, чем больше была программа. */
 /* int 0x80 стаб: фрейм как у isr_N (dummy-error, vector) + GPR. */
 isr_syscall:
     push 0
@@ -111,8 +140,8 @@ isr_syscall:
     /* Планировщик мог выбрать ДРУГОЙ процесс: k_resume_frame указывает на его
        кадр (для обычного syscall это наш же кадр). */
     mov rsp, [rip + k_resume_frame]
-    mov rax, [rsp]        /* rax из фрейма (обновлён обработчиком) */
-    add rsp, 17*8         /* 15 GPR + dummy + vector */
+    POP_GPRS
+    add rsp, 16           /* vector + error; дальше iretq-фрейм */
     iretq
 .exit_path:
     add rsp, 17*8         /* снять фрейм */
