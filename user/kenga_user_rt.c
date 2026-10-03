@@ -86,6 +86,16 @@ int64_t k_sys_rm(const char* path) {
     return r;
 }
 
+/* Длина строки в рантайме приложения. Нужна потому, что len() на строке,
+   СОБРАННОЙ конкатенацией в рантайме, возвращает 0 (см. docs/HONEST-CHECKLIST.md):
+   литералы компилятор считает сам, а собранную строку — уже нет. */
+int64_t k_rt_len(const char* s) {
+    int64_t n = 0;
+    if (!s) return 0;
+    while (s[n]) n++;
+    return n;
+}
+
 /* Дождаться ребёнка: ядро само переисполнит syscall, пока он не завершится. */
 int64_t k_sys_wait(int64_t pid) {
     long r;
