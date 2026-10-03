@@ -603,7 +603,10 @@ static int up_sleep_current(uint64_t ms) {
     if (ms > 5000) ms = 5000;
     g_up[g_up_cur].wake = (uint64_t)k_time_uptime_ms() + ms;
     g_up[g_up_cur].state = UP_SLEEP;
-    int nx = up_pick_next();
+    /* именно up_pick_wait: если все спят, стоим на hlt, пока таймер не
+       разбудит. С up_pick_next процесс «просыпался» сразу же, и sleep
+       получался короче запрошенного. */
+    int nx = up_pick_wait();
     if (nx < 0) { g_up[g_up_cur].state = 2; return 0; }
     k_resume_frame = up_activate(nx);
     return 1;
