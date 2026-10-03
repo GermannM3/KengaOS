@@ -49,6 +49,9 @@ static void up_note_stack_use(void);
 static int up_sleep_current(uint64_t ms);
 static int up_exit_with_code(uint64_t code);
 static int64_t up_child_status(uint64_t pid);
+static int64_t fd_open(uint64_t path_uva);
+static int64_t fd_read(uint64_t fd, uint64_t uva, uint64_t len);
+static int64_t fd_close(uint64_t fd);
 
 /* k_mem_palloc возвращает УЖЕ отображённый VA (phys+hhdm).
    Для PTE нужен физический: va - hhdm. */
@@ -374,6 +377,12 @@ void k_syscall_handler(void* frame_v) {
         if (up_yield_current(frame_v) != 1) user_done = 1;
     } else if (num == 4) {      /* getpid */
         f[0] = (uint64_t)up_pid_current();
+    } else if (num == 27) {     /* open(path) -> fd или -1 */
+        f[0] = (uint64_t)fd_open(f[5]);
+    } else if (num == 28) {     /* read(fd, buf, len) -> сколько прочитано */
+        f[0] = (uint64_t)fd_read(f[5], f[4], f[3]);
+    } else if (num == 29) {     /* close(fd) */
+        f[0] = (uint64_t)fd_close(f[5]);
     } else if (num == 26) {     /* wait(pid): БЛОКИРУЮЩИЙ сбор статуса */
         uint64_t want = f[5];
         int64_t st = up_child_status(want);
@@ -530,6 +539,51 @@ static void k_user_gdt_install(void) {
     t[2] = (uint32_t)(rsp0 >> 32);              /* RSP0 high (offset 8) */
     __asm__ __volatile__("ltr %0" : : "r"((uint16_t)TSS_SEL));
     __asm__ __volatile__("sti");
+}
+
+/* --- Файловые дескрипторы приложения ------------------------------------
+   Приложение читает файл КУСКАМИ: open читает файл целиком в свой слот (KengaFS
+   отдаёт содержимое через тот же мост, что cat), read отдаёт очередную порцию
+   в буфер приложения, close освобождает слот. Логика ФС по-прежнему на Kenga. */
+#define FD_MAX 4
+#define FD_BUF 8192
+
+static uint8_t g_fd_buf[FD_MAX][FD_BUF];
+static int32_t g_fd_size[FD_MAX];
+static int32_t g_fd_off[FD_MAX];
+static char    g_fd_path[FD_MAX][64];
+static int     g_fd_used[FD_MAX];
+
+static int64_t fd_open(uint64_t path_uva) {
+    int s = -1;
+    for (int i = 0; i < FD_MAX; i++) if (!g_fd_used[i]) { s = i; break; }
+    if (s < 0) return -1;
+    if (!uxfer || !&k_fs_syscall) return -1;
+    ux_copy_str(path_uva, g_fd_path[s], 64);
+    int64_t n = k_fs_syscall(ux_ino, ux_bmp, ux_io, ux_dat, ux_rw, ux_ok,
+                             16, (int64_t)(uintptr_t)g_fd_path[s],
+                             (int64_t)(uintptr_t)g_fd_buf[s], FD_BUF);
+    if (n < 0) return -1;
+    g_fd_size[s] = (int32_t)n;
+    g_fd_off[s] = 0;
+    g_fd_used[s] = 1;
+    return s;
+}
+
+static int64_t fd_read(uint64_t fd, uint64_t uva, uint64_t len) {
+    if (fd >= FD_MAX || !g_fd_used[fd]) return -1;
+    int64_t avail = (int64_t)g_fd_size[fd] - (int64_t)g_fd_off[fd];
+    if (avail <= 0) return 0;                       /* конец файла */
+    int64_t n = (int64_t)len;
+    if (n > avail) n = avail;
+    uint64_t done = ux_to_user(uva, g_fd_buf[fd] + g_fd_off[fd], (uint64_t)n);
+    g_fd_off[fd] += (int32_t)done;
+    return (int64_t)done;
+}
+
+static int64_t fd_close(uint64_t fd) {
+    if (fd < FD_MAX) g_fd_used[fd] = 0;
+    return 0;
 }
 
 /* --- Кооперативная многозадачность ring-3 процессов ---------------------

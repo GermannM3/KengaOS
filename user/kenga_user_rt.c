@@ -103,6 +103,25 @@ int64_t k_sys_wait(int64_t pid) {
     return r;
 }
 
+/* --- файловые дескрипторы: open/read/close --- */
+int64_t k_sys_open(const char* path) {
+    long r;
+    __asm__ __volatile__("int $0x80" : "=a"(r) : "a"(27L), "D"(path));
+    return r;
+}
+
+int64_t k_sys_read(int64_t fd, void* buf, int64_t len) {
+    long r;
+    __asm__ __volatile__("int $0x80" : "=a"(r) : "a"(28L), "D"(fd), "S"(buf), "d"(len));
+    return r;
+}
+
+int64_t k_sys_close(int64_t fd) {
+    long r;
+    __asm__ __volatile__("int $0x80" : "=a"(r) : "a"(29L), "D"(fd));
+    return r;
+}
+
 /* Код завершения ребёнка, если он уже вышел, иначе -1 (не блокирует). */
 int64_t k_sys_wait_status(int64_t pid) {
     long r;
