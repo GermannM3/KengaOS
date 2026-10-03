@@ -220,7 +220,7 @@ int64_t k_kd_prophet_tick(int64_t mx, int64_t my, int64_t app);
 int64_t k_kd_prophet_next_app(void);
 int64_t k_kd_prophet_surprise(void);
 
-/* Disk backend: 0 = нет, 1 = ATA PIO, 2 = AHCI (SATA/DMA), 3 = virtio-blk. */
+/* Disk backend: 0 = нет, 1 = ATA PIO, 2 = AHCI (SATA/DMA), 3 = virtio-blk, 4 = NVMe. */
 int64_t k_disk_kind(void);
 
 /* Block device FFI for the Kenga filesystem (kernel/fs.kenga, kf_blk.c). */

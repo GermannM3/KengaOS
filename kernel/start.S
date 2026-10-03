@@ -87,6 +87,21 @@ limine_requests_end_marker:
 
 .global _start
 _start:
+    /* Включаем SSE/SSE2. x86-64 компилятор вправе использовать SSE2 по
+       умолчанию, и clang этим пользуется (векторизация циклов в драйверах).
+       Без CR4.OSFXSR/OSXMMEXCPT и при CR0.EM/TS каждая такая инструкция даёт
+       #UD, а до intr_init IDT ещё нет — это тройная ошибка. Именно так падал
+       kf_nvme (и раньше — нулевой цикл в kf_ahci). */
+    mov rax, cr0
+    and rax, -5          /* CR0.EM = 0 (SSE разрешена) */
+    and rax, -9          /* CR0.TS = 0 (нет ленивого FPU) */
+    or  rax, 2           /* CR0.MP = 1 */
+    mov cr0, rax
+    mov rax, cr4
+    or  rax, (1 << 9)    /* CR4.OSFXSR */
+    or  rax, (1 << 10)   /* CR4.OSXMMEXCPT */
+    mov cr4, rax
+
     lea rsp, [rip + stack_top]
     and rsp, ~0xF
     call main

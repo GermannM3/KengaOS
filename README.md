@@ -195,6 +195,7 @@ Standalone HTML-preview дизайн-системы находится в
 | **Prophet (v1)** | есть | Пророки: в ядре — kf_prophet.c; в оболочках — ассистенты, обучающиеся на ходу («учи: вопрос => ответ»), предсказание следующего приложения (цепь Маркова), surprise. Всё локально |
 | **aarch64** | есть | То же ядро без изменений на ARM64 (QEMU virt, CI-гейт) |
 | VFS + initrd | есть | Виртуальная ФС + initrd через Limine (git-лог, инфо хоста) |
+| **NVMe (PCIe SSD)** | есть | `kernel/kf_nvme.c`: admin/I-O очереди (SQ/CQ), identify пространства имён, PRP1-передачи, поллинг; LBA 512 и 4096 (для 4096 — read-modify-write). CI-гейт `NVME READY` на QEMU `-M q35` + `-device nvme` — путь NVMe-only ноутбуков |
 | **AHCI/SATA** | есть | `kernel/kf_ahci.c`: PCI-поиск, command list + FIS + PRDT, DMA, поллинг; бэкенд диска выбирается автоматически (ATA PIO → AHCI → virtio-blk). CI-гейт `AHCI READY` на QEMU `-M q35` — путь реального ноутбука |
 | **KengaFS (диск)** | есть | Персистентная ФС на диске, целиком на Kenga (`kernel/fs.kenga`): дерево каталогов, mkdir -p, чтение/запись/удаление, 32 объекта × 8 КиБ, 4 МиБ данных. Гейты `FS OK` / `FS TEST OK`; персистентность — два QEMU-бота на одном образе (`scripts/test-fs-persistence.sh`). Пишем только на диск с маркером `KENGARWTEST1` или уже содержащий KengaFS |
 | Таймер / uptime | есть | PIT 100 Гц (x86) / generic timer CNTV (ARM64), команда `time` |
@@ -216,8 +217,8 @@ Standalone HTML-preview дизайн-системы находится в
 видение/реальность) и `docs/PORT-ARM64.md` + `docs/PHONE-TRACK.md` (железо).
 Кратко, ближайшее:
 
-- **Десктоп до ежедневной пригодности**: xHCI на живом железе →
-  NVMe (запись; **AHCI/SATA уже есть**) → ACPI → Wi-Fi.
+- **Десктоп до ежедневной пригодности**: xHCI на живом железе → ACPI →
+  Wi-Fi. **Хранилище закрыто**: ATA PIO + AHCI/SATA + NVMe (+ virtio-blk на ARM64).
 - **Магазин, установка из сети**: `.kpkg` v2 (манифест + ELF) и установка из input-бара уже есть; дальше — скачивание пакета, зависимости, подпись.
 - **Телефон**: беспроводной adb → mtkclient (POCO M4 Pro, MediaTek) →
   `fastboot boot kengaos-phone.img` из RAM (без сноса) → чек-лист
@@ -266,6 +267,7 @@ KengaOS/
 │   ├── kf_usb*.c           # USB: xHCI + UHCI + HID
 │   ├── kf_disk.c           # ATA PIO диск (чтение+запись, RW-тест)
 │   ├── kf_ahci.c           # AHCI/SATA диск (DMA, command list + PRDT)
+│   ├── kf_nvme.c           # NVMe (PCIe SSD): admin/I-O очереди, PRP
 │   ├── fs.kenga            # KengaFS: персистентная ФС на диске (Kenga)
 │   ├── kf_blk.c            # Блочный FFI-мост для KengaFS
 │   ├── intr.c / isr.S      # GDT + IDT + обработчики

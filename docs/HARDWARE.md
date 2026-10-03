@@ -15,8 +15,8 @@
 | Мышь USB | ⚠️ | xHCI-драйвер работает в QEMU (обе арх); на живом железе не проверен |
 | Таймер/uptime | ✅ | PIT |
 | Часы реального времени | ✅ | CMOS RTC |
-| Диск (чтение) | ✅ | **ATA PIO** (IDE/compat) и **AHCI/SATA** (`kf_ahci.c`: DMA, command list + PRDT); **NVMe — нет** |
-| Диск (запись) | ✅ | Блочная запись по ATA PIO и по **AHCI/SATA**, CI-гейты `DISK RW OK` на `-M pc` и `-M q35` (write-verify-restore на scratch-диск; на реальном диске не пишем — тест только с маркером KENGARWTEST1) |
+| Диск (чтение) | ✅ | **ATA PIO** (IDE/compat), **AHCI/SATA** (`kf_ahci.c`), **NVMe** (`kf_nvme.c`: admin/I-O очереди, PRP1) |
+| Диск (запись) | ✅ | Блочная запись по ATA PIO, **AHCI/SATA** и **NVMe**, CI-гейты `DISK RW OK` на `-M pc`, `-M q35` и `-M q35 -device nvme` (write-verify-restore на scratch-диск; на реальном диске не пишем — тест только с маркером KENGARWTEST1) |
 | Файловая система | ✅ | **KengaFS v1** (`kernel/fs.kenga`, на Kenga): дерево каталогов, mkdir -p, чтение/запись/удаление, 32 объекта × 8 КиБ, 4 МиБ данных. Пишем только на диск с маркером `KENGARWTEST1` или уже содержащий KengaFS. Персистентность — `scripts/test-fs-persistence.sh` (boot 1 → 2) |
 | Wi-Fi / Bluetooth | ❌ | Драйверов нет |
 | Звук | ❌ | |
@@ -45,7 +45,7 @@ xHCI, Wi-Fi и ACPI (дорожная карта ниже).
 ## Дорожная карта драйверов (десктоп)
 
 1. xHCI/EHCI USB (клавиатура+мышь на реальном железе)
-2. NVMe (запись, персистентность; AHCI/SATA уже есть — `kf_ahci.c`)
+2. ~~NVMe~~ (сделано: `kf_nvme.c`, гейт `NVME READY`) → ACPI
 3. ACPI (батарея, кнопки, мягкое выключение)
 4. Wi-Fi (начнём с Intel/Qualcomm, чей mainline-референс лучше)
 5. Звук (Intel HDA)

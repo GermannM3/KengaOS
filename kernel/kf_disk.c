@@ -155,20 +155,27 @@ int64_t k_ahci_read(uint64_t lba, uint16_t count, void* buf);
 int64_t k_ahci_write(uint64_t lba, uint16_t count, const void* buf);
 int64_t k_ahci_sectors(void);
 int64_t k_ahci_ready(void);
+int64_t k_nvme_init(void);
+int64_t k_nvme_read(uint64_t lba, uint16_t count, void* buf);
+int64_t k_nvme_write(uint64_t lba, uint16_t count, const void* buf);
+int64_t k_nvme_sectors(void);
 
 #define DISK_NONE 0
 #define DISK_ATA  1
 #define DISK_AHCI 2
+#define DISK_NVME 4
 static int disk_backend = DISK_NONE;
 
 int64_t k_disk_init(void) {
     disk_backend = DISK_NONE;
     if (ata_init() == 1) { disk_backend = DISK_ATA; return 1; }
     if (k_ahci_init() == 1) { disk_backend = DISK_AHCI; return 1; }
+    if (k_nvme_init() == 1) { disk_backend = DISK_NVME; return 1; }
     return 0;
 }
 
 int64_t k_disk_sectors(void) {
+    if (disk_backend == DISK_NVME) return k_nvme_sectors();
     if (disk_backend == DISK_AHCI) return k_ahci_sectors();
     if (disk_backend == DISK_ATA) return ata_sectors();
     return 0;
@@ -178,11 +185,13 @@ int64_t k_disk_sectors(void) {
 int64_t k_disk_kind(void) { return disk_backend; }
 
 int64_t k_disk_read(uint64_t lba, uint16_t count, void* buf) {
+    if (disk_backend == DISK_NVME) return k_nvme_read(lba, count, buf);
     if (disk_backend == DISK_AHCI) return k_ahci_read(lba, count, buf);
     return ata_read(lba, count, buf);
 }
 
 int64_t k_disk_write(uint64_t lba, uint16_t count, const void* buf) {
+    if (disk_backend == DISK_NVME) return k_nvme_write(lba, count, buf);
     if (disk_backend == DISK_AHCI) return k_ahci_write(lba, count, buf);
     return ata_write(lba, count, buf);
 }

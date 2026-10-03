@@ -234,6 +234,10 @@ log "4d1/7" "Compiling kf_ahci.c (AHCI/SATA DMA disk) ($CC)"
 if [[ -f "$KERNEL_DIR/kf_ahci.c" ]]; then
     eval "$CC -c $CFLAGS_C \"$KERNEL_DIR/kf_ahci.c\" -o \"$BUILD_DIR/kf_ahci.o\""
 fi
+log "4d15/7" "Compiling kf_nvme.c (NVMe SSD) ($CC)"
+if [[ -f "$KERNEL_DIR/kf_nvme.c" ]]; then
+    eval "$CC -c $CFLAGS_C \"$KERNEL_DIR/kf_nvme.c\" -o \"$BUILD_DIR/kf_nvme.o\""
+fi
 log "4d2/7" "Compiling kf_blk.c (block-device FFI for KengaFS) ($CC)"
 if [[ -f "$KERNEL_DIR/kf_blk.c" ]]; then
     eval "$CC -c $CFLAGS_C \"$KERNEL_DIR/kf_blk.c\" -o \"$BUILD_DIR/kf_blk.o\""
@@ -268,6 +272,7 @@ if [[ -f "$BUILD_DIR/kf_design.o" ]]; then OBJS+=("$BUILD_DIR/kf_design.o"); fi
 if [[ -f "$BUILD_DIR/kf_disk.o" ]]; then OBJS+=("$BUILD_DIR/kf_disk.o"); fi
 if [[ -f "$BUILD_DIR/kf_blk.o" ]]; then OBJS+=("$BUILD_DIR/kf_blk.o"); fi
 if [[ -f "$BUILD_DIR/kf_ahci.o" ]]; then OBJS+=("$BUILD_DIR/kf_ahci.o"); fi
+if [[ -f "$BUILD_DIR/kf_nvme.o" ]]; then OBJS+=("$BUILD_DIR/kf_nvme.o"); fi
 $LD -n -nostdlib -T "$KERNEL_DIR/linker.ld" "${OBJS[@]}" -o "$BUILD_DIR/kengaos.elf"
 ls -la "$BUILD_DIR/kengaos.elf"
 
@@ -439,6 +444,43 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "kenga-app: read /system/bootlog.txt" "$AHCI_LOG" || { echo "ERROR: ring-3 file read failed on AHCI disk" >&2; ok2=0; }
     if [[ $ok2 == 1 ]]; then
         echo "OK: kernel booted on q35 — AHCI/SATA disk + KengaFS"
+    else
+        exit 1
+    fi
+fi
+
+# ---------------------------------------------------------------------------
+# NVMe smoke: диск — PCIe NVMe, его не видят ни ATA PIO, ни AHCI.
+# ---------------------------------------------------------------------------
+if [[ "$QEMU_RAN" == 1 ]]; then
+    NVME_LOG="$BUILD_DIR/uart-nvme.log"
+    NVME_DISK="$BUILD_DIR/nvme-smoke.img"
+    : > "$NVME_LOG"
+    dd if=/dev/zero of="$NVME_DISK" bs=1M count=64 status=none
+    printf 'KENGARWTEST1' | dd of="$NVME_DISK" bs=512 count=1 conv=notrunc status=none
+    if command -v cygpath >/dev/null 2>&1; then
+        WIN_NVME_LOG="$(cygpath -m "$NVME_LOG")"
+        WIN_NVME_DISK="$(cygpath -m "$NVME_DISK")"
+    elif [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* || "$(uname -s)" == CYGWIN* ]]; then
+        WIN_NVME_LOG="${NVME_LOG#/}"; WIN_NVME_LOG="${WIN_NVME_LOG%%/*}:${WIN_NVME_LOG#*/}"
+        WIN_NVME_DISK="${NVME_DISK#/}"; WIN_NVME_DISK="${WIN_NVME_DISK%%/*}:${WIN_NVME_DISK#*/}"
+    else
+        WIN_NVME_LOG="$NVME_LOG"; WIN_NVME_DISK="$NVME_DISK"
+    fi
+    timeout 20 qemu-system-x86_64 -M q35 -cdrom "$BUILD_DIR/kengaos.iso" \
+        -drive "file=$WIN_NVME_DISK,format=raw,if=none,id=nvme0" \
+        -device nvme,drive=nvme0,serial=KENGANVME \
+        -serial "file:$WIN_NVME_LOG" -display none -no-reboot -m 64 \
+        -device qemu-xhci -device usb-tablet \
+        -device isa-debug-exit,iobase=0xf4,iosize=0x04 || true
+    ok3=1
+    grep -q "NVME READY" "$NVME_LOG" || { echo "ERROR: NVMe controller not initialised" >&2; ok3=0; }
+    grep -q "kind=4" "$NVME_LOG" || { echo "ERROR: disk backend is not NVMe" >&2; ok3=0; }
+    grep -q "DISK RW OK" "$NVME_LOG" || { echo "ERROR: NVMe disk write test failed" >&2; ok3=0; }
+    grep -q "FS OK" "$NVME_LOG" || { echo "ERROR: KengaFS failed on NVMe disk" >&2; ok3=0; }
+    grep -q "FS TEST OK" "$NVME_LOG" || { echo "ERROR: KengaFS selftest failed on NVMe disk" >&2; ok3=0; }
+    if [[ $ok3 == 1 ]]; then
+        echo "OK: kernel booted with NVMe disk + KengaFS"
     else
         exit 1
     fi
