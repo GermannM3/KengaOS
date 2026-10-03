@@ -48,6 +48,10 @@ def collect(root):
     hello = os.path.join(root, "build", "user", "hello.elf")
     if os.path.isfile(hello):
         entries["user-hello.elf"] = open(hello, "rb").read()
+    # Kenga-приложение, скомпилированное в ring-3 ELF (scripts/build-user.sh)
+    kenga_app = os.path.join(root, "build", "user", "kenga-app.elf")
+    if os.path.isfile(kenga_app):
+        entries["user-kenga.elf"] = open(kenga_app, "rb").read()
     entries["pkg-agents.kpkg"] = NL.join([
         "name=Агенты", "version=1.1.0",
         "desc=Панель IPC-агентов системы", "entry=agents", ""]).encode()

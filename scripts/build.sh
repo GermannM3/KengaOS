@@ -271,6 +271,9 @@ if [[ -f "$BUILD_DIR/kf_ahci.o" ]]; then OBJS+=("$BUILD_DIR/kf_ahci.o"); fi
 $LD -n -nostdlib -T "$KERNEL_DIR/linker.ld" "${OBJS[@]}" -o "$BUILD_DIR/kengaos.elf"
 ls -la "$BUILD_DIR/kengaos.elf"
 
+log "5b/7" "Building Kenga user-mode app (ring 3 ELF, scripts/build-user.sh)"
+bash "$ROOT/scripts/build-user.sh"
+
 # ---------------------------------------------------------------------------
 # Limine binaries (auto-download on first use)
 # ---------------------------------------------------------------------------
@@ -380,6 +383,7 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "FS OK" "$UART_LOG" || { echo "ERROR: KengaFS marker missing (disk filesystem)" >&2; ok=0; }
     grep -q "FS TEST OK" "$UART_LOG" || { echo "ERROR: KengaFS selftest failed (write/read/rm)" >&2; ok=0; }
     grep -q "USERAPP OK" "$UART_LOG" || { echo "ERROR: ring-3 app from KengaFS did not run" >&2; ok=0; }
+    grep -q "kenga-app: ring3 OK" "$UART_LOG" || { echo "ERROR: Kenga-compiled ring-3 app produced no output" >&2; ok=0; }
     grep -q "MEM READY" "$UART_LOG" || { echo "ERROR: MEM READY marker missing" >&2; ok=0; }
     grep -Eq "initrd files=[1-9][0-9]*" "$UART_LOG" || { echo "ERROR: initrd/VFS marker missing" >&2; ok=0; }
     # ponytail: agent/model IPC round-trip pending the kenga-lang ABI migration
@@ -427,6 +431,7 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "FS OK" "$AHCI_LOG" || { echo "ERROR: KengaFS failed on AHCI disk" >&2; ok2=0; }
     grep -q "FS TEST OK" "$AHCI_LOG" || { echo "ERROR: KengaFS selftest failed on AHCI disk" >&2; ok2=0; }
     grep -q "USERAPP OK" "$AHCI_LOG" || { echo "ERROR: ring-3 app from KengaFS failed on AHCI disk" >&2; ok2=0; }
+    grep -q "kenga-app: ring3 OK" "$AHCI_LOG" || { echo "ERROR: Kenga-compiled ring-3 app failed on AHCI disk" >&2; ok2=0; }
     if [[ $ok2 == 1 ]]; then
         echo "OK: kernel booted on q35 — AHCI/SATA disk + KengaFS"
     else

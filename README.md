@@ -130,6 +130,12 @@ input-бара `write /demo/note.txt hello`): файл реально лёг н�
 
 ![KengaOS ring-3 приложение с диска](docs/shots/desktop-ring3app.png)
 
+Приложение написано **на Kenga** и скомпилировано в ring-3 ELF: команда
+`run /apps/kenga.elf` запускает его из KengaFS. На UART при этом видны
+строки самой программы (`kenga-app: 6*7 = 42`, `fib(12) = 144`):
+
+![KengaOS Kenga-приложение в ring 3](docs/shots/desktop-kenga-app.png)
+
 ### Визуальное направление
 
 Десктоп закреплён в стиле Aurora / glassmorphism: глубокий космический фон,
@@ -177,7 +183,8 @@ Standalone HTML-preview дизайн-системы находится в
 | **Agent chat** | есть | Клавиатурный ввод в input-бар → IPC агенту → ответ в собственном окне агента |
 | **Живой лог** | есть | Панель событий агентов (IPC-трафик) над input-баром |
 | **Магазин .kpkg** | есть | Пакеты в initrd, реестр, установка из input-бара, CI-тест |
-| **Ring 3 приложения** | есть | Пользовательские ELF (user-страницы, GDT/TSS, `int 0x80` write/exit). Приложение лежит **на диске**: ядро копирует ELF в KengaFS (`/apps/hello.elf`), читает его обратно и запускает в ring 3 — и при загрузке, и командой `run <path>` из input-бара десктопа (`user_exec_blob` + `user_run`) |
+| **Ring 3 приложения** | есть | Пользовательские ELF (user-страницы, GDT/TSS, `int 0x80` write/exit). Приложение лежит **на диске**: ядро копирует ELF в KengaFS (`/apps/kenga.elf`), читает обратно и запускает в ring 3 — при загрузке и командой `run <path>` из input-бара (`user_exec_blob` + `user_run`) |
+| **Kenga-приложение (ring 3)** | есть | `user/kenga_app.kenga` — исходник **на Kenga** (`println`, рекурсия `fib`) → `emit-c --freestanding` → патч `println` в `int 0x80 write` (`scripts/patch-kenga-user.py`) → clang/ld.lld → ELF 3.5 КиБ → KengaFS `/apps/kenga.elf` → ring 3. CI проверяет **вывод самой программы** (`kenga-app: ring3 OK`, `fib(12) = 144`) |
 | **xHCI USB** | QEMU | Тач-планшет на x86_64 и aarch64; на живом железе не проверен |
 | **Prophet (v1)** | есть | Пророки: в ядре — kf_prophet.c; в оболочках — ассистенты, обучающиеся на ходу («учи: вопрос => ответ»), предсказание следующего приложения (цепь Маркова), surprise. Всё локально |
 | **aarch64** | есть | То же ядро без изменений на ARM64 (QEMU virt, CI-гейт) |
@@ -257,8 +264,9 @@ KengaOS/
 │   ├── kf_blk.c            # Блочный FFI-мост для KengaFS
 │   ├── intr.c / isr.S      # GDT + IDT + обработчики
 │   └── linker.ld           # Скрипт компоновщика (x86_64)
+├── user/                   # Ring-3 программы: kenga_app.kenga (Kenga→ELF), kenga_user_rt.c
 ├── src/                    # Оболочки (прототипы): десктоп + мобилка, темы
-├── scripts/                # build.sh (ISO), build-a64.sh, run-a64.sh, mkbootimg.py
+├── scripts/                # build.sh (ISO), build-a64.sh, build-user.sh (Kenga→ring-3 ELF), run-a64.sh, mkbootimg.py
 ├── docs/                   # Документация: статус, железо, порты
 ├── .github/workflows/      # CI (3 джобы) + release
 └── kenga-lang/             # Компилятор Kenga (submodule)

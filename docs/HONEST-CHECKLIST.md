@@ -48,12 +48,16 @@
   или уже содержащий KengaFS — чужие диски не трогаются. Персистентность
   проверяется двумя QEMU-ботами на одном образе: `fs:boot=1` →
   `fs:boot=2` (`scripts/test-fs-persistence.sh`).
-- **Ring 3 + приложение на диске**: ядро запускает пользовательские ELF
-  (user-страницы, GDT/TSS, `int 0x80` write/exit). Полный путь приложения:
-  initrd → **KengaFS `/apps/hello.elf`** → чтение с диска → `elf_load` →
-  ring 3, с возвратом по `sys_exit`. Работает и на загрузке (гейт
-  `USERAPP OK`), и из десктопа командой `run /apps/hello.elf`
-  (`user_exec_blob` + `user_run`), т.е. программа живёт на диске, а не в ядре.
+- **Kenga-приложение в ring 3**: `user/kenga_app.kenga` — исходник на
+  **Kenga** (`println`, рекурсивный `fib`) — собирается
+  `scripts/build-user.sh`: `emit-c --freestanding` → патч заглушек `println`
+  в `int 0x80 write` (`scripts/patch-kenga-user.py`) → clang/`ld.lld` → ELF
+  (~3.5 КиБ) → initrd → **KengaFS `/apps/kenga.elf`** → `elf_load` → ring 3,
+  возврат по `sys_exit`. Работает на загрузке (гейт `USERAPP OK`) и из
+  десктопа командой `run /apps/kenga.elf`. CI проверяет **вывод самой
+  программы**: `kenga-app: ring3 OK`, `kenga-app: fib(12) = 144`.
+  Попутно найден и исправлен баг `elf_load`: игнорировался `filesz`, и в
+  `.bss` уезжал хвост файла (аллокатор Kenga-рантайма сразу получал OOM).
 - **xHCI USB**: работает в QEMU на обеих архитектурах (тач-планшет,
   ECAM-скан, слоты, CONFIG_EP); на живом железе не проверен.
 - **Две архитектуры одним исходником**: x86_64 ISO + aarch64 (QEMU, CI).
@@ -103,7 +107,7 @@
 
 | Область | Реальность | Что нужно |
 |---|---|---|
-| **Kenga-программы пользователей** | Ring 3 умеет брать ELF **с диска** (KengaFS `/apps`, команда `run`), но сама программа пока написана на C; `.kpkg` v1 — манифесты | Kenga→ELF user-runtime: `emit-c --freestanding` + syscall-шим (`write`/`exit`) → `.kpkg` v2 с бинарём |
+| **Kenga-программы пользователей** | ✅ исходник **на Kenga** компилируется в ring-3 ELF и запускается с диска. Осталось: syscall-поверхность (пока только `write`/`exit`), упаковка `.kpkg` v2 и установка из магазина | `.kpkg` v2 (бином внутрь пакета), больше syscalls (`open`/`read`/`mmap`), вытеснение |
 | **Многозадачность user-mode** | Ring 3 v1 = один foreground-процесс; на aarch64 тредов нет (агенты cooperative) | aarch64 context switch, вытесняющий планировщик |
 | **USB мышь/клавиатура на реальном железе** | xHCI работает в QEMU (обе арх); на ноутбуке не проверен | Тест на живом ноутбуке |
 | **Диск: запись** | ✅ три пути: x86 — **ATA PIO** (`-M pc`) и **AHCI/SATA** (`-M q35`, `kf_ahci.c`: command list + FIS + PRDT, DMA, поллинг), aarch64 — virtio-blk. Гейты `AHCI READY`, `DISK RW OK` на обеих машинах | NVMe |

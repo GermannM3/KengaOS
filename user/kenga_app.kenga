@@ -1,0 +1,22 @@
+/* kenga_app.kenga — пользовательское приложение KengaOS, НАПИСАННОЕ НА KENGA
+ * и работающее в ring 3.
+ *
+ * Сборка: scripts/build-user.sh
+ *   kenga emit-c --freestanding user/kenga_app.kenga -> C
+ *   patch syscall-заглушек (println -> int 0x80 write)
+ *   clang --target=x86_64-elf -> ELF -> /apps/kenga.elf в KengaFS
+ *
+ * Никакой libc: только syscall write (println) и sys_exit. */
+
+fn fib(n: i64) -> i64 {
+    if n < 2 { return n; }
+    return fib(n - 1) + fib(n - 2);
+}
+
+fn main() -> i64 {
+    println("kenga-app: ring3 OK");
+    let x: i64 = 6 * 7;
+    println("kenga-app: 6*7 = " + x);
+    println("kenga-app: fib(12) = " + fib(12));
+    return 0;
+}

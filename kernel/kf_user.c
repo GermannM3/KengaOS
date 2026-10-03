@@ -173,8 +173,14 @@ static int elf_load(uint64_t pml4_phys, const uint8_t* data, uint64_t size, uint
             uint64_t foff = ph.offset + (page - va);
             uint64_t inoff = page == va ? (ph.vaddr & 0xFFFull) : 0;
             uint64_t cp = PAGE_SIZE - inoff;
-            if (foff < size) {
+            /* Копируем ТОЛЬКО файловую часть сегмента (filesz); всё от filesz
+               до memsz — это .bss и обязано остаться нулями. Без этой проверки
+               в BSS уезжал «хвост» файла: у Kenga-приложения мусор попадал в
+               переменную аллокатора, и первый же kf_alloc давал OOM. */
+            uint64_t seg_file_end = ph.offset + ph.filesz;
+            if (foff < size && foff < seg_file_end) {
                 if (foff + cp > size) cp = size - foff;
+                if (foff + cp > seg_file_end) cp = seg_file_end - foff;
                 if (inoff + cp > PAGE_SIZE) cp = PAGE_SIZE - inoff;
                 for (uint64_t b = 0; b < cp; b++) kv[inoff + b] = data[foff + b];
             }

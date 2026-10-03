@@ -250,18 +250,18 @@ fn fs_boot_gate() -> i64 {
    -> чтение обратно с диска -> elf_load -> пользовательский режим.
    Это и есть «приложение лежит на диске и запускается», а не вшито в ядро. */
 fn user_app_from_disk(fs: FsState) -> i64 {
-    let n: i64 = vfs_cat64("user-hello.elf", fs.dat, 4096);
+    let n: i64 = vfs_cat64("user-kenga.elf", fs.dat, 4096);
     if n <= 0 { kp_msg("KengaOS", "USERAPP NOELF"); return 0; }
-    if fs_write_blob(fs, "/apps/hello.elf", fs.dat, n) < 0 {
+    if fs_write_blob(fs, "/apps/kenga.elf", fs.dat, n) < 0 {
         kp_msg("KengaOS", "USERAPP WRITEFAIL");
         return 0;
     }
-    let sz: i64 = fs_read(fs, "/apps/hello.elf", fs.dat, 4096);
+    let sz: i64 = fs_read(fs, "/apps/kenga.elf", fs.dat, 4096);
     if sz <= 0 { kp_msg("KengaOS", "USERAPP READFAIL"); return 0; }
     uart_puts("userapp: elf="); kf_puti(sz); uart_puts(" bytes\n");
     let e: i64 = user_exec_blob(fs.dat, sz);
     if e <= 0 { kp_msg("KengaOS", "USERAPP BADELF"); return 0; }
-    uart_puts("userapp: exec from KengaFS (/apps/hello.elf)\n");
+    uart_puts("userapp: exec from KengaFS (/apps/kenga.elf)\n");
     user_run(e);
     kp_msg("KengaOS", "USERAPP OK");
     return 1;
