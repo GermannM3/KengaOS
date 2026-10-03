@@ -131,10 +131,16 @@ input-бара `write /demo/note.txt hello`): файл реально лёг н�
 ![KengaOS ring-3 приложение с диска](docs/shots/desktop-ring3app.png)
 
 Приложение написано **на Kenga** и скомпилировано в ring-3 ELF: команда
-`run /apps/kenga.elf` запускает его из KengaFS. На UART при этом видны
+`run /apps/kenga-app.elf` запускает его из KengaFS. На UART при этом видны
 строки самой программы (`kenga-app: 6*7 = 42`, `fib(12) = 144`):
 
 ![KengaOS Kenga-приложение в ring 3](docs/shots/desktop-kenga-app.png)
+
+Установка из магазина — тоже команда в input-баре: `install kenga-app.kpkg`
+читает `.kpkg` v2, достаёт бинарный payload и кладёт его в KengaFS `/apps`
+(запись в живом логе — от самой Kenga-логики, не от C):
+
+![KengaOS установка .kpkg v2](docs/shots/desktop-store-install.png)
 
 ### Визуальное направление
 
@@ -182,9 +188,9 @@ Standalone HTML-preview дизайн-системы находится в
 | **Окна (CAP_UI)** | есть | Агенты с `CAP_UI` могут создавать окна через IPC (`ui <title>|<text>`); основной Command Center не создаёт legacy floating windows |
 | **Agent chat** | есть | Клавиатурный ввод в input-бар → IPC агенту → ответ в собственном окне агента |
 | **Живой лог** | есть | Панель событий агентов (IPC-трафик) над input-баром |
-| **Магазин .kpkg** | есть | Пакеты в initrd, реестр, установка из input-бара, CI-тест |
-| **Ring 3 приложения** | есть | Пользовательские ELF (user-страницы, GDT/TSS, `int 0x80` write/exit). Приложение лежит **на диске**: ядро копирует ELF в KengaFS (`/apps/kenga.elf`), читает обратно и запускает в ring 3 — при загрузке и командой `run <path>` из input-бара (`user_exec_blob` + `user_run`) |
-| **Kenga-приложение (ring 3)** | есть | `user/kenga_app.kenga` — исходник **на Kenga** (`println`, рекурсия `fib`) → `emit-c --freestanding` → патч `println` в `int 0x80 write` (`scripts/patch-kenga-user.py`) → clang/ld.lld (strip) → ELF 3.5 КиБ → KengaFS `/apps/kenga.elf` → ring 3. Читает файлы: `sys_cat` (syscall 16) возвращает содержимое файла KengaFS в буфер приложения — C-обработчик зовёт Kenga-функцию `fs_syscall`, состояние ФС идёт аргументами. CI проверяет вывод программы (`ring3 OK`, `fib(12) = 144`, прочитанный `KengaOS boot #`) |
+| **Магазин .kpkg** | есть, v2 | v1 — текстовые манифесты в initrd; **v2 = манифест + бинарный payload** (`kenga-app.kpkg`). Установка целиком на Kenga: пакет читается из initrd, payload пишется в KengaFS `/apps/<имя>.elf`. Из input-бара: `install kenga-app.kpkg` (формы без точки, `install a`, по-прежнему идут в старый C-реестр) |
+| **Ring 3 приложения** | есть | Пользовательские ELF (user-страницы, GDT/TSS, `int 0x80` write/exit). Приложение лежит **на диске**: ядро ставит ELF в KengaFS (`/apps/kenga-app.elf`), читает обратно и запускает в ring 3 — при загрузке и командой `run <path>` из input-бара (`user_exec_blob` + `user_run`) |
+| **Kenga-приложение (ring 3)** | есть | `user/kenga_app.kenga` — исходник **на Kenga** (`println`, рекурсия `fib`) → `emit-c --freestanding` → патч `println` в `int 0x80 write` (`scripts/patch-kenga-user.py`) → clang/ld.lld (strip) → ELF 3.5 КиБ → **упакован в `.kpkg` v2** → установлен в KengaFS `/apps/kenga-app.elf` → ring 3. Читает файлы: `sys_cat` (syscall 16) возвращает содержимое файла KengaFS в буфер приложения — C-обработчик зовёт Kenga-функцию `fs_syscall`, состояние ФС идёт аргументами. CI проверяет вывод программы (`ring3 OK`, `fib(12) = 144`, прочитанный `KengaOS boot #`) |
 | **xHCI USB** | QEMU | Тач-планшет на x86_64 и aarch64; на живом железе не проверен |
 | **Prophet (v1)** | есть | Пророки: в ядре — kf_prophet.c; в оболочках — ассистенты, обучающиеся на ходу («учи: вопрос => ответ»), предсказание следующего приложения (цепь Маркова), surprise. Всё локально |
 | **aarch64** | есть | То же ядро без изменений на ARM64 (QEMU virt, CI-гейт) |
@@ -212,7 +218,7 @@ Standalone HTML-preview дизайн-системы находится в
 
 - **Десктоп до ежедневной пригодности**: xHCI на живом железе →
   NVMe (запись; **AHCI/SATA уже есть**) → ACPI → Wi-Fi.
-- **Kenga-приложения в магазине**: `.kpkg` v2 = Kenga-исходник → ELF в ring 3.
+- **Магазин, установка из сети**: `.kpkg` v2 (манифест + ELF) и установка из input-бара уже есть; дальше — скачивание пакета, зависимости, подпись.
 - **Телефон**: беспроводной adb → mtkclient (POCO M4 Pro, MediaTek) →
   `fastboot boot kengaos-phone.img` из RAM (без сноса) → чек-лист
   дисплей/тач/Wi-Fi/BT/модем → только потом установка.

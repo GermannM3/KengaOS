@@ -51,7 +51,17 @@ def collect(root):
     # Kenga-приложение, скомпилированное в ring-3 ELF (scripts/build-user.sh)
     kenga_app = os.path.join(root, "build", "user", "kenga-app.elf")
     if os.path.isfile(kenga_app):
-        entries["user-kenga.elf"] = open(kenga_app, "rb").read()
+        app = open(kenga_app, "rb").read()
+        entries["user-kenga.elf"] = app
+        # .kpkg v2: текстовый манифест + пустая строка + бинарный payload.
+        # Ядро (Kenga) читает пакет, находит payload и ставит его в /apps.
+        manifest = ("KPKG2\n"
+                    "name=Kenga App\n"
+                    "version=1.0.0\n"
+                    "desc=Kenga-приложение: ring 3, чтение файлов KengaFS\n"
+                    "entry=kenga-app\n"
+                    "\n")
+        entries["kenga-app.kpkg"] = manifest.encode() + app
     entries["pkg-agents.kpkg"] = NL.join([
         "name=Агенты", "version=1.1.0",
         "desc=Панель IPC-агентов системы", "entry=agents", ""]).encode()

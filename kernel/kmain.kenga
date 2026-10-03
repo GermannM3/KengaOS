@@ -262,24 +262,63 @@ fn fs_syscall(ino: i64, bmp: i64, io: i64, dat: i64, rw: i64, ok: i64, num: i64,
     return -1;
 }
 
+/* --- Магазин .kpkg v2 -----------------------------------------------------
+   Формат пакета: "KPKG2\n", строки манифеста, ПУСТАЯ строка, затем бинарный
+   payload (ring-3 ELF). Установка = прочитать пакет из initrd, найти payload
+   и записать его в KengaFS. Вся логика — на Kenga, ядро C не участвует. */
+fn pkg_sig_ok(buf: i64) -> i64 {
+    let sig: str = "KPKG2";
+    let i: i64 = 0;
+    while i < 5 {
+        if mmio_read8(buf + i) != ord(sig[i]) { return 0; }
+        i = i + 1;
+    }
+    return 1;
+}
+
+/* конец манифеста = первая пустая строка ("\n\n"), payload начинается за ней */
+fn pkg_payload_off(buf: i64, size: i64) -> i64 {
+    let i: i64 = 0;
+    while i + 1 < size {
+        if mmio_read8(buf + i) == 10 && mmio_read8(buf + i + 1) == 10 { return i + 2; }
+        i = i + 1;
+    }
+    return -1;
+}
+
+/* pkg — имя .kpkg в репозитории (initrd), dest — путь в KengaFS.
+   Возвращает размер установленного бинаря или < 0. */
+fn store_install(fs: FsState, pkg: str, dest: str) -> i64 {
+    let size: i64 = vfs_cat64(pkg, fs.dat, 4096);
+    if size <= 0 { return -1; }
+    if size >= 4095 { return -5; }             /* пакет обрезан буфером */
+    if pkg_sig_ok(fs.dat) != 1 { return -2; }
+    let off: i64 = pkg_payload_off(fs.dat, size);
+    if off < 0 { return -3; }
+    let blob: i64 = size - off;
+    if blob <= 0 { return -4; }
+    if blob >= 4096 { return -6; }
+    return fs_write_blob(fs, dest, fs.dat + off, blob);
+}
+
 /* --- Ring 3 приложение с диска -------------------------------------------
    Полный путь приложения: initrd (user-hello.elf) -> KengaFS (/apps/hello.elf)
    -> чтение обратно с диска -> elf_load -> пользовательский режим.
    Это и есть «приложение лежит на диске и запускается», а не вшито в ядро. */
 fn user_app_from_disk(fs: FsState) -> i64 {
-    let n: i64 = vfs_cat64("user-kenga.elf", fs.dat, 4096);
+    /* ставим приложение ИЗ ПАКЕТА магазина (initrd -> /apps на диске) */
+    let n: i64 = store_install(fs, "kenga-app.kpkg", "/apps/kenga-app.elf");
     if n <= 0 { kp_msg("KengaOS", "USERAPP NOELF"); return 0; }
-    if n >= 4096 { kp_msg("KengaOS", "USERAPP TOOBIG"); return 0; }
-    if fs_write_blob(fs, "/apps/kenga.elf", fs.dat, n) < 0 {
-        kp_msg("KengaOS", "USERAPP WRITEFAIL");
-        return 0;
-    }
-    let sz: i64 = fs_read(fs, "/apps/kenga.elf", fs.dat, 4096);
+    uart_puts("store: installed kenga-app.kpkg -> /apps/kenga-app.elf ");
+    kf_puti(n);
+    uart_puts(" bytes\n");
+    kp_msg("KengaOS", "STORE INSTALL OK");
+    let sz: i64 = fs_read(fs, "/apps/kenga-app.elf", fs.dat, 4096);
     if sz <= 0 { kp_msg("KengaOS", "USERAPP READFAIL"); return 0; }
     uart_puts("userapp: elf="); kf_puti(sz); uart_puts(" bytes\n");
     let e: i64 = user_exec_blob(fs.dat, sz);
     if e <= 0 { kp_msg("KengaOS", "USERAPP BADELF"); return 0; }
-    uart_puts("userapp: exec from KengaFS (/apps/kenga.elf)\n");
+    uart_puts("userapp: exec from KengaFS (/apps/kenga-app.elf)\n");
     user_run(e);
     kp_msg("KengaOS", "USERAPP OK");
     return 1;

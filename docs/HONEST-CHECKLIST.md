@@ -25,7 +25,12 @@
   «AGENT SPACE».
 - **Модель-агент ONLINE**: настоящий MLP 2-2-1 в ядре, обучен на XOR,
   инференс через IPC с проверкой прав (`CAP_MODEL_INFER`).
-- **Магазин**: 5 пакетов `.kpkg`, установка из input-бара, тест в CI.
+- **Магазин**: 6 пакетов `.kpkg` в initrd, установка из input-бара. **v2**
+  (`kenga-app.kpkg`) = текстовый манифест + пустая строка + бинарный
+  payload; установка целиком на Kenga: пакет читается из initrd, payload
+  пишется в KengaFS `/apps/kenga-app.elf` (`install kenga-app.kpkg`),
+  старая форма `install a` по-прежнему идёт в C-реестр. Гейт CI
+  `STORE INSTALL OK`.
 - **Prophet как системный сервис** (v1): `kernel/kf_prophet.c` — память
   эпизодов + ядро паттернов, surprise (RMSE), k-NN foresee; тикает из
   десктопа (`kd_prophet_tick`), прогноз виден в SYSTEM HEALTH.
@@ -107,7 +112,7 @@
 
 | Область | Реальность | Что нужно |
 |---|---|---|
-| **Kenga-программы пользователей** | ✅ исходник **на Kenga** компилируется в ring-3 ELF, запускается с диска и **читает файлы KengaFS** (`sys_cat`, syscall 16: C-обработчик `int 0x80` зовёт Kenga-функцию `fs_syscall`). Осталось: упаковка `.kpkg` v2 и установка из магазина | `.kpkg` v2 (бином внутрь пакета), больше syscalls (`open`/`write`/`mmap`), вытеснение |
+| **Kenga-программы пользователей** | ✅ исходник **на Kenga** → ring-3 ELF, **упакован в `.kpkg` v2** и ставится из магазина в KengaFS `/apps`, запускается с диска и **читает файлы KengaFS** (`sys_cat`) | больше syscalls (`open`/`write`/`mmap`), запись файлов из приложения, вытеснение |
 | **Многозадачность user-mode** | Ring 3 v1 = один foreground-процесс; на aarch64 тредов нет (агенты cooperative) | aarch64 context switch, вытесняющий планировщик |
 | **USB мышь/клавиатура на реальном железе** | xHCI работает в QEMU (обе арх); на ноутбуке не проверен | Тест на живом ноутбуке |
 | **Диск: запись** | ✅ три пути: x86 — **ATA PIO** (`-M pc`) и **AHCI/SATA** (`-M q35`, `kf_ahci.c`: command list + FIS + PRDT, DMA, поллинг), aarch64 — virtio-blk. Гейты `AHCI READY`, `DISK RW OK` на обеих машинах | NVMe |
@@ -125,9 +130,10 @@
    `kf_prophet.c` (v1) тикает из десктопа, прогноз и surprise видны в UI.
    Дальше: глубже память (`.km`-файлы в ядре), предсказание на системных
    событиях (IPC/файлы), не только мышь.
-2. **Kenga-приложения в магазине**: `.kpkg` v2 = Kenga-исходник →
-   `emit-c --freestanding` → gcc → ELF в ring 3. Цикл сборки уже есть,
-   не хватает packaging-конвейера и syscall-обвязки для Kenga-рантайма.
+2. ~~**Kenga-приложения в магазине**~~ — **сделано**: Kenga-исходник →
+   `emit-c --freestanding` → ring-3 ELF → `.kpkg` v2 → установка в KengaFS
+   → запуск (`STORE INSTALL OK` + вывод самой программы в CI). Дальше:
+   скачивание пакетов, зависимости, больше syscalls.
 3. **Ежедневная пригодность ноутбука**: xHCI на живом железе →
    ~~AHCI~~ (сделано: `kf_ahci.c`, гейт `AHCI READY` на `-M q35`) → NVMe → ACPI → Wi-Fi.
 4. **Телефон**: adb (беспроводное сопряжение) → mtkclient →

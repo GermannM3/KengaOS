@@ -808,6 +808,25 @@ fn fs_cmd(fs: FsState, line: str) -> i64 {
         if r >= 0 { ui_log("write ok " + p + " " + r + "B"); } else { ui_log("write fail"); }
         return 1;
     }
+    /* install <file>.kpkg — магазин v2: бинарь из пакета -> /apps/<имя>.elf.
+       Формы без точки ("install a") отдаём старому C-магазину (реестр). */
+    if n > 8 && ord(line[0]) == 105 && ord(line[1]) == 110 && ord(line[2]) == 115 && ord(line[3]) == 116 && ord(line[4]) == 97 && ord(line[5]) == 108 && ord(line[6]) == 108 && ord(line[7]) == 32 {
+        let dot: i64 = 0;
+        let i: i64 = 8;
+        while i < n {
+            if ord(line[i]) == 46 { dot = 1; }
+            i = i + 1;
+        }
+        if dot == 1 {
+            let p: str = fs_sub(line, 8, n - 8);
+            let base: str = fs_sub(p, 0, len(p) - 5);   /* без ".kpkg" */
+            let dest: str = "/apps/" + base + ".elf";
+            let r: i64 = store_install(fs, p, dest);
+            if r > 0 { ui_log("installed " + p + " -> " + dest); }
+            else { ui_log("install failed: " + p); }
+            return 1;
+        }
+    }
     /* run <path> — пользовательский ELF с диска в ring 3.
        Ядро уходит в user-mode и возвращается по sys_exit; вывод программы
        идёт в UART, десктоп логирует запуск и возврат. */
