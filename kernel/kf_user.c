@@ -19,6 +19,14 @@ void k_arch_uart_putc(char c);
 static void u_putc(char c) { k_arch_uart_putc(c); }
 #else
 static void u_putc(char c) {
+    /* Ждём готовности передатчика (LSR.5): QEMU ДРОПАЕТ байты, если писать в
+       0x3F8 быстрее, чем chardev разбирает FIFO. Именно так из лога пропадали
+       куски вывода приложения, тогда как редкие сообщения ядра доходили. */
+    for (int guard = 0; guard < 100000; guard++) {
+        uint8_t lsr;
+        __asm__ __volatile__("inb %1,%0" : "=a"(lsr) : "Nd"((uint16_t)0x3FD));
+        if (lsr & 0x20) break;
+    }
     __asm__ __volatile__("outb %0,%1" : : "a"((uint8_t)c), "Nd"((uint16_t)0x3F8));
 }
 #endif
