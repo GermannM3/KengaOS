@@ -39,12 +39,20 @@ fn main() -> i64 {
     }
 
     /* пишем свой файл на диск (syscall 17) */
-    let msg: str = "kenga-app was here: pid=" + pid;
-    sys_save("/apps/state.txt", msg, len(msg));
+    /* Длина задаётся явно: len() на строке, собранной конкатенацией В РАНТАЙМЕ,
+       возвращает 0 (найдено в 14-м круге: литерал сохраняется, а собранная
+       строка — нет). Литерал с фиксированной длиной работает. */
+    sys_save("/apps/state.txt", "kenga-app was here", 18);
     println("kenga-app: saved /apps/state.txt");
 
-    /* syscalls 18 (mkdir) и 19 (rm) ядро принимает; fs_mkdir сейчас портит
-       KengaFS (после него файл уже не читается) — зовём только когда починим,
-       см. docs/HONEST-CHECKLIST.md. */
+    /* приложение само управляет ФС: каталог + файл внутри него
+       (syscalls 18 и 17). Раньше казалось, что mkdir портит KengaFS, — на
+       деле ядро не восстанавливало регистры, и sys_save получал мусор. */
+    let d: i64 = sys_mkdir("/apps/demo");
+    println("kenga-app: mkdir /apps/demo");
+    if d >= 0 {
+        sys_save("/apps/demo/hello.txt", "hi from kenga-app", 17);
+        println("kenga-app: wrote /apps/demo/hello.txt");
+    }
     return 0;
 }

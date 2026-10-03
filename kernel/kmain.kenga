@@ -363,6 +363,15 @@ fn user_app_from_disk(fs: FsState) -> i64 {
     } else {
         uart_puts("kenga-app wrote: (nothing)\n");
     }
+    /* файл, который приложение создало в СВОЁМ каталоге */
+    let rd: i64 = fs_read(fs, "/apps/demo/hello.txt", fs.dat, 256);
+    if rd > 0 {
+        uart_puts("kenga-app dir: ");
+        uart_puts(kf_str(fs.dat));
+        uart_putc(10);
+    } else {
+        uart_puts("kenga-app dir: (nothing)\n");
+    }
     return 1;
 }
 
