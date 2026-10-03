@@ -5,6 +5,7 @@
 .code64
 
 .global user_jump
+.global user_enter
 .global isr_syscall
 .global k_user_exit_return
 
@@ -12,6 +13,7 @@
 .extern k_user_is_done
 .extern k_save_rsp
 .extern k_save_ret
+.extern k_resume_frame
 
 /* int64_t user_jump(u64 entry, u64 user_rsp, u64 pml4)
    rdi=entry, rsi=user_rsp, rdx=pml4.
@@ -58,6 +60,29 @@ k_user_exit_return:
     pop rbx
     ret
 
+/* void user_enter(uint64_t frame_rsp (rdi), uint64_t pml4 (rsi))
+   Вход в ring 3 через ГОТОВЫЙ кадр процесса (тот же формат, что у isr_syscall):
+   15 GPR + vector + dummy + rip/cs/rflags/rsp/ss. Сохраняет kernel-контекст
+   (k_save_rsp/k_save_ret) — туда вернёмся, когда завершится ПОСЛЕДНИЙ процесс. */
+user_enter:
+    push rbx
+    push rbp
+    push r12
+    push r13
+    push r14
+    push r15
+    mov rax, offset k_user_exit_return
+    mov [rip + k_save_ret], rax
+    mov [rip + k_save_rsp], rsp
+    mov cr3, rsi
+    mov ax, 0x23
+    mov ds, ax
+    mov es, ax
+    mov rsp, rdi
+    mov rax, [rsp]
+    add rsp, 17*8
+    iretq
+
 /* int 0x80 стаб: фрейм как у isr_N (dummy-error, vector) + GPR. */
 isr_syscall:
     push 0
@@ -83,7 +108,9 @@ isr_syscall:
     call k_user_is_done
     test eax, eax
     jnz .exit_path
-    /* вернуть rax пользователю */
+    /* Планировщик мог выбрать ДРУГОЙ процесс: k_resume_frame указывает на его
+       кадр (для обычного syscall это наш же кадр). */
+    mov rsp, [rip + k_resume_frame]
     mov rax, [rsp]        /* rax из фрейма (обновлён обработчиком) */
     add rsp, 17*8         /* 15 GPR + dummy + vector */
     iretq

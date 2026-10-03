@@ -67,6 +67,19 @@ int64_t k_sys_save(const char* path, const char* data, int64_t len) {
     return r;
 }
 
+/* --- многозадачность: добровольно уступить CPU и узнать свой pid --- */
+int64_t k_sys_yield(void) {
+    long r;
+    __asm__ __volatile__("int $0x80" : "=a"(r) : "a"(3L));
+    return r;
+}
+
+int64_t k_sys_getpid(void) {
+    long r;
+    __asm__ __volatile__("int $0x80" : "=a"(r) : "a"(4L));
+    return r;
+}
+
 /* --- буфер приложения для принимаемых данных + приведение адреса к str --- */
 static char g_ubuf[4096];
 

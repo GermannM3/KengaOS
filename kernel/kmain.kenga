@@ -28,10 +28,17 @@ import "../kenga-desktop/src/platform/kernel_bridge.kenga";
 /* user-mode: ELF из произвольного буфера + запуск (ring 3) */
 @intrinsic fn user_exec_blob(addr: i64, size: i64) -> i64;
 @intrinsic fn user_run(entry: i64) -> i64;
+/* многозадачность: процессы ring 3 и кооперативный планировщик */
+@intrinsic fn user_spawn_blob(addr: i64, size: i64) -> i64;
+@intrinsic fn user_spawn_vfs(name: str) -> i64;
+@intrinsic fn user_sched_run() -> i64;
 /* отдать C-мосту состояние KengaFS, чтобы ring-3 syscalls дошли до ФС */
 @intrinsic fn user_set_fs(ino: i64, bmp: i64, io: i64, dat: i64, rw: i64, ok: i64) -> i64;
 /* k_vfs_cat с i64-адресом приёмника (kf_blk.c) */
 @intrinsic fn vfs_cat64(name: str, out: i64, max: i64) -> i64;
+/* 8 КиБ буфер ядра: пакеты .kpkg и ring-3 ELF не влезают в 4 КиБ кадр */
+@intrinsic fn xbuf() -> i64;
+@intrinsic fn xbuf_size() -> i64;
 @intrinsic fn fdt_boot_test() -> i64;
 @intrinsic fn timer_init() -> i64;
 @intrinsic fn disk_init() -> i64;
@@ -296,16 +303,18 @@ fn pkg_payload_off(buf: i64, size: i64) -> i64 {
 /* pkg — имя .kpkg в репозитории (initrd), dest — путь в KengaFS.
    Возвращает размер установленного бинаря или < 0. */
 fn store_install(fs: FsState, pkg: str, dest: str) -> i64 {
-    let size: i64 = vfs_cat64(pkg, fs.dat, 4096);
+    let buf: i64 = xbuf();
+    let cap: i64 = xbuf_size();
+    let size: i64 = vfs_cat64(pkg, buf, cap);
     if size <= 0 { return -1; }
-    if size >= 4095 { return -5; }             /* пакет обрезан буфером */
-    if pkg_sig_ok(fs.dat) != 1 { return -2; }
-    let off: i64 = pkg_payload_off(fs.dat, size);
+    if size >= cap - 1 { return -5; }          /* пакет обрезан буфером */
+    if pkg_sig_ok(buf) != 1 { return -2; }
+    let off: i64 = pkg_payload_off(buf, size);
     if off < 0 { return -3; }
     let blob: i64 = size - off;
     if blob <= 0 { return -4; }
-    if blob >= 4096 { return -6; }
-    return fs_write_blob(fs, dest, fs.dat + off, blob);
+    if blob >= cap { return -6; }
+    return fs_write_blob(fs, dest, buf + off, blob);
 }
 
 /* --- Ring 3 приложение с диска -------------------------------------------
@@ -329,13 +338,18 @@ fn user_app_from_disk(fs: FsState) -> i64 {
     kf_puti(n);
     uart_puts(" bytes\n");
     kp_msg("KengaOS", "STORE INSTALL OK");
-    let sz: i64 = fs_read(fs, "/apps/kenga-app.elf", fs.dat, 4096);
+    let sz: i64 = fs_read(fs, "/apps/kenga-app.elf", xbuf(), xbuf_size());
     if sz <= 0 { kp_msg("KengaOS", "USERAPP READFAIL"); return 0; }
     uart_puts("userapp: elf="); kf_puti(sz); uart_puts(" bytes\n");
-    let e: i64 = user_exec_blob(fs.dat, sz);
-    if e <= 0 { kp_msg("KengaOS", "USERAPP BADELF"); return 0; }
-    uart_puts("userapp: exec from KengaFS (/apps/kenga-app.elf)\n");
-    user_run(e);
+    /* Два ring-3 процесса одного и того же приложения: первый — ELF с диска
+       (установлен из .kpkg), второй — из initrd. Кооперативное переключение
+       по sys_yield, у каждого своя PML4 и свой kernel-стек. */
+    let p1: i64 = user_spawn_blob(xbuf(), sz);
+    if p1 <= 0 { kp_msg("KengaOS", "USERAPP BADELF"); return 0; }
+    uart_puts("userapp: exec from KengaFS, pid ");
+    kf_puti(p1); uart_putc(10);
+    let sr: i64 = user_sched_run();
+    if sr == 1 { kp_msg("KengaOS", "SCHED OK"); }
     kp_msg("KengaOS", "USERAPP OK");
     /* приложение записало свой файл — читаем его обратно с диска */
     let r: i64 = fs_read(fs, "/apps/state.txt", fs.dat, 256);

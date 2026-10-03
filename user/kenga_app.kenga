@@ -1,47 +1,44 @@
 /* kenga_app.kenga — пользовательское приложение KengaOS, НАПИСАННОЕ НА KENGA
- * и работающее в ring 3.
+ * и работающее в ring 3. Один и тот же ELF запускается двумя ПРОЦЕССАМИ
+ * (кооперативная многозадачность: sys_yield переключает их), каждый со своей
+ * PML4 и своим pid.
  *
  * Сборка: scripts/build-user.sh
- *   kenga emit-c --freestanding user/kenga_app.kenga -> C
- *   patch syscall-заглушек (println -> int 0x80 write)
- *   clang --target=x86_64-elf -> ELF -> /apps/kenga.elf в KengaFS
+ *   kenga emit-c --freestanding -> патч println -> clang -> elf-shrink.py
+ *   -> /apps/kenga-app.elf в KengaFS
  *
- * Никакой libc. Syscalls: write (println), exit, cat (файл KengaFS). */
+ * Размер важен: ELF целиком читается в 4 КиБ буфер ядра, поэтому длинные
+ * цепочки конкатенаций (они тянут itoa+kstr_concat) здесь не приветствуются. */
 
-/* 16 = cat: файл из KengaFS в буфер приложения, возвращает число байт */
+@intrinsic fn sys_yield() -> i64;
+@intrinsic fn sys_getpid() -> i64;
 @intrinsic fn sys_cat(path: str, dst: i64, max: i64) -> i64;
-/* 17 = save: буфер приложения в файл KengaFS, возвращает число записанных байт */
 @intrinsic fn sys_save(path: str, data: str, n: i64) -> i64;
 @intrinsic fn rt_buf() -> i64;      /* 4 КиБ буфер приложения (runtime) */
 @intrinsic fn rt_str(addr: i64) -> str;
 
-fn fib(n: i64) -> i64 {
-    if n < 2 { return n; }
-    return fib(n - 1) + fib(n - 2);
-}
-
 fn main() -> i64 {
+    let pid: i64 = sys_getpid();
     println("kenga-app: ring3 OK");
-    let x: i64 = 6 * 7;
-    println("kenga-app: 6*7 = " + x);
-    println("kenga-app: fib(12) = " + fib(12));
+
+    /* три «тикта» с добровольной уступкой CPU — второй процесс перемежается */
+    let t: i64 = 0;
+    while t < 3 {
+        println("kenga-app[" + pid + "]: tick " + t);
+        sys_yield();
+        t = t + 1;
+    }
 
     /* читаем файл с диска: ядро (KengaFS) -> syscall 16 -> буфер приложения */
     let n: i64 = sys_cat("/system/bootlog.txt", rt_buf(), 256);
     if n > 0 {
         println("kenga-app: read /system/bootlog.txt:");
         println(rt_str(rt_buf()));
-    } else {
-        println("kenga-app: file read failed");
     }
 
-    /* пишем свой файл на диск (syscall 17): приложение живёт на KengaFS */
-    let msg: str = "kenga-app was here: fib(12)=" + fib(12);
-    let w: i64 = sys_save("/apps/state.txt", msg, len(msg));
-    if w > 0 {
-        println("kenga-app: saved /apps/state.txt");
-    } else {
-        println("kenga-app: save failed");
-    }
+    /* пишем свой файл на диск (syscall 17) */
+    let msg: str = "kenga-app was here: pid=" + pid;
+    sys_save("/apps/state.txt", msg, len(msg));
+    println("kenga-app: saved /apps/state.txt");
     return 0;
 }

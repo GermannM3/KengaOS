@@ -214,6 +214,10 @@ int64_t k_user_exec_vfs(const char* name);
 int64_t k_user_exec_blob(int64_t addr, int64_t size);
 int64_t k_user_run(int64_t entry);
 int64_t k_user_set_fs(int64_t ino, int64_t bmp, int64_t io, int64_t dat, int64_t rw, int64_t ok);
+/* Кооперативная многозадачность ring-3 процессов (kf_user.c). */
+int64_t k_user_spawn_vfs(const char* name);
+int64_t k_user_spawn_blob(int64_t addr, int64_t size);
+int64_t k_user_sched_run(void);
 
 /* FDT/DTB (aarch64; x86 — заглушка). */
 int64_t k_fdt_boot_test(void);
@@ -231,6 +235,9 @@ int64_t k_disk_kind(void);
 int64_t k_disk_read64(int64_t lba, int64_t count, int64_t buf);
 int64_t k_disk_write64(int64_t lba, int64_t count, int64_t buf);
 int64_t k_vfs_cat64(const char* name, int64_t out, int64_t max);
+/* 8 КиБ scratch-буфер ядра (файлы больше 4 КиБ кадра KengaFS). */
+int64_t k_xbuf(void);
+int64_t k_xbuf_size(void);
 
 /* Virtual filesystem (kernel/kf_vfs.c). */
 int64_t k_vfs_count(void);

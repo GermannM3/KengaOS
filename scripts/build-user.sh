@@ -58,10 +58,10 @@ mv -f "$UDIR/kenga-app.shrunk" "$UDIR/kenga-app.elf"
 ls -la "$UDIR/kenga-app.elf"
 
 ELF_SIZE=$(wc -c < "$UDIR/kenga-app.elf")
-USERAPP_MAX=4096
+USERAPP_MAX=8192
 if [[ "$ELF_SIZE" -gt "$USERAPP_MAX" ]]; then
     echo "error: kenga-app.elf is $ELF_SIZE bytes > $USERAPP_MAX (KengaFS exec buffer)" >&2
-    echo "       уменьшите приложение или увеличьте буфер в kernel/fs.kenga (st.dat)" >&2
+    echo "       уменьшите приложение или увеличьте k_xbuf (kernel/kf_blk.c)" >&2
     exit 1
 fi
 echo "[user] kenga-app.elf: $ELF_SIZE bytes (limit $USERAPP_MAX)"

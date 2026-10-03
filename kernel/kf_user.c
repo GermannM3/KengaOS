@@ -37,6 +37,14 @@ static uint64_t hhdm = 0;
 static uint64_t user_pml4 = 0;      /* phys текущего user-PML4 */
 static volatile uint32_t user_done = 0;
 uint64_t k_save_rsp = 0, k_save_ret = 0;   /* asm (kf_user_asm.S) */
+/* Кадр, на который вернётся isr_syscall. Обычный syscall ставит свой же кадр;
+   планировщик может подставить кадр другого процесса (см. kf_user_asm.S). */
+uint64_t k_resume_frame = 0;
+
+/* Планировщик ring-3 процессов (определён ниже, после TSS) */
+static int up_yield_current(void* frame_v);
+static int up_exit_current(void);
+static int64_t up_pid_current(void);
 
 /* k_mem_palloc возвращает УЖЕ отображённый VA (phys+hhdm).
    Для PTE нужен физический: va - hhdm. */
@@ -323,7 +331,9 @@ static uint64_t ux_to_user(uint64_t uva, const uint8_t* src, uint64_t n) {
 void k_syscall_handler(void* frame_v) {
     uint64_t* f = (uint64_t*)frame_v;
     /* frame: rax,rbx,rcx,rdx,rsi,rdi,rbp,r8..r15,vector,error,rip,cs,rflags,rsp,ss */
+    k_resume_frame = (uint64_t)(uintptr_t)frame_v;   /* по умолчанию — вернуться сюда */
     uint64_t num = f[0];
+
     if (num == 1) {   /* write: rdi=buf(user va), rsi=len */
         uint64_t uva = f[5], len = f[4];
         if (len > 4096) len = 4096;
@@ -346,8 +356,13 @@ void k_syscall_handler(void* frame_v) {
         }
         f[0] = (uint64_t)off;   /* возврат в rax */
     } else if (num == 2) {      /* exit */
-        user_done = 1;
         f[0] = 0;
+        if (up_exit_current() != 1) user_done = 1;   /* некого будить -> в ядро */
+    } else if (num == 3) {      /* yield */
+        f[0] = 0;
+        if (up_yield_current(frame_v) != 1) user_done = 1;
+    } else if (num == 4) {      /* getpid */
+        f[0] = (uint64_t)up_pid_current();
     } else if (num == 16) {     /* cat(path, dst, max): файл KengaFS -> user */
         uint64_t path_uva = f[5], dst_uva = f[4], maxlen = f[3];
         int64_t n = -1;
@@ -451,6 +466,133 @@ static void k_user_gdt_install(void) {
     t[2] = (uint32_t)(rsp0 >> 32);              /* RSP0 high (offset 8) */
     __asm__ __volatile__("ltr %0" : : "r"((uint16_t)TSS_SEL));
     __asm__ __volatile__("sti");
+}
+
+/* --- Кооперативная многозадачность ring-3 процессов ---------------------
+   Каждый процесс: своя PML4 (elf_load), свой kernel-стек (TSS.RSP0 при входе
+   из ring 3) и сохранённый кадр прерывания (15 GPR + vector/dummy + iretq-
+   фрейм). yield/exit сохраняют кадр текущего и переключаются на кадр
+   следующего: isr_syscall берёт rsp из k_resume_frame. Когда готовых нет —
+   user_done=1, и asm возвращается в ядро по k_save_rsp/k_save_ret.
+   Планировщик кооперативный: переключение только по syscall. */
+#define UP_MAX   4
+#define UP_STACK 16384
+#define UP_FRAME 22            /* 15 GPR + vector + dummy + 5 iretq-слов */
+
+typedef struct {
+    int      state;            /* 0 свободен, 1 готов, 2 работает, 3 завершён */
+    int64_t  pid;
+    uint64_t pml4;
+    uint64_t kstack_top;
+    uint64_t frame;            /* сохранённый rsp кадра */
+} uproc_t;
+
+static uproc_t g_up[UP_MAX];
+static int     g_up_count = 0;
+static int     g_up_cur = -1;
+static uint8_t g_up_stacks[UP_MAX][UP_STACK];
+
+static void up_tss_rsp0(uint64_t rsp0) {
+    uint32_t* t = (uint32_t*)(uintptr_t)user_tss;
+    t[1] = (uint32_t)(rsp0 & 0xFFFFFFFFu);
+    t[2] = (uint32_t)(rsp0 >> 32);
+}
+
+static int64_t up_register(uint64_t pml4, uint64_t entry) {
+    if (g_up_count >= UP_MAX || !pml4 || !entry) return 0;
+    int i = g_up_count++;
+    uint64_t top = (uint64_t)(uintptr_t)(g_up_stacks[i] + UP_STACK) & ~0xFull;
+    uint64_t* fr = (uint64_t*)(uintptr_t)(top - UP_FRAME * 8);
+    for (int k = 0; k < UP_FRAME; k++) fr[k] = 0;
+    fr[15] = 0x80;                 /* vector (как у isr_syscall) */
+    fr[17] = entry;                /* rip */
+    fr[18] = 0x1b;                 /* cs = ucode64|RPL3 */
+    fr[19] = 0x202;                /* rflags (IF=1) */
+    fr[20] = USER_STACK_TOP - 16;  /* rsp в user-стеке */
+    fr[21] = 0x23;                 /* ss = udata|RPL3 */
+    g_up[i].state = 1;
+    g_up[i].pid = 100 + i;
+    g_up[i].pml4 = pml4;
+    g_up[i].kstack_top = top;
+    g_up[i].frame = (uint64_t)(uintptr_t)fr;
+    return g_up[i].pid;
+}
+
+static uint64_t up_activate(int i) {
+    g_up_cur = i;
+    g_up[i].state = 2;
+    user_pml4 = g_up[i].pml4;
+    wr_cr3(g_up[i].pml4);
+    up_tss_rsp0(g_up[i].kstack_top);
+    return g_up[i].frame;
+}
+
+static int up_pick_next(void) {
+    if (g_up_count == 0) return -1;
+    for (int k = 1; k <= g_up_count; k++) {
+        int base = g_up_cur < 0 ? 0 : g_up_cur;
+        int i = (base + k) % g_up_count;
+        if (g_up[i].state == 1) return i;
+    }
+    return -1;
+}
+
+/* сохранить кадр текущего, переключиться; 1 = есть следующий процесс */
+static int up_switch_from(void* frame_v) {
+    if (g_up_cur >= 0 && frame_v) g_up[g_up_cur].frame = (uint64_t)(uintptr_t)frame_v;
+    int nx = up_pick_next();
+    if (nx < 0) return 0;
+    k_resume_frame = up_activate(nx);
+    return 1;
+}
+
+static int up_yield_current(void* frame_v) {
+    if (g_up_count == 0) return 0;
+    if (g_up_cur >= 0) g_up[g_up_cur].state = 1;
+    return up_switch_from(frame_v);
+}
+
+static int up_exit_current(void) {
+    if (g_up_count == 0) return 0;
+    if (g_up_cur >= 0) g_up[g_up_cur].state = 3;
+    return up_switch_from(0);
+}
+
+static int64_t up_pid_current(void) {
+    return (g_up_cur >= 0) ? g_up[g_up_cur].pid : 0;
+}
+
+/* Загрузить ELF по имени из initrd в НОВЫЙ процесс. Возвращает pid или 0. */
+int64_t k_user_spawn_vfs(const char* name) {
+    int64_t e = k_user_exec_vfs(name);
+    if (e <= 0) return 0;
+    return up_register(user_pml4, (uint64_t)e);
+}
+
+/* То же, но ELF лежит в буфере ядра (например, файл KengaFS). */
+int64_t k_user_spawn_blob(int64_t addr, int64_t size) {
+    int64_t e = k_user_exec_blob(addr, size);
+    if (e <= 0) return 0;
+    return up_register(user_pml4, (uint64_t)e);
+}
+
+/* Запустить все зарегистрированные процессы кооперативно до конца. */
+int64_t k_user_sched_run(void) {
+    if (g_up_count == 0) return 0;
+    g_up_cur = -1;
+    int i = up_pick_next();
+    if (i < 0) return 0;
+    kernel_cr3 = rd_cr3();     /* ДО up_activate: иначе прочитаем CR3 процесса */
+    user_done = 0;
+    uint64_t f = up_activate(i);
+    ulog_hx(g_up[i].pml4);
+    u_putc(' ');
+    extern int user_enter(uint64_t frame, uint64_t pml4);
+    user_enter(f, g_up[i].pml4);
+    if (kernel_cr3) wr_cr3(kernel_cr3);
+    for (int k = 0; k < g_up_count; k++) g_up[k].state = 3;
+    g_up_cur = -1;
+    return 1;
 }
 
 /* boot-тест ring 3 (вызывается из kmain): гейт DPL3 + exec user-hello.elf.
