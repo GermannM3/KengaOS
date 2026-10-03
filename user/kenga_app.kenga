@@ -50,8 +50,11 @@ fn main() -> i64 {
     /* читаем файл с диска: ядро (KengaFS) -> syscall 16 -> буфер приложения */
     let n: i64 = sys_cat("/system/bootlog.txt", rt_buf(), 256);
     if n > 0 {
-        println("kenga-app: read /system/bootlog.txt:");
-        println(rt_str(rt_buf()));
+        /* то, что прочитали, кладём в ФАЙЛ: вывод приложения QEMU теряет, а
+           артефакт на диске ядро прочитает и напечатает само */
+        sys_save("/apps/cat.txt", rt_str(rt_buf()), n);
+    } else {
+        sys_save("/apps/cat.txt", "cat BAD", 7);
     }
 
     /* пишем свой файл на диск (syscall 17) */

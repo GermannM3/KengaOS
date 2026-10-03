@@ -407,6 +407,7 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "kenga-app: spawn /apps/hello.elf" "$UART_LOG" || { echo "ERROR: app could not spawn another app (syscall 24)" >&2; ok=0; }
     grep -q "userapp exit pid=0x66" "$UART_LOG" || { echo "ERROR: spawned child process did not run" >&2; ok=0; }
     grep -q "kenga-app: child exit 0" "$UART_LOG" || { echo "ERROR: parent could not collect child status" >&2; ok=0; }
+    grep -q "kenga-app cat file: KengaOS boot #1" "$UART_LOG" || { echo "ERROR: sys_cat content did not round-trip through the app" >&2; ok=0; }
     grep -q "kenga-app: blocking wait done" "$UART_LOG" || { echo "ERROR: blocking wait() did not return (syscall 26)" >&2; ok=0; }
     grep -q "userapp exit pid=0x64 code=0x0" "$UART_LOG" || { echo "ERROR: exit code of pid 100 not reported" >&2; ok=0; }
     grep -q "userapp exit pid=0x65 code=0x7" "$UART_LOG" || { echo "ERROR: exit code of pid 101 not per-process" >&2; ok=0; }
@@ -475,7 +476,9 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "STORE INSTALL OK" "$AHCI_LOG" || { echo "ERROR: .kpkg v2 install failed on AHCI disk" >&2; ok2=0; }
     grep -q "kenga-app: ring3 OK" "$AHCI_LOG" || { echo "ERROR: Kenga-compiled ring-3 app failed on AHCI disk" >&2; ok2=0; }
     grep -q "kenga-app wrote:" "$AHCI_LOG" || { echo "ERROR: ring-3 app file write failed on AHCI disk" >&2; ok2=0; }
-    grep -q "kenga-app: read /system/bootlog.txt" "$AHCI_LOG" || { echo "ERROR: ring-3 file read failed on AHCI disk" >&2; ok2=0; }
+    # гейт на UART-выводе приложения убран (QEMU его теряет); вместо него —
+    # проверка по файлу, который приложение записало прочитанным содержимым
+    grep -q "kenga-app cat file: KengaOS boot #1" "$AHCI_LOG" || { echo "ERROR: sys_cat content did not round-trip on AHCI disk" >&2; ok2=0; }
     if [[ $ok2 == 1 ]]; then
         echo "OK: kernel booted on q35 — AHCI/SATA disk + KengaFS"
     else
