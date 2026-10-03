@@ -372,6 +372,15 @@ fn user_app_from_disk(fs: FsState) -> i64 {
     } else {
         uart_puts("kenga-app dir: (nothing)\n");
     }
+    /* а этот файл приложение удалило само (syscall 19) — должен исчезнуть */
+    let rdel: i64 = fs_read(fs, "/apps/demo/bye.txt", fs.dat, 256);
+    if (rdel > 0) {
+        uart_puts("kenga-app rm: still there: ");
+        uart_puts(kf_str(fs.dat));
+        uart_putc(10);
+    } else {
+        uart_puts("kenga-app rm: (nothing)\n");
+    }
     return 1;
 }
 

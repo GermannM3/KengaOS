@@ -53,6 +53,11 @@ fn main() -> i64 {
     if d >= 0 {
         sys_save("/apps/demo/hello.txt", "hi from kenga-app", 17);
         println("kenga-app: wrote /apps/demo/hello.txt");
+        /* удаляем второй файл — проверяем syscall 19 (rm) из приложения */
+        sys_save("/apps/demo/bye.txt", "bye", 3);
+        if sys_rm("/apps/demo/bye.txt") == 0 {
+            println("kenga-app: rm /apps/demo/bye.txt");
+        }
     }
     return 0;
 }
