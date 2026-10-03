@@ -48,7 +48,7 @@ eval "$CC $CFLAGS -c \"$ROOT/user/kenga_user_rt.c\" -o \"$UDIR/kenga_user_rt.o\"
 # --strip-all: таблицы символов не грузятся, но входят в размер файла, а файл
 # целиком читается с KengaFS в 4 КиБ буфер ядра (fs.dat). Без strip ELF
 # раздувается вдвое и молча обрезается.
-eval "$LD -nostdlib --gc-sections --strip-all -e _start \"$UDIR/kenga_app.o\" \"$UDIR/kenga_user_rt.o\" -o \"$UDIR/kenga-app.elf\""
+eval "$LD -nostdlib --no-rosegment --gc-sections --strip-all -e _start \"$UDIR/kenga_app.o\" \"$UDIR/kenga_user_rt.o\" -o \"$UDIR/kenga-app.elf\""
 ls -la "$UDIR/kenga-app.elf"
 
 # sstrip-lite: таблица секций/символов в образ не грузится, но раздувает файл,
