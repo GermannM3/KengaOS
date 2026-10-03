@@ -402,6 +402,12 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     if grep -q "kenga-app: sleep too short" "$UART_LOG"; then
         echo "ERROR: sys_sleep returned before its deadline" >&2; ok=0
     fi
+    # Спать обязаны ОБА процесса: одного "sleep ok" недостаточно (16-й круг:
+    # второй процесс печатал "too short", а гейт этого не замечал).
+    nsleep=$(grep -c "kenga-app: sleep ok" "$UART_LOG" || true)
+    if [[ "$nsleep" != "2" ]]; then
+        echo "ERROR: expected 2 processes to sleep, got $nsleep" >&2; ok=0
+    fi
     grep -q "STORE INSTALL OK" "$UART_LOG" || { echo "ERROR: .kpkg v2 install from the store failed" >&2; ok=0; }
     grep -q "kenga-app: ring3 OK" "$UART_LOG" || { echo "ERROR: Kenga-compiled ring-3 app produced no output" >&2; ok=0; }
     grep -q "kenga-app wrote: kenga-app" "$UART_LOG" || { echo "ERROR: ring-3 app did not persist a file" >&2; ok=0; }
