@@ -86,6 +86,13 @@ int64_t k_sys_rm(const char* path) {
     return r;
 }
 
+/* Дождаться ребёнка: ядро само переисполнит syscall, пока он не завершится. */
+int64_t k_sys_wait(int64_t pid) {
+    long r;
+    __asm__ __volatile__("int $0x80" : "=a"(r) : "a"(26L), "D"(pid));
+    return r;
+}
+
 /* Код завершения ребёнка, если он уже вышел, иначе -1 (не блокирует). */
 int64_t k_sys_wait_status(int64_t pid) {
     long r;

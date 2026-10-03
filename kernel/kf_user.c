@@ -368,6 +368,23 @@ void k_syscall_handler(void* frame_v) {
         if (up_yield_current(frame_v) != 1) user_done = 1;
     } else if (num == 4) {      /* getpid */
         f[0] = (uint64_t)up_pid_current();
+    } else if (num == 26) {     /* wait(pid): БЛОКИРУЮЩИЙ сбор статуса */
+        uint64_t want = f[5];
+        int64_t st = up_child_status(want);
+        if (st >= 0) {
+            f[0] = (uint64_t)st;
+        } else if (up_sleep_current(5) == 1) {
+            /* Ребёнок ещё жив: сдвигаем сохранённый RIP на саму инструкцию
+               int 0x80 (2 байта), чтобы при пробуждении ядро заново вошло в
+               этот обработчик. Так блокирующий вызов не требует, чтобы
+               обработчик «продолжился» — он просто переисполняется. */
+            f[17] -= 2;
+            /* RAX должен снова содержать НОМЕР syscall: приложение исполнит
+               int 0x80 заново, минуя mov $26, %eax — иначе ядро увидит -1. */
+            f[0] = num;
+        } else {
+            f[0] = (uint64_t)-1;   /* некого будить — приложение повторит */
+        }
     } else if (num == 25) {     /* wait_status(pid) -> код завершения или -1 */
         f[0] = (uint64_t)up_child_status(f[5]);
     } else if (num == 24) {     /* spawn(path) -> pid: запустить приложение */
