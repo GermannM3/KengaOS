@@ -545,6 +545,16 @@ fn user_app_from_disk(fs: FsState) -> i64 {
         uart_puts(kf_str(fs.dat));
         uart_putc(10);
     }
+    /* Подтверждение, что сетевой результат дошёл до RING 3: приложение прочло
+       /apps/net.txt через sys_cat и пересохранило прочитанное. */
+    let rna: i64 = fs_read(fs, "/apps/netapp.txt", fs.dat, 64);
+    if rna > 0 {
+        uart_puts("net app: ");
+        uart_puts(kf_str(fs.dat));
+        uart_putc(10);
+    } else {
+        uart_puts("net app: (nothing)\n");
+    }
     /* Диагностика: сколько TCP-кадров в кольце и порт источника первого.
        Для ответа сервера ожидается порт 19387. */
     uart_puts(" tcp_n=");

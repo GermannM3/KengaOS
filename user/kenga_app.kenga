@@ -61,6 +61,17 @@ fn main() -> i64 {
         sys_save("/apps/cat.txt", "cat BAD", 7);
     }
 
+    /* Сетевой результат, выложенный ЯДРОМ в /apps/net.txt: приложение читает
+       его обычным sys_cat — никаких новых сисколлов и доступа к железу.
+       Прочитанное пересохраняем в другой файл, чтобы ядро подтвердило, что
+       данные действительно дошли до ring 3. */
+    let nn: i64 = sys_cat("/apps/net.txt", rt_buf(), 256);
+    if nn > 0 {
+        sys_save("/apps/netapp.txt", rt_str(rt_buf()), nn);
+    } else {
+        sys_save("/apps/netapp.txt", "net BAD", 7);
+    }
+
     /* дескрипторы: open перед записью файла; остальные гейты (cat, dir, rm,
        spawn, коды завершения) обязаны остаться зелёными */
     let fd: i64 = sys_open("/system/bootlog.txt");
