@@ -657,3 +657,57 @@ fn e1000_tcp_syn(bar0: i64, txring: i64) -> i64 {
     mm_w32(bar0 + kf_get_hhdm() + 14360, 7);
     return 60;
 }
+/* --- TCP: третий шаг рукопожатия (наш ACK на SYN-ACK) --------------------
+ * Значения взяты из наблюдённого SYN-ACK (круг 151): его seq = 0x0000FA01,
+ * значит наш ack = 0x0000FA02; наш seq увеличиваем на 1 (0x11223345).
+ * Флаги ACK (0x10), data offset 5 -> байты 12-13 = 50 10.
+ * ВНИМАНИЕ: seq собеседника здесь зашит; если slirp станет выдавать другой ISN,
+ * эти значения придётся брать из принятого кадра (следующий шаг развития).
+ */
+fn e1000_tcp_ack(bar0: i64, txring: i64) -> i64 {
+    let buf: i64 = mem_palloc();
+    let pa: i64 = mem_virt_to_phys(buf);
+    let pseudo: i64 = buf + 128;
+    mm_w32(buf, 0x000A5552);
+    mm_w32(buf + 4, 0x54520202);
+    mm_w32(buf + 8, 0x56341200);
+    mm_w32(buf + 12, 0x00450008);
+    mm_w16(buf + 16, 0x2800);         /* total_len = 40 */
+    mm_w16(buf + 18, 0x0400);         /* id = 4 */
+    mm_w16(buf + 20, 0);
+    mm_w16(buf + 22, 0x0640);         /* ttl=64, proto=6 */
+    mm_w16(buf + 24, 0);
+    mm_w32(buf + 26, 0x0F02000A);
+    mm_w32(buf + 30, 0x0202000A);
+    mm_w16(buf + 34, 0x3930);         /* 12345 */
+    mm_w16(buf + 36, 0xBB4B);         /* 19387 */
+    mm_w32(buf + 38, 0x45332211);     /* наш seq + 1 -> 11 22 33 45 */
+    mm_w32(buf + 42, 0x02FA0000);     /* ack = их seq + 1 -> 00 00 FA 02 */
+    mm_w16(buf + 46, 0x1050);         /* data offset 5, флаг ACK -> 50 10 */
+    mm_w16(buf + 48, 0x0020);         /* window */
+    mm_w16(buf + 50, 0);
+    mm_w16(buf + 52, 0);
+    mm_w32(buf + 54, 0);
+    mm_w16(buf + 58, 0);
+    mm_w32(pseudo, 0x0F02000A);
+    mm_w32(pseudo + 4, 0x0202000A);
+    mm_w16(pseudo + 8, 0x0600);
+    mm_w16(pseudo + 10, 0x1400);
+    let ci: i64 = ip_checksum(buf + 14, 20);
+    mm_w8(buf + 24, ci / 256);
+    mm_w8(buf + 25, ci - (ci / 256) * 256);
+    let s: i64 = ip_sum(pseudo, 12) + ip_sum(buf + 34, 20);
+    s = (s - (s / 65536) * 65536) + (s / 65536);
+    s = (s - (s / 65536) * 65536) + (s / 65536);
+    let ct: i64 = 65535 - s;
+    mm_w8(buf + 50, ct / 256);
+    mm_w8(buf + 51, ct - (ct / 256) * 256);
+    let lo: i64 = pa - (pa >> 32) * 4294967296;
+    mm_w32(txring + 112, lo);         /* восьмой дескриптор передачи */
+    mm_w32(txring + 116, pa >> 32);
+    mm_w16(txring + 120, 60);
+    mm_w8(txring + 123, 11);
+    mm_w8(txring + 124, 0);
+    mm_w32(bar0 + kf_get_hhdm() + 14360, 8);
+    return 60;
+}
