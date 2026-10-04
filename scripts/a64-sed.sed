@@ -13,6 +13,8 @@ s/__asm__ __volatile__("inb %1, %0" : "=a"(_k_port_in) : "Nd"\(.*\));/_k_port_in
 s/__asm__ __volatile__("outl %0, %1" : : "a"\(.*\), "Nd"\(.*\));/k_arch_io_outl(\2, \1);/
 # Кодогенератор: asm_inl -> k_arch_io_inl(порт)
 s/__asm__ __volatile__("inl %1, %0" : "=a"(_k_port_in) : "Nd"\(.*\));/_k_port_in = k_arch_io_inl(\1);/
+# Кодогенератор (PCI-команда): asm_outw -> k_arch_io_outw(порт, значение)
+s/__asm__ __volatile__("outw %0, %1" : : "a"\(.*\), "Nd"\(.*\));/k_arch_io_outw(\2, \1);/
 
 # Runtime (k_die в сгенерированном C) и desktop.kenga: hlt
 s/__asm__ __volatile__("hlt");/k_arch_hlt();/

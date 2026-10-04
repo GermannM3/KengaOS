@@ -58,6 +58,7 @@ static int     dlab_mode = 0;
 
 /* 32-битные обращения к портам: у aarch64 их нет, драйвер PCI там не работает,
    поэтому заглушки — нужны только чтобы общий Kenga-код компилировался. */
+void k_arch_io_outw(uint16_t port, uint16_t v) { (void)port; (void)v; }
 void k_arch_io_outl(uint16_t port, uint32_t v) { (void)port; (void)v; }
 uint32_t k_arch_io_inl(uint16_t port) { (void)port; return 0; }
 
