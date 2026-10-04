@@ -417,6 +417,9 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     # nic=1 — найден сетевой контроллер (class 0x02) в шинах 0..3: работает
     # перечисление устройств по классу, с которого начнётся драйвер сети.
     grep -q "PCI dev0=305627270 nic=1" "$UART_LOG" || { echo "ERROR: PCI class scan did not find the NIC" >&2; ok=0; }
+    # 269385862 = 0x100E8086 — Intel 82540EM (e1000 в QEMU); bar0 = 0xFEBC0000.
+    # Проверяет весь путь до готового адреса MMIO сетевого контроллера.
+    grep -q "nicid=269385862" "$UART_LOG" || { echo "ERROR: NIC identification (vendor/device) failed" >&2; ok=0; }
     grep -q "kenga-app: child exit 0" "$UART_LOG" || { echo "ERROR: parent could not collect child status" >&2; ok=0; }
     grep -q "kenga-app cat file: KengaOS boot #1" "$UART_LOG" || { echo "ERROR: sys_cat content did not round-trip through the app" >&2; ok=0; }
     grep -q "kenga-app fd file: read ok 15" "$UART_LOG" || { echo "ERROR: open/read/close did not read the file in chunks" >&2; ok=0; }
