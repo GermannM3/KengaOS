@@ -56,6 +56,11 @@ static int pl011_rx_empty(void) { return (mmio_read32(UART_FR) & FR_RXFE) != 0; 
 static uint8_t shadow_thr = 0;
 static int     dlab_mode = 0;
 
+/* 32-битные обращения к портам: у aarch64 их нет, драйвер PCI там не работает,
+   поэтому заглушки — нужны только чтобы общий Kenga-код компилировался. */
+void k_arch_io_outl(uint16_t port, uint32_t v) { (void)port; (void)v; }
+uint32_t k_arch_io_inl(uint16_t port) { (void)port; return 0; }
+
 void k_arch_io_outb(uint16_t port, uint8_t v) {
     switch (port) {
         case 0x3F8:

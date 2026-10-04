@@ -351,6 +351,9 @@ void k_arch_irq_enable(void);
 void k_arch_irq_disable(void);
 void k_arch_halt_forever(void);
 void k_arch_io_outb(uint16_t port, uint8_t v);
+/* 32-битные (PCI-конфиг); на aarch64 — заглушки, портов ввода-вывода там нет. */
+void k_arch_io_outl(uint16_t port, uint32_t v);
+uint32_t k_arch_io_inl(uint16_t port);
 uint8_t k_arch_io_inb(uint16_t port);
 void k_arch_uart_init(void);
 void k_arch_uart_putc(char c);
