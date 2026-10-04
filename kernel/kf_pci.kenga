@@ -178,3 +178,44 @@ fn e1000_tx_init(bar0: i64) -> i64 {
 fn e1000_tdbal(bar0: i64) -> i64 { return mm_r32(bar0 + kf_get_hhdm() + 14336); }
 fn e1000_tdlen(bar0: i64) -> i64 { return mm_r32(bar0 + kf_get_hhdm() + 14344); }
 fn e1000_tctl(bar0: i64) -> i64 { return mm_r32(bar0 + kf_get_hhdm() + 1024); }
+/* --- Отправка ARP-запроса -----------------------------------------------
+ * Кадр: Ethernet (dst MAC broadcast, src MAC наш, тип 0x0806) + ARP-запрос
+ * «кто такой 10.0.2.2» (адрес шлюза QEMU/slirp) от 10.0.2.15 (наш адрес).
+ * Кадр пишется прямо в DMA-буфер, затем дескриптор передачи и TDT++.
+ * Возвращает упакованный вердикт: tdh*100 + шаг.
+ */
+fn e1000_build_arp(buf: i64) -> i64 {
+    mm_w32(buf, 4294967295);        /* dst MAC: ff ff ff ff */
+    mm_w32(buf + 4, 1414725631);    /* ff ff 52 54 */
+    mm_w32(buf + 8, 1446257152);    /* 00 12 34 56 (наш MAC) */
+    mm_w32(buf + 12, 16777224);     /* 08 06 00 01 */
+    mm_w32(buf + 16, 67567624);     /* 08 00 06 04 */
+    mm_w32(buf + 20, 1414725888);   /* 00 01 52 54 */
+    mm_w32(buf + 24, 1446257152);   /* 00 12 34 56 */
+    mm_w32(buf + 28, 251789322);    /* 0A 00 02 0F = 10.0.2.15 */
+    mm_w32(buf + 32, 0);            /* target MAC: нули */
+    mm_w32(buf + 36, 655360);       /* 00 00 0A 00 */
+    mm_w32(buf + 40, 514);          /* 02 02 -> 10.0.2.2 */
+    return 42;
+}
+
+/* Отправить ARP и дождаться, пока контроллер обработает дескриптор (TDH=1). */
+fn e1000_arp(bar0: i64, txring: i64) -> i64 {
+    let buf: i64 = mem_palloc();
+    let pa: i64 = mem_virt_to_phys(buf);
+    e1000_build_arp(buf);
+    let lo: i64 = pa - (pa >> 32) * 4294967296;
+    mm_w32(txring, lo);
+    mm_w32(txring + 4, pa >> 32);
+    mm_w16(txring + 8, 42);
+    mm_w8(txring + 11, 11);   /* cmd = EOP | IFCS | RS */
+    mm_w8(txring + 12, 0);    /* status: DD ещё не выставлен */
+    mm_w32(bar0 + kf_get_hhdm() + 14360, 1);   /* TDT = 1: отправляй */
+    let i: i64 = 0;
+    let tdh: i64 = 0;
+    while i < 200000 {
+        tdh = mm_r32(bar0 + kf_get_hhdm() + 14352);
+        if tdh == 1 { i = 200000; } else { i = i + 1; }
+    }
+    return tdh * 100 + mm_r32(bar0 + kf_get_hhdm() + 10256);   /* tdh, rdh */
+}
