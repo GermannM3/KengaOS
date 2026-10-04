@@ -416,6 +416,9 @@ fn user_app_from_disk(fs: FsState) -> i64 {
     kf_puti(e1000_link_up(pci_bar0(pci_find_class(2))));
     /* Кольцо приёма: адрес физический, устройство работает по DMA. Проверяем
        обратным чтением, что запись дошла, и печатаем вердикт rxok. */
+    /* Включаем bus-master: без него NIC не может DMA-ить дескрипторы. */
+    uart_puts(" pci_cmd=");
+    kf_puti(pci_enable_bus_master(pci_find_class(2)));
     let nbar: i64 = pci_bar0(pci_find_class(2));
     let rva: i64 = e1000_rx_init(nbar);
     uart_puts(" rxpa=");

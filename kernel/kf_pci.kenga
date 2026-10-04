@@ -18,6 +18,26 @@ fn pci_cfg32(bus: i64, dev: i64, fun: i64, reg: i64) -> i64 {
     return asm_inl(3324);
 }
 
+/* Записать 32 бита конфигурации PCI. */
+fn pci_cfg_write32(bus: i64, dev: i64, fun: i64, reg: i64, val: i64) -> i64 {
+    let addr: i64 = 2147483648 + bus * 65536 + dev * 2048 + fun * 256 + (reg - (reg & 3));
+    asm_outl(3320, addr);
+    asm_outl(3324, val);
+    return 0;
+}
+
+/* Включить доступ к памяти и BUS MASTER (PCI command, биты 0-2).
+   Без bus-master устройство физически не может делать DMA: ни прочитать
+   дескриптор, ни забрать данные кадра. У AHCI/NVMe это делает их драйвер,
+   у e1000 этого не делал никто. Возвращает прочитанную команду. */
+fn pci_enable_bus_master(a: i64) -> i64 {
+    let bus: i64 = a / 256;
+    let dev: i64 = a - bus * 256;
+    let cmd: i64 = pci_cfg32(bus, dev, 0, 4);
+    pci_cfg_write32(bus, dev, 0, 4, cmd + 7);
+    return pci_cfg32(bus, dev, 0, 4);
+}
+
 /* Идентификатор устройства 00:00.0 (в QEMU -M pc это 0x8086:0x1237). */
 fn pci_dev0() -> i64 { return pci_cfg32(0, 0, 0, 0); }
 
