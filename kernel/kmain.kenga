@@ -404,6 +404,10 @@ fn user_app_from_disk(fs: FsState) -> i64 {
     kf_puti(pci_nic_id());
     uart_puts(" bar0=");
     kf_puti(pci_bar0(pci_find_class(2)));
+    uart_puts(" mac=");
+    kf_puti(e1000_mac_lo(pci_bar0(pci_find_class(2))));
+    uart_puts(":");
+    kf_puti(e1000_mac_hi(pci_bar0(pci_find_class(2))));
     uart_putc(10);
     uart_puts("EC status=");
     kf_puti(ec_status());
