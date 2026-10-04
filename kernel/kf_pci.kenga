@@ -596,3 +596,61 @@ fn e1000_icmp_payload(rxring: i64) -> i64 {
     }
     return res;
 }
+/* --- TCP: отправка SYN ---------------------------------------------------
+ * Кадр Ethernet(14) + IPv4(20) + TCP(20) = 54, добит до 60.
+ * IPv4: total_len = 40 (0x28), proto = 6 (TCP).
+ * TCP: 12345 -> 80, seq, data offset 5 (<<4 = 0x50), флаг SYN (0x02), window.
+ * Контрольная сумма TCP обязательна и считается по ПСЕВДО-ЗАГОЛОВКУ
+ * (src IP, dst IP, 0, proto, длина TCP) ВМЕСТЕ с сегментом — поэтому суммы
+ * складываются (ip_sum), а не берутся дополнения. Псевдо-заголовок пишем в
+ * свободную часть той же страницы (смещение 128), в кадр он не попадает.
+ */
+fn e1000_tcp_syn(bar0: i64, txring: i64) -> i64 {
+    let buf: i64 = mem_palloc();
+    let pa: i64 = mem_virt_to_phys(buf);
+    let pseudo: i64 = buf + 128;
+    mm_w32(buf, 0x000A5552);          /* dst MAC = шлюз */
+    mm_w32(buf + 4, 0x54520202);
+    mm_w32(buf + 8, 0x56341200);      /* src MAC = наш */
+    mm_w32(buf + 12, 0x00450008);     /* 08 00 | 45 00 */
+    mm_w16(buf + 16, 0x2800);         /* total_len = 40 -> 00 28 */
+    mm_w16(buf + 18, 0x0300);         /* id = 3 -> 00 03 */
+    mm_w16(buf + 20, 0);
+    mm_w16(buf + 22, 0x0640);         /* ttl=64, proto=6 (TCP) -> 40 06 */
+    mm_w16(buf + 24, 0);              /* сумма IP, посчитаем ниже */
+    mm_w32(buf + 26, 0x0F02000A);     /* src 10.0.2.15 */
+    mm_w32(buf + 30, 0x0202000A);     /* dst 10.0.2.2 */
+    mm_w16(buf + 34, 0x3930);         /* порт 12345 -> 30 39 */
+    mm_w16(buf + 36, 0x5000);         /* порт 80 -> 00 50 */
+    mm_w32(buf + 38, 0x44332211);     /* seq -> 11 22 33 44 */
+    mm_w32(buf + 42, 0);              /* ack = 0 */
+    mm_w16(buf + 46, 0x0250);         /* data offset 5, SYN -> 50 02 */
+    mm_w16(buf + 48, 0x0020);         /* window 0x2000 -> 20 00 */
+    mm_w16(buf + 50, 0);              /* сумма TCP, ниже */
+    mm_w16(buf + 52, 0);              /* urgent */
+    mm_w32(buf + 54, 0);              /* добить до 60 */
+    mm_w16(buf + 58, 0);
+    /* Псевдо-заголовок: src IP, dst IP, 0, proto=6, длина TCP = 20 */
+    mm_w32(pseudo, 0x0F02000A);
+    mm_w32(pseudo + 4, 0x0202000A);
+    mm_w16(pseudo + 8, 0x0600);
+    mm_w16(pseudo + 10, 0x1400);
+    /* Сумма IP и сумма TCP (псевдо + сегмент), затем дополнение */
+    let ci: i64 = ip_checksum(buf + 14, 20);
+    mm_w8(buf + 24, ci / 256);
+    mm_w8(buf + 25, ci - (ci / 256) * 256);
+    let s: i64 = ip_sum(pseudo, 12) + ip_sum(buf + 34, 20);
+    s = (s - (s / 65536) * 65536) + (s / 65536);
+    s = (s - (s / 65536) * 65536) + (s / 65536);
+    let ct: i64 = 65535 - s;
+    mm_w8(buf + 50, ct / 256);
+    mm_w8(buf + 51, ct - (ct / 256) * 256);
+    let lo: i64 = pa - (pa >> 32) * 4294967296;
+    mm_w32(txring + 96, lo);          /* седьмой дескриптор передачи */
+    mm_w32(txring + 100, pa >> 32);
+    mm_w16(txring + 104, 60);
+    mm_w8(txring + 107, 11);
+    mm_w8(txring + 108, 0);
+    mm_w32(bar0 + kf_get_hhdm() + 14360, 7);
+    return 60;
+}
