@@ -1,0 +1,63 @@
+/* kf_pci.kenga — доступ к конфигурационному пространству PCI на языке Kenga.
+ *
+ * Зачем: поиск устройств (сетевой контроллер, звук и т.п.) начинается с PCI.
+ * 32-битного порт-ввода в Kenga нет (есть только asm_inb/asm_outb, 8 бит),
+ * поэтому 32-битные значения собираются побайтово — так драйвер остаётся
+ * целиком на Kenga, без C-стабов.
+ *
+ * Порты: 0xCF8 = 3320 (адрес), 0xCFC = 3324 (данные).
+ */
+
+/* asm_inb/asm_outb объявлены в kf_ec.kenga: в ядре интринсики ГЛОБАЛЬНЫ,
+   повторное объявление даёт redefinition у сгенерированного _k_port_in. */
+
+/* Прочитать 32 бита конфигурации: bus/dev/fn, регистр reg (выравнен по 4). */
+fn pci_cfg32(bus: i64, dev: i64, fun: i64, reg: i64) -> i64 {
+    let addr: i64 = 2147483648 + bus * 65536 + dev * 2048 + fun * 256 + (reg - (reg & 3));
+    asm_outb(3320, addr & 255);
+    asm_outb(3321, (addr >> 8) & 255);
+    asm_outb(3322, (addr >> 16) & 255);
+    asm_outb(3323, (addr >> 24) & 255);
+    let v: i64 = asm_inb(3324) + asm_inb(3325) * 256 + asm_inb(3326) * 65536 + asm_inb(3327) * 16777216;
+    return v;
+}
+
+/* Идентификатор устройства 00:00.0 — контрольный признак, что PCI доступен.
+   В QEMU это всегда 0x8086 (Intel). Возвращает vendor|device<<16, -1 если 0xFFFF. */
+fn pci_dev0() -> i64 {
+    let v: i64 = pci_cfg32(0, 0, 0, 0);
+    return v;
+}
+
+/* Поиск устройства заданного класса (0x02 — сеть, 0x04 — мультимедиа).
+   Возвращает bus*256+dev первого найденного, иначе -1. */
+fn pci_find_class(cls: i64) -> i64 {
+    let found: i64 = -1;
+    let bus: i64 = 0;
+    while bus < 4 {
+        let dev: i64 = 0;
+        while dev < 16 {
+            let v: i64 = pci_cfg32(bus, dev, 0, 8);
+            if ((v >> 24) & 255) == cls { if found < 0 { found = bus * 256 + dev; } }
+            dev = dev + 1;
+        }
+        bus = bus + 1;
+    }
+    return found;
+}
+
+/* Сколько устройств класса найдено — гейт опирается на это число. */
+fn pci_count_class(cls: i64) -> i64 {
+    let n: i64 = 0;
+    let bus: i64 = 0;
+    while bus < 4 {
+        let dev: i64 = 0;
+        while dev < 16 {
+            let v: i64 = pci_cfg32(bus, dev, 0, 8);
+            if ((v >> 24) & 255) == cls { n = n + 1; }
+            dev = dev + 1;
+        }
+        bus = bus + 1;
+    }
+    return n;
+}
