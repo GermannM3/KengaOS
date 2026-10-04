@@ -359,3 +359,63 @@ fn ip_checksum_selftest(buf: i64) -> i64 {
 
 /* Прочитать 16 бит по адресу (для разбора принятых кадров). */
 fn net_peek16(a: i64) -> i64 { return rd16(a); }
+/* Байт по смещению off внутри принятого кадра (адрес — из дескриптора + HHDM). */
+fn e1000_rx_byte(rxring: i64, off: i64) -> i64 {
+    return rd8(e1000_peek(rxring) + kf_get_hhdm() + off);
+}
+
+/* --- ICMP echo (пинг) ---------------------------------------------------
+ * Кадр Ethernet+IPv4+ICMP, 58 байт, добит до 60. Суммы вписываются ПОСЛЕ
+ * заполнения заголовков с нулевыми полями и хранятся в сетевом порядке
+ * (старший байт первым). Раскладка — docs/HONEST-CHECKLIST.md, круг 122.
+ * Отправка идёт ТРЕТЬИМ дескриптором (первые два заняты ARP).
+ * Возвращает RDH после ожидания: > 2 означает, что пришёл ответ.
+ */
+fn e1000_ping(bar0: i64, txring: i64) -> i64 {
+    let buf: i64 = mem_palloc();
+    let pa: i64 = mem_virt_to_phys(buf);
+    /* Ethernet: dst = MAC шлюза 52:55:0a:00:02:02, src = наш 52:54:00:12:34:56 */
+    mm_w32(buf, 0x000A5552);
+    mm_w32(buf + 4, 0x54520202);
+    mm_w32(buf + 8, 0x56341200);
+    mm_w32(buf + 12, 0x00450008);   /* 08 00 (IPv4) | 45 00 */
+    /* IPv4: total_len=44, id=1, flags=0, ttl=64, proto=1, сумма пока 0 */
+    mm_w16(buf + 16, 0x2C00);
+    mm_w16(buf + 18, 0x0100);
+    mm_w16(buf + 20, 0);
+    mm_w16(buf + 22, 0x0140);
+    mm_w16(buf + 24, 0);
+    mm_w32(buf + 26, 0x0F02000A);   /* 0A 00 02 0F = 10.0.2.15 */
+    mm_w32(buf + 30, 0x0202000A);   /* 0A 00 02 02 = 10.0.2.2 */
+    /* ICMP: type=8 (запрос), code=0, сумма 0, id=1, seq=1, 16 байт данных */
+    mm_w16(buf + 34, 0x0008);
+    mm_w16(buf + 36, 0);
+    mm_w16(buf + 38, 0x0100);
+    mm_w16(buf + 40, 0x0100);
+    mm_w32(buf + 42, 0x01020304);
+    mm_w32(buf + 46, 0x05060708);
+    mm_w32(buf + 50, 0x090A0B0C);
+    mm_w32(buf + 54, 0x0D0E0F10);
+    mm_w16(buf + 58, 0);
+    let c1: i64 = ip_checksum(buf + 14, 20);
+    mm_w8(buf + 24, c1 / 256);
+    mm_w8(buf + 25, c1 - (c1 / 256) * 256);
+    let c2: i64 = ip_checksum(buf + 34, 24);
+    mm_w8(buf + 36, c2 / 256);
+    mm_w8(buf + 37, c2 - (c2 / 256) * 256);
+    /* третий дескриптор передачи */
+    let lo: i64 = pa - (pa >> 32) * 4294967296;
+    mm_w32(txring + 32, lo);
+    mm_w32(txring + 36, pa >> 32);
+    mm_w16(txring + 40, 60);
+    mm_w8(txring + 43, 11);
+    mm_w8(txring + 44, 0);
+    mm_w32(bar0 + kf_get_hhdm() + 14360, 3);
+    let i: i64 = 0;
+    let rdh: i64 = 0;
+    while i < 3000000 {
+        rdh = mm_r32(bar0 + kf_get_hhdm() + 10256);
+        if rdh > 2 { i = 3000000; } else { i = i + 1; }
+    }
+    return rdh;
+}
