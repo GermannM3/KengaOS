@@ -483,6 +483,11 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     # подряд дали ping_rdh=3 и EXIT=0. Работа ping подтверждена отдельно дампом
     # трафика (эхо-ответ с теми же id/seq и теми же данными).
     grep -q "ping_rdh=3" "$UART_LOG" || { echo "ERROR: ICMP echo reply was not received" >&2; ok=0; }
+    # САМОПРОВЕРКА СОДЕРЖИМОГО: сумма 16 байт данных в принятом эхо-ответе.
+    # Отправляли узор 04 03 02 01 08 07 06 05 0c 0b 0a 09 10 0f 0e 0d, его
+    # сумма = 136. Это уже не «что-то пришло», а «вернулись именно наши байты»
+    # (подтверждено и дампом трафика). Читается тот же кадр, что и ping_rdh.
+    grep -q "ping_payload=136" "$UART_LOG" || { echo "ERROR: ICMP reply payload does not match what we sent" >&2; ok=0; }
     grep -q "kenga-app: child exit 0" "$UART_LOG" || { echo "ERROR: parent could not collect child status" >&2; ok=0; }
     grep -q "kenga-app cat file: KengaOS boot #1" "$UART_LOG" || { echo "ERROR: sys_cat content did not round-trip through the app" >&2; ok=0; }
     grep -q "kenga-app fd file: read ok 15" "$UART_LOG" || { echo "ERROR: open/read/close did not read the file in chunks" >&2; ok=0; }
