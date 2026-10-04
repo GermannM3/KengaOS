@@ -542,6 +542,9 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     # проверка по файлу, который приложение записало прочитанным содержимым
     grep -q "kenga-app cat file: KengaOS boot #1" "$AHCI_LOG" || { echo "ERROR: sys_cat content did not round-trip on AHCI disk" >&2; ok2=0; }
     grep -q "kenga-app fd file: read ok 15" "$AHCI_LOG" || { echo "ERROR: open/read/close failed on AHCI disk" >&2; ok2=0; }
+    # Сеть проверяется и здесь: отправка и приём кадра + разбор ARP-ответа.
+    grep -q "txds=1" "$AHCI_LOG" || { echo "ERROR: e1000 did not transmit on AHCI config" >&2; ok2=0; }
+    grep -q "arpmac=677202" "$AHCI_LOG" || { echo "ERROR: ARP resolution failed on AHCI config" >&2; ok2=0; }
     grep -q "userapp exit pid=0x66 code=0x0" "$AHCI_LOG" || { echo "ERROR: spawned child did not exit cleanly on AHCI disk" >&2; ok2=0; }
     if [[ $ok2 == 1 ]]; then
         echo "OK: kernel booted on q35 — AHCI/SATA disk + KengaFS"
@@ -585,6 +588,9 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "USERAPP OK" "$NVME_LOG" || { echo "ERROR: ring-3 app did not run on NVMe disk" >&2; ok3=0; }
     grep -q "kenga-app cat file: KengaOS boot #1" "$NVME_LOG" || { echo "ERROR: sys_cat round-trip failed on NVMe disk" >&2; ok3=0; }
     grep -q "kenga-app fd file: read ok 15" "$NVME_LOG" || { echo "ERROR: open/read/close failed on NVMe disk" >&2; ok3=0; }
+    # Сеть проверяется и здесь: отправка и приём кадра + разбор ARP-ответа.
+    grep -q "txds=1" "$NVME_LOG" || { echo "ERROR: e1000 did not transmit on NVMe config" >&2; ok3=0; }
+    grep -q "arpmac=677202" "$NVME_LOG" || { echo "ERROR: ARP resolution failed on NVMe config" >&2; ok3=0; }
     grep -q "userapp exit pid=0x66 code=0x0" "$NVME_LOG" || { echo "ERROR: spawned child did not exit cleanly on NVMe disk" >&2; ok3=0; }
     grep -q "kenga-app wrote: kenga-app" "$NVME_LOG" || { echo "ERROR: ring-3 app file write failed on NVMe disk" >&2; ok3=0; }
     if [[ $ok3 == 1 ]]; then
