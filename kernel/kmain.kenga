@@ -395,7 +395,9 @@ fn user_app_from_disk(fs: FsState) -> i64 {
         uart_puts("kenga-app fd file: (nothing)\n");
     }
     /* ACPI EC: батарея/температуры. Логика драйвера — на Kenga. */
-    uart_puts("EC probe ok=");
+    uart_puts("EC status=");
+    kf_puti(ec_status());
+    uart_puts(" probe ok=");
     kf_puti(ec_probe());
     uart_putc(10);
     /* а этот файл приложение удалило само (syscall 19) — должен исчезнуть */
