@@ -771,3 +771,27 @@ fn e1000_tcp_get(bar0: i64, txring: i64) -> i64 {
     mm_w32(bar0 + kf_get_hhdm() + 14360, 9);
     return 72;
 }
+/* --- TCP: seq собеседника из принятого SYN-ACK ---------------------------
+ * Убираем зашитую константу: ищем кадр, у которого ethertype 0x0800, proto 6
+ * (TCP), а байты флагов (46-47) содержат SYN|ACK (0x12). Его seq лежит на
+ * смещении 38-41. Возвращает сырой dword (в сетевом порядке) или -1.
+ */
+fn e1000_tcp_peer_seq(rxring: i64) -> i64 {
+    let i: i64 = 0;
+    let res: i64 = -1;
+    while i < 8 {
+        let desc: i64 = rxring + i * 16;
+        let st: i64 = e1000_peek(desc + 12) - (e1000_peek(desc + 12) / 256) * 256;
+        if (st & 1) == 1 {
+            let et: i64 = e1000_rx_byte(desc, 12) * 256 + e1000_rx_byte(desc, 13);
+            if et == 2048 {
+                if e1000_rx_byte(desc, 23) == 6 {
+                    let fl: i64 = e1000_rx_byte(desc, 46) * 256 + e1000_rx_byte(desc, 47);
+                    if (fl & 18) == 18 { if res < 0 { res = e1000_rx_dword(desc, 38); } }
+                }
+            }
+        }
+        i = i + 1;
+    }
+    return res;
+}
