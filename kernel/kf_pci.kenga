@@ -833,9 +833,13 @@ fn e1000_http_status(rxring: i64) -> i64 {
                     let sp: i64 = e1000_rx_byte(desc, 34) * 256 + e1000_rx_byte(desc, 35);
                     if sp == 19387 {
                         if res < 0 {
-                            let d0: i64 = e1000_rx_byte(desc, 54);
-                            let d1: i64 = e1000_rx_byte(desc, 55);
-                            let d2: i64 = e1000_rx_byte(desc, 56);
+                            /* Код состояния идёт ПОСЛЕ "HTTP/1.x " — это девять
+                               байт (H,T,T,P,/,1,.,x,пробел), значит цифры
+                               лежат на 54+9 = 63. Раньше читал с начала данных
+                               и получал букву 'H' вместо цифры. */
+                            let d0: i64 = e1000_rx_byte(desc, 63);
+                            let d1: i64 = e1000_rx_byte(desc, 64);
+                            let d2: i64 = e1000_rx_byte(desc, 65);
                             if d0 >= 48 { if d0 <= 57 { res = (d0 - 48) * 100 + (d1 - 48) * 10 + (d2 - 48); } }
                         }
                     }
@@ -880,4 +884,42 @@ fn e1000_http_wait(rxring: i64) -> i64 {
         if r >= 0 { i = 20000; } else { i = i + 1; }
     }
     return r;
+}
+/* Диагностика: порт ИСТОЧНИКА первого найденного TCP-кадра (или -1).
+   Нужна, чтобы понять, тот ли кадр ищет разбор HTTP: у ответа сервера порт
+   источника должен быть 19387 (0x4BBB). */
+fn e1000_tcp_srcport(rxring: i64) -> i64 {
+    let i: i64 = 0;
+    let res: i64 = -1;
+    while i < 8 {
+        let desc: i64 = rxring + i * 16;
+        let st: i64 = e1000_peek(desc + 12) - (e1000_peek(desc + 12) / 256) * 256;
+        if (st & 1) == 1 {
+            let et: i64 = e1000_rx_byte(desc, 12) * 256 + e1000_rx_byte(desc, 13);
+            if et == 2048 {
+                if e1000_rx_byte(desc, 23) == 6 {
+                    if res < 0 { res = e1000_rx_byte(desc, 34) * 256 + e1000_rx_byte(desc, 35); }
+                }
+            }
+        }
+        i = i + 1;
+    }
+    return res;
+}
+
+/* Сколько TCP-кадров вообще лежит в кольце — чтобы отличить «кадр не тот»
+   от «кадров нет вовсе». */
+fn e1000_tcp_count(rxring: i64) -> i64 {
+    let i: i64 = 0;
+    let n: i64 = 0;
+    while i < 8 {
+        let desc: i64 = rxring + i * 16;
+        let st: i64 = e1000_peek(desc + 12) - (e1000_peek(desc + 12) / 256) * 256;
+        if (st & 1) == 1 {
+            let et: i64 = e1000_rx_byte(desc, 12) * 256 + e1000_rx_byte(desc, 13);
+            if et == 2048 { if e1000_rx_byte(desc, 23) == 6 { n = n + 1; } }
+        }
+        i = i + 1;
+    }
+    return n;
 }
