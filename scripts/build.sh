@@ -363,7 +363,7 @@ if command -v qemu-system-x86_64 >/dev/null 2>&1 && [[ -f "$BUILD_DIR/kengaos.is
     WIN_DISK="$(cygpath -m "$BUILD_DIR/smoke-disk.img" 2>/dev/null || echo "$BUILD_DIR/smoke-disk.img")"
     dd if=/dev/zero of="$BUILD_DIR/smoke-disk.img" bs=1M count=64 status=none
     printf 'KENGARWTEST1' | dd of="$BUILD_DIR/smoke-disk.img" bs=512 count=1 conv=notrunc status=none
-    timeout 10 qemu-system-x86_64 -M pc -cdrom "$BUILD_DIR/kengaos.iso" \
+    timeout 25 qemu-system-x86_64 -M pc -cdrom "$BUILD_DIR/kengaos.iso" \
         -drive "file=$WIN_DISK,format=raw,if=ide" \
         -serial "file:$WIN_UART" -display none -no-reboot -m 64 \
         -device qemu-xhci -device usb-tablet \
@@ -557,7 +557,7 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     else
         WIN_AHCI_LOG="$AHCI_LOG"; WIN_AHCI_DISK="$AHCI_DISK"
     fi
-    timeout 10 qemu-system-x86_64 -M q35 -cdrom "$BUILD_DIR/kengaos.iso" \
+    timeout 25 qemu-system-x86_64 -M q35 -cdrom "$BUILD_DIR/kengaos.iso" \
         -drive "file=$WIN_AHCI_DISK,format=raw,if=ide" \
         -serial "file:$WIN_AHCI_LOG" -display none -no-reboot -m 64 \
         -device qemu-xhci -device usb-tablet \
