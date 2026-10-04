@@ -61,6 +61,7 @@ static int64_t up_kill(uint64_t pid, int64_t code);
 static int64_t fd_open(uint64_t path_uva);
 static int64_t fd_read(uint64_t fd, uint64_t uva, uint64_t len);
 static int64_t fd_close(uint64_t fd);
+static int64_t net_status(uint64_t uva, uint64_t maxlen);
 
 /* k_mem_palloc возвращает УЖЕ отображённый VA (phys+hhdm).
    Для PTE нужен физический: va - hhdm. */
@@ -390,6 +391,8 @@ void k_syscall_handler(void* frame_v) {
         f[0] = (uint64_t)fd_open(f[5]);
     } else if (num == 28) {     /* read(fd, buf, len) -> сколько прочитано */
         f[0] = (uint64_t)fd_read(f[5], f[4], f[3]);
+    } else if (num == 31) {     /* net(buf, max) -> длину сетевого результата */
+        f[0] = (uint64_t)net_status(f[5], f[4]);
     } else if (num == 29) {     /* close(fd) */
         f[0] = (uint64_t)fd_close(f[5]);
     } else if (num == 26) {     /* wait(pid): БЛОКИРУЮЩИЙ сбор статуса */
@@ -567,6 +570,25 @@ static int32_t g_fd_size[FD_MAX];
 static int32_t g_fd_off[FD_MAX];
 static char    g_fd_path[FD_MAX][64];
 static int     g_fd_used[FD_MAX];
+
+/* sys_net(uva, max): отдаёт приложению содержимое /apps/net.txt, которое ядро
+   выкладывает после сетевой работы. Путь ФИКСИРОВАН — приложению не нужно знать
+   имя файла, а логика ФС остаётся в Kenga (тот же мост k_fs_syscall, операция 16,
+   что у cat и fd_open). Барьеры по краям обязательны: Kenga-код затирает
+   callee-saved, без них наружу уходит мусор. */
+static int64_t net_status(uint64_t uva, uint64_t maxlen) {
+    static uint8_t nbuf[512];
+    if (!uxfer || !&k_fs_syscall) return -1;
+    if (maxlen == 0) return 0;
+    if (maxlen > sizeof(nbuf)) maxlen = sizeof(nbuf);
+    __asm__ __volatile__("" ::: "rbx", "rbp", "r12", "r13", "r14", "r15");
+    int64_t n = k_fs_syscall(ux_ino, ux_bmp, ux_io, ux_dat, ux_rw, ux_ok,
+                             16, (int64_t)(uintptr_t)"/apps/net.txt",
+                             (int64_t)(uintptr_t)nbuf, (int64_t)maxlen);
+    __asm__ __volatile__("" ::: "rbx", "rbp", "r12", "r13", "r14", "r15");
+    if (n <= 0) return -1;
+    return (int64_t)ux_to_user(uva, nbuf, (uint64_t)n);
+}
 
 static int64_t fd_open(uint64_t path_uva) {
     int s = -1;
