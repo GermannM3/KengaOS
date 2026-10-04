@@ -455,11 +455,14 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     # ПРИЁМ: rdh2=1 — устройство продвинуло головной указатель кольца приёма,
     # rxd2=64 — длина принятого кадра равна длине ARP-ответа из дампа трафика
     # (0x40 = 64). То есть ответ slirp реально лёг в наш DMA-буфер.
-    # ПРИЁМ НЕ ГЕЙТИТСЯ осознанно: ответ slirp приходит через мгновение после
-    # отправки, и в 10-секундном окне smoke он попадает в кольцо НЕ ВСЕГДА
-    # (наблюдалось rdh2=1 rxd2=64 и rdh2=0 в разных прогонах). Гейт на это был
-    # бы ложным красным. Диагностика (rxlate/rdh2/rxd*) печатается и позволяет
-    # проверить приём вручную: см. docs/HONEST-CHECKLIST.md, круги 115-116.
+    # ПРИЁМ. Раньше не гейтился: ответ slirp не всегда успевал в окно опроса
+    # (наблюдалось и rdh2=1 rxd2=64, и rdh2=0). Добавлена ПОВТОРНАЯ отправка
+    # ARP вторым дескриптором, после чего результат стал детерминированным:
+    # три прогона подряд дали rxlate=7 rdh2=2 rxd2=64. Теперь гейт корректен.
+    # rxlate=7 — статус приёмного дескриптора DD|EOP (кадр принят целиком),
+    # rxd2=64 — длина принятого кадра равна длине ARP-ответа (0x40).
+    grep -q "rxlate=7" "$UART_LOG" || { echo "ERROR: e1000 did not receive the ARP reply (DD=0)" >&2; ok=0; }
+    grep -q "rxd2=64" "$UART_LOG" || { echo "ERROR: received frame is not the 64-byte ARP reply" >&2; ok=0; }
     grep -q "kenga-app: child exit 0" "$UART_LOG" || { echo "ERROR: parent could not collect child status" >&2; ok=0; }
     grep -q "kenga-app cat file: KengaOS boot #1" "$UART_LOG" || { echo "ERROR: sys_cat content did not round-trip through the app" >&2; ok=0; }
     grep -q "kenga-app fd file: read ok 15" "$UART_LOG" || { echo "ERROR: open/read/close did not read the file in chunks" >&2; ok=0; }
