@@ -473,6 +473,11 @@ fn user_app_from_disk(fs: FsState) -> i64 {
     kf_puti(e1000_peek(rva + 12) - (e1000_peek(rva + 12) / 256) * 256);
     uart_puts(" rdh2=");
     kf_puti(e1000_rdh(nbar));
+    /* Ответ на ICMP echo: за время работы приложения он должен был прийти.
+       Третий дескриптор приёма (первые два заняты ответами ARP), тип ICMP
+       ответа — на смещении 34. Тип 0 = echo reply. */
+    uart_puts(" ping_type=");
+    kf_puti(e1000_rx_byte(rva + 32, 34));
     /* Содержимое приёмного дескриптора 0, как его видит устройство:
        адрес буфера (lo/hi), затем length|checksum|status|errors. */
     uart_puts(" rxd0=");
@@ -489,6 +494,9 @@ fn user_app_from_disk(fs: FsState) -> i64 {
        подстановки суммы обязан дать 0. */
     uart_puts(" cksum_selftest=");
     kf_puti(ip_checksum_selftest(mem_palloc()));
+    /* Отправляем ICMP echo (ответ проверим позже, без активного ожидания). */
+    uart_puts(" ping_sent=");
+    kf_puti(e1000_ping(nbar, tva));
     uart_putc(10);
 
     /* а этот файл приложение удалило само (syscall 19) — должен исчезнуть */
