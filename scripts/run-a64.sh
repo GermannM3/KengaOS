@@ -79,6 +79,18 @@ SECTS=65536   # 32 MiB
 mformat -i "$ESP_IMG" -C -T "$SECTS" -v KENGAOS
 mmd     -i "$ESP_IMG" ::/EFI ::/EFI/BOOT ::/boot
 mcopy   -i "$ESP_IMG" "$LIMINE_DIR/BOOTAA64.EFI" ::/EFI/BOOT/BOOTAA64.EFI
+# Защита от ложного «зелёного»: раньше при упавшей сборке сюда попадал СТАРЫЙ
+# ELF, smoke проходил, и регрессия вроде сломанной сборки aarch64 (круги 87-93)
+# выглядела успехом. Теперь устаревшее ядро — ошибка, а не повод продолжить.
+if [ ! -f "$KERNEL_ELF" ]; then
+    echo "ERROR: $KERNEL_ELF не найден — сначала соберите aarch64 (scripts/build-a64.sh)" >&2
+    exit 1
+fi
+NEWEST_SRC=$(ls -t "$KERNEL_DIR"/*.kenga "$KERNEL_DIR"/*.c 2>/dev/null | head -1)
+if [ -n "$NEWEST_SRC" ] && [ "$NEWEST_SRC" -nt "$KERNEL_ELF" ]; then
+    echo "ERROR: ядро aarch64 УСТАРЕЛО: $NEWEST_SRC новее $KERNEL_ELF — сборка не прошла" >&2
+    exit 1
+fi
 mcopy   -i "$ESP_IMG" "$KERNEL_ELF" ::/boot/kengaos.elf
 mcopy   -i "$ESP_IMG" "$BUILD_DIR/limine.conf" ::/boot/limine.conf
 mcopy   -i "$ESP_IMG" "$INITRD" ::/boot/initrd.img
