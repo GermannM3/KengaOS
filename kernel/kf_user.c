@@ -57,6 +57,7 @@ static void up_note_stack_use(void);
 static int up_sleep_current(uint64_t ms);
 static int up_exit_with_code(uint64_t code);
 static int64_t up_child_status(uint64_t pid);
+static int64_t up_kill(uint64_t pid, int64_t code);
 static int64_t fd_open(uint64_t path_uva);
 static int64_t fd_read(uint64_t fd, uint64_t uva, uint64_t len);
 static int64_t fd_close(uint64_t fd);
@@ -427,6 +428,8 @@ void k_syscall_handler(void* frame_v) {
             }
         }
         f[0] = (uint64_t)pid;
+    } else if (num == 30) {     /* kill(pid, code): завершить другой процесс */
+        f[0] = (uint64_t)up_kill(f[5], (int64_t)f[4]);
     } else if (num == 23) {     /* exit_code(code): завершиться с кодом */
         f[0] = 0;
         if (up_exit_with_code(f[5]) != 1) user_done = 1;
@@ -716,6 +719,19 @@ static int up_yield_current(void* frame_v) {
 
 /* Статус ребёнка: его код, если он уже завершился, иначе -1 (опрос).
    Записи завершённых процессов живут до конца k_user_sched_run. */
+/* kill(pid, code): завершить указанный процесс с кодом. Убитый помечается
+   завершённым, поэтому его код читается через wait_status, как обычный. */
+static int64_t up_kill(uint64_t pid, int64_t code) {
+    for (int i = 0; i < g_up_count; i++) {
+        if ((uint64_t)g_up[i].pid == pid && g_up[i].state != 3) {
+            g_up[i].state = 3;
+            g_up[i].code = (code < 256 ? code : 255);
+            return 0;
+        }
+    }
+    return -1;
+}
+
 static int64_t up_child_status(uint64_t pid) {
     for (int i = 0; i < g_up_count; i++) {
         if ((uint64_t)g_up[i].pid == pid) {

@@ -58,6 +58,15 @@ int64_t k_sys_cat(const char* path, int64_t dst, int64_t max) {
     return r;
 }
 
+/* --- kill(pid, code): завершить другой процесс (syscall 30) --- */
+int64_t k_sys_kill(int64_t pid, int64_t code) {
+    long r;
+    __asm__ __volatile__("int $0x80"
+                         : "=a"(r)
+                         : "a"(30L), "D"(pid), "S"(code));
+    return r;
+}
+
 /* --- запись файла: save(path, data, len) -> байты (KengaFS на стороне ядра) --- */
 int64_t k_sys_save(const char* path, const char* data, int64_t len) {
     long r;
