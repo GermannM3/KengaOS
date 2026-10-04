@@ -25,6 +25,8 @@
 @intrinsic fn rt_buf() -> i64;      /* 4 КиБ буфер приложения (runtime) */
 @intrinsic fn rt_str(addr: i64) -> str;
 @intrinsic fn sys_open(path: str) -> i64;
+@intrinsic fn sys_read(fd: i64, buf: i64, len: i64) -> i64;
+@intrinsic fn sys_close(fd: i64) -> i64;
 
 fn main() -> i64 {
     let pid: i64 = sys_getpid();
@@ -62,7 +64,21 @@ fn main() -> i64 {
        spawn, коды завершения) обязаны остаться зелёными */
     let fd: i64 = sys_open("/system/bootlog.txt");
     if fd >= 0 {
-        sys_save("/apps/fd.txt", "open ok", 7);
+        /* читаем кусками по 4 байта до конца файла */
+        let total: i64 = 0;
+        let chunk: i64 = sys_read(fd, rt_buf(), 4);
+        while chunk > 0 {
+            total = total + chunk;
+            chunk = sys_read(fd, rt_buf(), 4);
+        }
+        sys_close(fd);
+        if total == 15 {
+            sys_save("/apps/fd.txt", "read ok 15", 10);
+        } else {
+            sys_save("/apps/fd.txt", "read BAD", 8);
+        }
+    } else {
+        sys_save("/apps/fd.txt", "open BAD", 8);
     }
 
     /* пишем свой файл на диск (syscall 17) */
