@@ -58,6 +58,17 @@ int64_t k_sys_cat(const char* path, int64_t dst, int64_t max) {
     return r;
 }
 
+/* --- net(dst, max): сетевой результат, выложенный ядром (syscall 31).
+   Путь ФИКСИРОВАН на стороне ядра (/apps/net.txt) — приложению знать его не нужно.
+   Аргументы: rdi = буфер (f[5] в ядре), rsi = длина (f[4]). */
+int64_t k_sys_net(int64_t dst, int64_t max) {
+    long r;
+    __asm__ __volatile__("int $0x80"
+                         : "=a"(r)
+                         : "a"(31L), "D"(dst), "S"(max));
+    return r;
+}
+
 /* --- kill(pid, code): завершить другой процесс (syscall 30) --- */
 int64_t k_sys_kill(int64_t pid, int64_t code) {
     long r;
