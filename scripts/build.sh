@@ -428,6 +428,10 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     # сам — то есть устройство приняло запись и завершило сброс. st=2148009859
     # (0x80080783) содержит бит 1 = Link Up: виртуальный линк QEMU поднят.
     grep -q "rst=0 st=" "$UART_LOG" || { echo "ERROR: e1000 reset/link did not work (write to CTRL failed?)" >&2; ok=0; }
+    # Кольцо приёма: rxok=1 означает, что RDBAL, прочитанный ОБРАТНО из устройства,
+    # совпал с физическим адресом выделенной DMA-страницы, а RDLEN = 4096. То есть
+    # запись в регистры кольца доходит до контроллера.
+    grep -q "rdlen=4096 rxok=1" "$UART_LOG" || { echo "ERROR: e1000 RX ring registers did not verify (rxok!=1)" >&2; ok=0; }
     grep -q "kenga-app: child exit 0" "$UART_LOG" || { echo "ERROR: parent could not collect child status" >&2; ok=0; }
     grep -q "kenga-app cat file: KengaOS boot #1" "$UART_LOG" || { echo "ERROR: sys_cat content did not round-trip through the app" >&2; ok=0; }
     grep -q "kenga-app fd file: read ok 15" "$UART_LOG" || { echo "ERROR: open/read/close did not read the file in chunks" >&2; ok=0; }

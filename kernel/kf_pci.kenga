@@ -103,3 +103,20 @@ fn e1000_reset(bar0: i64) -> i64 {
     }
     return -1;
 }
+/* --- Кольцо приёма e1000 -------------------------------------------------
+ * RDBAL (0x2800) — физический адрес кольца дескрипторов, RDLEN (0x2808) —
+ * его длина в байтах. Физический адрес обязателен: устройство работает по DMA.
+ * Дескриптор e1000 — 16 байт, на страницу 4 КиБ их влезает 256.
+ */
+fn e1000_rx_init(bar0: i64) -> i64 {
+    let ring: i64 = mem_palloc();
+    let pa: i64 = mem_virt_to_phys(ring);
+    mm_w32(bar0 + kf_get_hhdm() + 10240, pa);
+    mm_w32(bar0 + kf_get_hhdm() + 10248, 4096);
+    mm_w32(bar0 + kf_get_hhdm() + 10256, 0);   /* RDH = 0 */
+    mm_w32(bar0 + kf_get_hhdm() + 10264, 255); /* RDT = 255 (все дескрипторы наши) */
+    return pa;
+}
+
+fn e1000_rdbal(bar0: i64) -> i64 { return mm_r32(bar0 + kf_get_hhdm() + 10240); }
+fn e1000_rdlen(bar0: i64) -> i64 { return mm_r32(bar0 + kf_get_hhdm() + 10248); }
