@@ -450,6 +450,9 @@ fn user_app_from_disk(fs: FsState) -> i64 {
        независимый от внешнего дампа трафика. */
     uart_puts(" txds=");
     kf_puti(e1000_peek(tva + 12) - (e1000_peek(tva + 12) / 256) * 256);
+    /* Поля length(+8) | cso(+10) | cmd(+11): ожидается 60 и 11 -> 0x0B00003C. */
+    uart_puts(" txd2=");
+    kf_puti(e1000_peek(tva + 8));
     uart_putc(10);
     uart_puts("EC status=");
     kf_puti(ec_status());
