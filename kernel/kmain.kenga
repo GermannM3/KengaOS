@@ -489,7 +489,7 @@ fn user_app_from_disk(fs: FsState) -> i64 {
     /* Разбор принятого кадра: MAC отправителя ARP-ответа лежит на смещении 22
        (Ethernet 14 + ARP: htype2 ptype2 hlen1 plen1 op2 + 2 байта MAC). */
     uart_puts(" arpmac=");
-    kf_puti(e1000_rx_dword(rva, 22));
+    kf_puti(e1000_arp_mac(rva));
     /* Самопроверка контрольной суммы Интернета: повторный расчёт после
        подстановки суммы обязан дать 0. */
     uart_puts(" cksum_selftest=");
@@ -503,7 +503,7 @@ fn user_app_from_disk(fs: FsState) -> i64 {
        Отправляли узор 04 03 02 01 08 07 06 05 0c 0b 0a 09 10 0f 0e 0d,
        его сумма = 136. Данные лежат на смещении 34+8 = 42 (Ethernet+IP+ICMP). */
     uart_puts(" ping_payload=");
-    kf_puti(e1000_rx_sum(rva + 32, 42, 16));
+    kf_puti(e1000_icmp_payload(rva));
     /* UDP+DNS: запрос A-записи для example.com на 10.0.2.3 (пятый дескриптор). */
     /* Асинхронное ожидание DNS: ответ резолвера хоста приходит с задержкой, поэтому
        функция опрашивает кольцо, пока не найдёт кадр с портом источника 53.
