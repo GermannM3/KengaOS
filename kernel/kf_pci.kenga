@@ -220,7 +220,8 @@ fn e1000_tx_init(bar0: i64) -> i64 {
     let ring: i64 = mem_palloc();
     let pa: i64 = mem_virt_to_phys(ring);
     mm_w32(bar0 + kf_get_hhdm() + 14336, pa);    /* TDBAL */
-    mm_w32(bar0 + kf_get_hhdm() + 14344, 128);   /* TDLEN: 8 × 16 */
+    mm_w32(bar0 + kf_get_hhdm() + 14344, 256);   /* TDLEN: 16 × 16 (было 8 —
+       девятый дескриптор выходил за кольцо и игнорировался устройством) */
     mm_w32(bar0 + kf_get_hhdm() + 14352, 0);     /* TDH = 0 */
     mm_w32(bar0 + kf_get_hhdm() + 14360, 0);     /* TDT = 0 */
     /* TCTL: EN | PSP | CT (0x0F) | COLD (0x40) = 0x000400FA. Без CT/COLD
@@ -710,4 +711,63 @@ fn e1000_tcp_ack(bar0: i64, txring: i64) -> i64 {
     mm_w8(txring + 124, 0);
     mm_w32(bar0 + kf_get_hhdm() + 14360, 8);
     return 60;
+}
+/* --- TCP: данные (HTTP GET) ---------------------------------------------
+ * Сегмент с полезной нагрузкой "GET / HTTP/1.0\r\n\r\n" (18 байт).
+ * Кадр: Ethernet(14) + IPv4(20) + TCP(20) + данные(18) = 72? нет: 14+20+20+18 = 72,
+ * но IPv4 total_len считает только IP-часть: 20+20+18 = 58 (0x3A),
+ * длина TCP для псевдо-заголовка = 20+18 = 38 (0x26).
+ * Заголовок и данные лежат ПОДРЯД (смещения 34..71), поэтому сумма TCP считается
+ * одним вызовом ip_sum по 38 байтам.
+ */
+fn e1000_tcp_get(bar0: i64, txring: i64) -> i64 {
+    let buf: i64 = mem_palloc();
+    let pa: i64 = mem_virt_to_phys(buf);
+    let pseudo: i64 = buf + 128;
+    mm_w32(buf, 0x000A5552);
+    mm_w32(buf + 4, 0x54520202);
+    mm_w32(buf + 8, 0x56341200);
+    mm_w32(buf + 12, 0x00450008);
+    mm_w16(buf + 16, 0x3A00);         /* total_len = 58 */
+    mm_w16(buf + 18, 0x0500);         /* id = 5 */
+    mm_w16(buf + 20, 0);
+    mm_w16(buf + 22, 0x0640);         /* ttl=64, proto=6 */
+    mm_w16(buf + 24, 0);
+    mm_w32(buf + 26, 0x0F02000A);
+    mm_w32(buf + 30, 0x0202000A);
+    mm_w16(buf + 34, 0x3930);         /* 12345 */
+    mm_w16(buf + 36, 0xBB4B);         /* 19387 */
+    mm_w32(buf + 38, 0x45332211);     /* наш seq + 1 */
+    mm_w32(buf + 42, 0x02FA0000);     /* их seq + 1 */
+    mm_w16(buf + 46, 0x1850);         /* data offset 5, ACK|PSH -> 50 18 */
+    mm_w16(buf + 48, 0x0020);
+    mm_w16(buf + 50, 0);
+    mm_w16(buf + 52, 0);
+    /* "GET / HTTP/1.0\r\n\r\n" */
+    mm_w32(buf + 54, 0x20544547);
+    mm_w32(buf + 58, 0x5448202F);
+    mm_w32(buf + 62, 0x312F5054);
+    mm_w32(buf + 66, 0x0A0D302E);
+    mm_w16(buf + 70, 0x0A0D);
+    mm_w32(pseudo, 0x0F02000A);
+    mm_w32(pseudo + 4, 0x0202000A);
+    mm_w16(pseudo + 8, 0x0600);
+    mm_w16(pseudo + 10, 0x2600);      /* длина TCP = 38 */
+    let ci: i64 = ip_checksum(buf + 14, 20);
+    mm_w8(buf + 24, ci / 256);
+    mm_w8(buf + 25, ci - (ci / 256) * 256);
+    let s: i64 = ip_sum(pseudo, 12) + ip_sum(buf + 34, 38);
+    s = (s - (s / 65536) * 65536) + (s / 65536);
+    s = (s - (s / 65536) * 65536) + (s / 65536);
+    let ct: i64 = 65535 - s;
+    mm_w8(buf + 50, ct / 256);
+    mm_w8(buf + 51, ct - (ct / 256) * 256);
+    let lo: i64 = pa - (pa >> 32) * 4294967296;
+    mm_w32(txring + 128, lo);         /* девятый дескриптор передачи */
+    mm_w32(txring + 132, pa >> 32);
+    mm_w16(txring + 136, 72);
+    mm_w8(txring + 139, 11);
+    mm_w8(txring + 140, 0);
+    mm_w32(bar0 + kf_get_hhdm() + 14360, 9);
+    return 72;
 }

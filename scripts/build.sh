@@ -441,7 +441,7 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "rctl=67141634" "$UART_LOG" || { echo "ERROR: e1000 receiver did not enable (RCTL readback mismatch)" >&2; ok=0; }
     # Кольцо передачи: TDBAL, прочитанный обратно, совпал с физическим адресом
     # страницы, TDLEN = 128, TCTL = 10 (EN|PSP) — передатчик включён.
-    grep -q "tdlen=128 txok=1" "$UART_LOG" || { echo "ERROR: e1000 TX ring registers did not verify (txok!=1)" >&2; ok=0; }
+    grep -q "tdlen=256 txok=1" "$UART_LOG" || { echo "ERROR: e1000 TX ring registers did not verify (txok!=1)" >&2; ok=0; }
     # TCTL = 0x000400FA (EN|PSP|CT|COLD) — штатное значение для e1000; без CT/COLD
     # (было 10) устройство тоже не отправляло, поэтому оставлено корректное.
     grep -q "tctl=262394" "$UART_LOG" || { echo "ERROR: e1000 transmitter did not enable (TCTL readback mismatch)" >&2; ok=0; }
