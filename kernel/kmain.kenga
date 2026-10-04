@@ -473,6 +473,14 @@ fn user_app_from_disk(fs: FsState) -> i64 {
     kf_puti(e1000_peek(rva + 12) - (e1000_peek(rva + 12) / 256) * 256);
     uart_puts(" rdh2=");
     kf_puti(e1000_rdh(nbar));
+    /* Содержимое приёмного дескриптора 0, как его видит устройство:
+       адрес буфера (lo/hi), затем length|checksum|status|errors. */
+    uart_puts(" rxd0=");
+    kf_puti(e1000_peek(rva));
+    uart_puts(" rxd1=");
+    kf_puti(e1000_peek(rva + 4));
+    uart_puts(" rxd2=");
+    kf_puti(e1000_peek(rva + 8));
     uart_putc(10);
 
     /* а этот файл приложение удалило само (syscall 19) — должен исчезнуть */
