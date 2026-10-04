@@ -329,13 +329,20 @@ fn e1000_arp(bar0: i64, txring: i64, rxring: i64) -> i64 {
 fn rd8(a: i64) -> i64 { return mmio_read8(a); }
 fn rd16(a: i64) -> i64 { return mmio_read16(a); }
 
-fn ip_checksum(addr: i64, len: i64) -> i64 {
-    let sum: i64 = 0;
+/* Сырая 16-битная сумма (без свёртки и дополнения). Нужна для TCP: там сумму
+   псевдо-заголовка и сегмента надо СЛОЖИТЬ, а складывать дополнения нельзя. */
+fn ip_sum(addr: i64, len: i64) -> i64 {
+    let s: i64 = 0;
     let i: i64 = 0;
     while i < len {
-        sum = sum + rd8(addr + i) * 256 + rd8(addr + i + 1);
+        s = s + rd8(addr + i) * 256 + rd8(addr + i + 1);
         i = i + 2;
     }
+    return s;
+}
+
+fn ip_checksum(addr: i64, len: i64) -> i64 {
+    let sum: i64 = ip_sum(addr, len);
     sum = (sum - (sum / 65536) * 65536) + (sum / 65536);
     sum = (sum - (sum / 65536) * 65536) + (sum / 65536);
     return 65535 - sum;
