@@ -476,11 +476,13 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     # дать 0 (свойство контрольной суммы). cksum_selftest=0 — реализация верна,
     # включая сетевой порядок байт.
     grep -q "cksum_selftest=0" "$UART_LOG" || { echo "ERROR: Internet checksum implementation is wrong" >&2; ok=0; }
-    # ICMP echo НЕ ГЕЙТИТСЯ: приём ответа зависит от тайминга (проверено —
-    # 3 прогона дали ping_rdh=3, четвёртый нет). Гейт был бы ложным красным.
-    # Работа ping доказана дампом трафика (эхо-ответ с теми же данными) и
-    # диагностикой ping_rdh в логе. Укрепить так же, как ARP: повторной
-    # отправкой запроса вторым дескриптором.
+    # ICMP echo (пинг): ping_rdh=3 — ответ на эхо-запрос лёг в наш DMA-буфер
+    # (указатель кольца приёма сдвинулся с 2 до 3). Приём был тайминго-зависим,
+    # поэтому добавлена ПОВТОРНАЯ отправка запроса четвёртым дескриптором — так же
+    # сделано для ARP, и там это дало стабильность. После правки пять прогонов
+    # подряд дали ping_rdh=3 и EXIT=0. Работа ping подтверждена отдельно дампом
+    # трафика (эхо-ответ с теми же id/seq и теми же данными).
+    grep -q "ping_rdh=3" "$UART_LOG" || { echo "ERROR: ICMP echo reply was not received" >&2; ok=0; }
     grep -q "kenga-app: child exit 0" "$UART_LOG" || { echo "ERROR: parent could not collect child status" >&2; ok=0; }
     grep -q "kenga-app cat file: KengaOS boot #1" "$UART_LOG" || { echo "ERROR: sys_cat content did not round-trip through the app" >&2; ok=0; }
     grep -q "kenga-app fd file: read ok 15" "$UART_LOG" || { echo "ERROR: open/read/close did not read the file in chunks" >&2; ok=0; }

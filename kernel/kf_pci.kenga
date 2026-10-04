@@ -421,5 +421,21 @@ fn e1000_ping(bar0: i64, txring: i64) -> i64 {
         rdh = mm_r32(bar0 + kf_get_hhdm() + 10256);
         if rdh > 2 { i = 2000000; } else { i = i + 1; }
     }
+    /* Если ответ не пришёл с первого раза — отправляем запрос ПОВТОРНО
+       четвёртым дескриптором. Так же сделано для ARP, и это сделало приём
+       надёжным: одиночная отправка иногда не попадала в окно опроса. */
+    if rdh < 3 {
+        mm_w32(txring + 48, lo);
+        mm_w32(txring + 52, pa >> 32);
+        mm_w16(txring + 56, 60);
+        mm_w8(txring + 59, 11);
+        mm_w8(txring + 60, 0);
+        mm_w32(bar0 + kf_get_hhdm() + 14360, 4);
+        let k: i64 = 0;
+        while k < 2000000 {
+            rdh = mm_r32(bar0 + kf_get_hhdm() + 10256);
+            if rdh > 2 { k = 2000000; } else { k = k + 1; }
+        }
+    }
     return rdh;
 }
