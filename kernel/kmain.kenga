@@ -501,6 +501,16 @@ fn user_app_from_disk(fs: FsState) -> i64 {
     kf_puti(e1000_rdh(nbar));
     uart_putc(10);
 
+    /* Результат убийства процесса: приложение подтверждает его файлом. */
+    let rk: i64 = fs_read(fs, "/apps/kill.txt", fs.dat, 32);
+    if rk > 0 {
+        uart_puts("kenga-app kill file: ");
+        uart_puts(kf_str(fs.dat));
+        uart_putc(10);
+    } else {
+        uart_puts("kenga-app kill file: (nothing)\n");
+    }
+
     /* а этот файл приложение удалило само (syscall 19) — должен исчезнуть */
     let rdel: i64 = fs_read(fs, "/apps/demo/bye.txt", fs.dat, 256);
     if (rdel > 0) {

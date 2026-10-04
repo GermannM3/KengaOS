@@ -122,10 +122,28 @@ fn main() -> i64 {
     /* kill: порождаем ребёнка и убиваем его ДО первого запуска, поэтому
        результат детерминирован: планирование не успевает его выполнить */
     if pid == 100 {
-        let p2: i64 = sys_spawn("/apps/hello.elf");
-        if p2 > 0 {
-            sys_kill(p2, 137);
-            sys_save("/apps/kill.txt", "killed", 6);
+        /* Убийство процесса. Родителя может вытеснить таймер МЕЖДУ spawn и kill,
+           тогда ребёнок успевает завершиться сам и kill вернёт -1 — отсюда
+           редкие флаки. Поэтому: до трёх попыток и проверка ИСХОДА через
+           wait_status (код убийства 137), а факт подтверждаем файлом, который
+           читает ядро. */
+        let tries: i64 = 0;
+        let ok: i64 = 0;
+        while tries < 3 {
+            let p2: i64 = sys_spawn("/apps/hello.elf");
+            if p2 > 0 {
+                let r: i64 = sys_kill(p2, 137);
+                if r == 0 {
+                    if sys_wait_status(p2) == 137 { ok = 1; }
+                }
+            }
+            tries = tries + 1;
+            if ok == 1 { tries = 3; }
+        }
+        if ok == 1 {
+            sys_save("/apps/kill.txt", "killed 137", 10);
+        } else {
+            sys_save("/apps/kill.txt", "kill BAD", 8);
         }
     }
 
