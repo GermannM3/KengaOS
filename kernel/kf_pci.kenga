@@ -199,18 +199,26 @@ fn e1000_build_arp(buf: i64) -> i64 {
     mm_w32(buf + 32, 0);            /* искомый MAC: нули */
     mm_w32(buf + 36, 0x000A0000);   /* 00 00 | 0A 00 */
     mm_w32(buf + 40, 0x00000202);   /* 02 02 -> 10.0.2.2 */
-    return 42;
+    /* Кадр ARP — 42 байта, а минимум Ethernet — 60 (без FCS). Короткий кадр
+       устройство ОТБРАСЫВАЕТ, при этом TDH всё равно доходит до 1: дескриптор
+       прочитан, а наружу ничего не ушло. Проверено дампом трафика (pcap был
+       пуст). Поэтому добиваем кадр нулями до 60 байт. */
+    mm_w32(buf + 44, 0);
+    mm_w32(buf + 48, 0);
+    mm_w32(buf + 52, 0);
+    mm_w32(buf + 56, 0);
+    return 60;
 }
 
 /* Отправить ARP и дождаться, пока контроллер обработает дескриптор (TDH=1). */
-fn e1000_arp(bar0: i64, txring: i64) -> i64 {
+fn e1000_arp(bar0: i64, txring: i64, rxring: i64) -> i64 {
     let buf: i64 = mem_palloc();
     let pa: i64 = mem_virt_to_phys(buf);
     e1000_build_arp(buf);
     let lo: i64 = pa - (pa >> 32) * 4294967296;
     mm_w32(txring, lo);
     mm_w32(txring + 4, pa >> 32);
-    mm_w16(txring + 8, 42);
+    mm_w16(txring + 8, 60);
     mm_w8(txring + 11, 11);   /* cmd = EOP | IFCS | RS */
     mm_w8(txring + 12, 0);    /* status: DD ещё не выставлен */
     mm_w32(bar0 + kf_get_hhdm() + 14360, 1);   /* TDT = 1: отправляй */
@@ -227,6 +235,9 @@ fn e1000_arp(bar0: i64, txring: i64) -> i64 {
         rdh = mm_r32(bar0 + kf_get_hhdm() + 10256);
         if rdh != 0 { j = 2000000; } else { j = j + 1; }
     }
-    if rdh == 0 { return tdh * 100; }
-    return tdh * 100 + rdh + 5000;   /* +5000: ответ получен (видно в выводе) */
+    /* Статус первого приёмного дескриптора: бит 0 (DD) = устройство положило кадр.
+       Это прямее, чем RDH: показывает, писал ли контроллер в наше кольцо вообще. */
+    let st: i64 = mm_r32(rxring + 12) - (mm_r32(rxring + 12) / 256) * 256;
+    if rdh == 0 { return tdh * 10000 + st * 100; }
+    return tdh * 10000 + rdh * 100 + st + 5000;
 }
