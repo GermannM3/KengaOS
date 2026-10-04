@@ -615,7 +615,7 @@ static int64_t fd_close(uint64_t fd) {
 /* 8, а не 4: слоты завершённых процессов НЕ освобождаются, поэтому при четырёх
    слотах после первого запуска приложения (2 стартовых + ребёнок + убитый) новый
    процесс зарегистрировать нельзя — второй запуск возвращал pid=0. */
-#define UP_MAX   8
+#define UP_MAX   4
 #define UP_STACK 65536        /* KengaFS-код в syscall-контексте уходит глубоко:
                                  на 16 КиБ переполнение уезжало в СОСЕДНИЙ стек
                                  и затирало сохранённый кадр соседнего процесса */
@@ -754,7 +754,10 @@ static int up_exit_with_code(uint64_t code) {
 /* Поспать ms миллисекунд: пометить себя спящим и уступить CPU. Если будить
    некого (idle-задачи нет) — не спим вовсе, чтобы не встать намертво. */
 static int up_sleep_current(uint64_t ms) {
-    if (g_up_count < 2 || g_up_cur < 0 || g_up_cur >= g_up_count) return 0;
+    /* Просыпаться есть кому: разбудит ТАЙМЕР — up_pick_wait стоит на hlt именно
+       до таймерного прерывания. Опора на ЧИСЛО процессов ломала сон одиночного
+       процесса (второй прогон приложения после сброса таблицы). */
+    if (g_up_cur < 0 || g_up_cur >= g_up_count) return 0;
     if (ms > 5000) ms = 5000;
     g_up[g_up_cur].wake = (uint64_t)k_time_uptime_ms() + ms;
     g_up[g_up_cur].state = UP_SLEEP;
@@ -805,7 +808,10 @@ int64_t k_user_spawn_blob(int64_t addr, int64_t size) {
 static uint64_t g_preempt = 0;
 
 int64_t k_user_timer_preempt(int64_t frame) {
-    if (g_up_count < 2 || g_up_cur < 0 || g_up_cur >= g_up_count) return 0;
+    /* Просыпаться есть кому: разбудит ТАЙМЕР — up_pick_wait стоит на hlt именно
+       до таймерного прерывания. Опора на ЧИСЛО процессов ломала сон одиночного
+       процесса (второй прогон приложения после сброса таблицы). */
+    if (g_up_cur < 0 || g_up_cur >= g_up_count) return 0;
     if (!frame) return 0;
     g_up[g_up_cur].state = 1;
     int r = up_switch_from((void*)(uintptr_t)frame);
@@ -844,6 +850,11 @@ int64_t k_user_sched_run(void) {
         g_up[k].state = 3;
     }
     g_up_cur = -1;
+    /* Прогон закончен — очищаем таблицу. Статусы нужны ТОЛЬКО внутри прогона
+       (родитель читает код через wait_status), а без сброса таблица исчерпывалась
+       за конечное число запусков: следующий spawn получал pid=0 (круги 175-178). */
+    for (int k = 0; k < g_up_count; k++) g_up[k].state = 0;
+    g_up_count = 0;
     return 1;
 }
 
