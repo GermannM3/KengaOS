@@ -38,6 +38,29 @@ fn pci_enable_bus_master(a: i64) -> i64 {
     return pci_cfg32(bus, dev, 0, 4);
 }
 
+/* ДИАГНОСТИКА: работает ли ЗАПИСЬ конфига вообще. Ставим безобидный бит 4
+   (Memory Write Invalidate) и читаем обратно: если бит появился — запись
+   работает и проблема только в бите BUS MASTER; если нет — запись не проходит. */
+/* Записать ТОЛЬКО слово COMMAND (16 бит) в регистр 0x04. Запись двойного
+   слова захватывала бы и STATUS (0x06), где биты гасятся записью единиц
+   (RW1C), поэтому пишем ровно 16 бит. */
+fn pci_cmd_set(a: i64, v: i64) -> i64 {
+    let bus: i64 = a / 256;
+    let dev: i64 = a - bus * 256;
+    let addr: i64 = 2147483648 + bus * 65536 + dev * 2048 + 4;
+    asm_outl(3320, addr);
+    asm_outw(3324, v);
+    return pci_cfg32(bus, dev, 0, 4);
+}
+
+fn pci_cmd_probe(a: i64) -> i64 {
+    let bus: i64 = a / 256;
+    let dev: i64 = a - bus * 256;
+    let cmd: i64 = pci_cfg32(bus, dev, 0, 4);
+    pci_cfg_write32(bus, dev, 0, 4, cmd + 16);
+    return pci_cfg32(bus, dev, 0, 4);
+}
+
 /* Идентификатор устройства 00:00.0 (в QEMU -M pc это 0x8086:0x1237). */
 fn pci_dev0() -> i64 { return pci_cfg32(0, 0, 0, 0); }
 

@@ -445,6 +445,13 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     # tdh=1, то есть контроллер ОБРАБОТАЛ наш дескриптор передачи и отправил
     # ARP-запрос (rdh при этом может быть любым — ответ мог прийти или нет).
     grep -q "arp_tdh_rdh=1" "$UART_LOG" || { echo "ERROR: e1000 did not transmit the ARP frame (TDH != 1)" >&2; ok=0; }
+    # ГЛАВНЫЙ гейт сети: txds=1 — устройство выставило бит DD в дескрипторе
+    # передачи, то есть ЗАВЕРШИЛО отправку кадра. Это собственный отчёт
+    # контроллера, а не наше предположение. Без bus-master (PCI command) он
+    # оставался 0, и кадр не покидал машину (проверено дампом трафика).
+    grep -q "txds=1" "$UART_LOG" || { echo "ERROR: e1000 did not complete frame transmission (DD=0)" >&2; ok=0; }
+    # Запись PCI-команды должна проходить: 7 = IO|MEMORY|BUS MASTER.
+    grep -q "cmd_word=7" "$UART_LOG" || { echo "ERROR: PCI command register write did not stick (bus-master off)" >&2; ok=0; }
     grep -q "kenga-app: child exit 0" "$UART_LOG" || { echo "ERROR: parent could not collect child status" >&2; ok=0; }
     grep -q "kenga-app cat file: KengaOS boot #1" "$UART_LOG" || { echo "ERROR: sys_cat content did not round-trip through the app" >&2; ok=0; }
     grep -q "kenga-app fd file: read ok 15" "$UART_LOG" || { echo "ERROR: open/read/close did not read the file in chunks" >&2; ok=0; }
