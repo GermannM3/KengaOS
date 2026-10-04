@@ -504,6 +504,9 @@ fn user_app_from_disk(fs: FsState) -> i64 {
        его сумма = 136. Данные лежат на смещении 34+8 = 42 (Ethernet+IP+ICMP). */
     uart_puts(" ping_payload=");
     kf_puti(e1000_rx_sum(rva + 32, 42, 16));
+    /* UDP+DNS: запрос A-записи для example.com на 10.0.2.3 (пятый дескриптор). */
+    uart_puts(" dns_len=");
+    kf_puti(e1000_dns(nbar, tva));
     uart_putc(10);
 
     /* Результат убийства процесса: приложение подтверждает его файлом. */

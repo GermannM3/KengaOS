@@ -451,3 +451,63 @@ fn e1000_rx_sum(rxring: i64, off: i64, len: i64) -> i64 {
     }
     return s;
 }
+/* --- UDP + DNS: запрос A-записи для example.com -------------------------
+ * Раскладка (все значения — какими байты должны быть НА ПРОВОДЕ):
+ *   Ethernet 14 | IPv4 20 | UDP 8 | DNS 12 + имя 13 + тип/класс 4 = 29
+ * Длины вычислены: total_len = 20+8+29 = 57 (0x39), udp_len = 8+29 = 37 (0x25),
+ * длина кадра = 42 + 29 = 71. Сумма UDP в IPv4 НЕОБЯЗАТЕЛЬНА — оставлена нулём.
+ * DNS-сервер slirp — 10.0.2.3. Отправка пятым дескриптором. Возвращает длину.
+ */
+fn e1000_dns(bar0: i64, txring: i64) -> i64 {
+    let buf: i64 = mem_palloc();
+    let pa: i64 = mem_virt_to_phys(buf);
+    mm_w32(buf, 0x000A5552);          /* dst MAC = шлюз */
+    mm_w32(buf + 4, 0x54520202);
+    mm_w32(buf + 8, 0x56341200);      /* src MAC = наш */
+    mm_w32(buf + 12, 0x00450008);     /* 08 00 (IPv4) | 45 00 */
+    mm_w16(buf + 16, 0x3900);         /* total_len = 57 -> байты 00 39 */
+    mm_w16(buf + 18, 0x0200);         /* id = 2 -> 00 02 */
+    mm_w16(buf + 20, 0);              /* flags/frag */
+    mm_w16(buf + 22, 0x1140);         /* ttl=64, proto=17 -> 40 11 */
+    mm_w16(buf + 24, 0);              /* сумма IP, посчитаем ниже */
+    mm_w32(buf + 26, 0x0F02000A);     /* src 10.0.2.15 */
+    mm_w32(buf + 30, 0x0302000A);     /* dst 10.0.2.3 (DNS slirp) */
+    mm_w16(buf + 34, 0xD204);         /* порт 1234 -> 04 D2 */
+    mm_w16(buf + 36, 0x3500);         /* порт 53 -> 00 35 */
+    mm_w16(buf + 38, 0x2500);         /* длина UDP 37 -> 00 25 */
+    mm_w16(buf + 40, 0);              /* сумма UDP = 0 (не проверяется) */
+    /* DNS-заголовок: id, флаги (recursion desired), qdcount=1, прочие 0 */
+    mm_w16(buf + 42, 0x3412);         /* id -> 12 34 */
+    mm_w16(buf + 44, 0x0001);         /* флаги -> 01 00 */
+    mm_w16(buf + 46, 0x0100);         /* qdcount = 1 -> 00 01 */
+    mm_w16(buf + 48, 0);
+    mm_w16(buf + 50, 0);
+    mm_w16(buf + 52, 0);
+    /* вопрос начинается на 54: 07 "example" 03 "com" 00 */
+    mm_w8(buf + 54, 7);
+    mm_w8(buf + 55, 0x65);
+    mm_w8(buf + 56, 0x78);
+    mm_w8(buf + 57, 0x61);
+    mm_w8(buf + 58, 0x6d);
+    mm_w8(buf + 59, 0x70);
+    mm_w8(buf + 60, 0x6c);
+    mm_w8(buf + 61, 0x65);
+    mm_w8(buf + 62, 3);
+    mm_w8(buf + 63, 0x63);
+    mm_w8(buf + 64, 0x6f);
+    mm_w8(buf + 65, 0x6d);
+    mm_w8(buf + 66, 0);
+    mm_w16(buf + 67, 0x0100);         /* тип A -> 00 01 */
+    mm_w16(buf + 69, 0x0100);         /* класс IN -> 00 01 */
+    let c: i64 = ip_checksum(buf + 14, 20);
+    mm_w8(buf + 24, c / 256);
+    mm_w8(buf + 25, c - (c / 256) * 256);
+    let lo: i64 = pa - (pa >> 32) * 4294967296;
+    mm_w32(txring + 64, lo);          /* пятый дескриптор передачи */
+    mm_w32(txring + 68, pa >> 32);
+    mm_w16(txring + 72, 71);
+    mm_w8(txring + 75, 11);
+    mm_w8(txring + 76, 0);
+    mm_w32(bar0 + kf_get_hhdm() + 14360, 5);
+    return 71;
+}
