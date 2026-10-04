@@ -171,11 +171,16 @@ fn e1000_tx_init(bar0: i64) -> i64 {
     mm_w32(bar0 + kf_get_hhdm() + 14344, 128);   /* TDLEN: 8 × 16 */
     mm_w32(bar0 + kf_get_hhdm() + 14352, 0);     /* TDH = 0 */
     mm_w32(bar0 + kf_get_hhdm() + 14360, 0);     /* TDT = 0 */
-    mm_w32(bar0 + kf_get_hhdm() + 1024, 10);     /* TCTL = EN | PSP */
+    /* TCTL: EN | PSP | CT (0x0F) | COLD (0x40) = 0x000400FA. Без CT/COLD
+       (значение 10) устройство дескриптор читает, но кадр не отправляет —
+       обнаружено дампом трафика: pcap оставался пустым. */
+    mm_w32(bar0 + kf_get_hhdm() + 1024, 262394);
     return ring;   /* CPU пишет дескрипторы по виртуальному адресу */
 }
 
 fn e1000_tdbal(bar0: i64) -> i64 { return mm_r32(bar0 + kf_get_hhdm() + 14336); }
+/* Прочитать слово по адресу — для дампа памяти, как её видит устройство. */
+fn e1000_peek(a: i64) -> i64 { return mm_r32(a); }
 fn e1000_tdlen(bar0: i64) -> i64 { return mm_r32(bar0 + kf_get_hhdm() + 14344); }
 fn e1000_tctl(bar0: i64) -> i64 { return mm_r32(bar0 + kf_get_hhdm() + 1024); }
 /* --- Отправка ARP-запроса -----------------------------------------------
