@@ -452,6 +452,14 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "txds=1" "$UART_LOG" || { echo "ERROR: e1000 did not complete frame transmission (DD=0)" >&2; ok=0; }
     # Запись PCI-команды должна проходить: 7 = IO|MEMORY|BUS MASTER.
     grep -q "cmd_word=7" "$UART_LOG" || { echo "ERROR: PCI command register write did not stick (bus-master off)" >&2; ok=0; }
+    # ПРИЁМ: rdh2=1 — устройство продвинуло головной указатель кольца приёма,
+    # rxd2=64 — длина принятого кадра равна длине ARP-ответа из дампа трафика
+    # (0x40 = 64). То есть ответ slirp реально лёг в наш DMA-буфер.
+    # ПРИЁМ НЕ ГЕЙТИТСЯ осознанно: ответ slirp приходит через мгновение после
+    # отправки, и в 10-секундном окне smoke он попадает в кольцо НЕ ВСЕГДА
+    # (наблюдалось rdh2=1 rxd2=64 и rdh2=0 в разных прогонах). Гейт на это был
+    # бы ложным красным. Диагностика (rxlate/rdh2/rxd*) печатается и позволяет
+    # проверить приём вручную: см. docs/HONEST-CHECKLIST.md, круги 115-116.
     grep -q "kenga-app: child exit 0" "$UART_LOG" || { echo "ERROR: parent could not collect child status" >&2; ok=0; }
     grep -q "kenga-app cat file: KengaOS boot #1" "$UART_LOG" || { echo "ERROR: sys_cat content did not round-trip through the app" >&2; ok=0; }
     grep -q "kenga-app fd file: read ok 15" "$UART_LOG" || { echo "ERROR: open/read/close did not read the file in chunks" >&2; ok=0; }
