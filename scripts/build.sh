@@ -424,6 +424,10 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     # 0x80005634 (RAH, бит 31 = адрес действителен) -> MAC 52:54:00:12:34:56.
     # Это первый РЕАЛЬНЫЙ доступ к MMIO сетевого контроллера.
     grep -q "mac=302011474:2147505716" "$UART_LOG" || { echo "ERROR: e1000 MAC registers not read via MMIO" >&2; ok=0; }
+    # Сброс сетевого контроллера: rst=0 означает, что CTRL.RST (бит 26) снялся
+    # сам — то есть устройство приняло запись и завершило сброс. st=2148009859
+    # (0x80080783) содержит бит 1 = Link Up: виртуальный линк QEMU поднят.
+    grep -q "rst=0 st=" "$UART_LOG" || { echo "ERROR: e1000 reset/link did not work (write to CTRL failed?)" >&2; ok=0; }
     grep -q "kenga-app: child exit 0" "$UART_LOG" || { echo "ERROR: parent could not collect child status" >&2; ok=0; }
     grep -q "kenga-app cat file: KengaOS boot #1" "$UART_LOG" || { echo "ERROR: sys_cat content did not round-trip through the app" >&2; ok=0; }
     grep -q "kenga-app fd file: read ok 15" "$UART_LOG" || { echo "ERROR: open/read/close did not read the file in chunks" >&2; ok=0; }

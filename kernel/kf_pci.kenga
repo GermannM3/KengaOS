@@ -77,3 +77,29 @@ fn pci_nic_id() -> i64 {
 
 fn e1000_mac_lo(bar0: i64) -> i64 { return mmio_read32(bar0 + kf_get_hhdm() + 21504); }
 fn e1000_mac_hi(bar0: i64) -> i64 { return mmio_read32(bar0 + kf_get_hhdm() + 21508); }
+/* --- e1000 (Intel 82540EM): операции с MMIO -------------------------------
+ * Как и с портами: один инлайн mmio-интринсика порождает локальную переменную,
+ * поэтому на функцию — не более одного вызова. Обёртки ниже это соблюдают.
+ */
+
+fn mm_r32(a: i64) -> i64 { return mmio_read32(a); }
+fn mm_w32(a: i64, v: i64) -> i64 { mmio_write32(a, v); return 0; }
+
+fn e1000_va(bar0: i64) -> i64 { return bar0 + kf_get_hhdm(); }
+fn e1000_ctrl(bar0: i64) -> i64 { return mm_r32(e1000_va(bar0)); }
+fn e1000_status(bar0: i64) -> i64 { return mm_r32(e1000_va(bar0) + 8); }
+
+/* Сброс контроллера: выставить CTRL.RST (бит 26) и дождаться самосброса.
+   Возвращает 0, если устройство ответило (бит снялся сам), -1 при таймауте.
+   Это первая РЕАЛЬНАЯ операция записи в сетевое устройство. */
+fn e1000_reset(bar0: i64) -> i64 {
+    let c: i64 = mm_r32(e1000_va(bar0));
+    mm_w32(e1000_va(bar0), c + 67108864);
+    let i: i64 = 0;
+    while i < 200000 {
+        let c2: i64 = mm_r32(e1000_va(bar0));
+        if (c2 & 67108864) == 0 { return 0; }
+        i = i + 1;
+    }
+    return -1;
+}
