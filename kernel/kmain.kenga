@@ -531,8 +531,20 @@ fn user_app_from_disk(fs: FsState) -> i64 {
        отбрасывается; затем ждём ответ и разбираем код состояния. */
     uart_puts(" rx_ret=");
     kf_puti(e1000_rx_return(nbar, rva));
+    let nethttp: i64 = e1000_http_wait(rva);
     uart_puts(" http_code=");
-    kf_puti(e1000_http_wait(rva));
+    kf_puti(nethttp);
+    /* Сетевой результат — в ФАЙЛ: это первый шаг сетевого API для приложений.
+       Приложение сможет прочитать его обычным sys_cat, без доступа к железу. */
+    fs_write(fs, "/apps/net.txt", "net http=" + nethttp + " dns=" + dnsa);
+    /* Читаем файл обратно и печатаем: подтверждение, что сетевой результат
+       действительно лёг на диск и доступен приложению обычным sys_cat. */
+    let rnet: i64 = fs_read(fs, "/apps/net.txt", fs.dat, 64);
+    if rnet > 0 {
+        uart_puts("net file: ");
+        uart_puts(kf_str(fs.dat));
+        uart_putc(10);
+    }
     /* Диагностика: сколько TCP-кадров в кольце и порт источника первого.
        Для ответа сервера ожидается порт 19387. */
     uart_puts(" tcp_n=");
