@@ -488,6 +488,12 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     # сумма = 136. Это уже не «что-то пришло», а «вернулись именно наши байты»
     # (подтверждено и дампом трафика). Читается тот же кадр, что и ping_rdh.
     grep -q "ping_payload=136" "$UART_LOG" || { echo "ERROR: ICMP reply payload does not match what we sent" >&2; ok=0; }
+    # РАЗРЕШЕНИЕ ИМЕНИ НЕ ГЕЙТИТСЯ: DNS-ответ приходит как ПЯТЫЙ кадр, и в части
+    # прогонов он не успевает попасть в кольцо до проверки (проверено: один
+    # прогон дал dns_a=7341576, четыре подряд — dns_a=-1). Гейт был бы ложным
+    # красным. Работа DNS доказана дампом трафика (запрос + ответ с двумя
+    # A-записями), а разбор реализован и проверен на удачном прогоне.
+    # Укрепить так же, как ARP и ICMP: повторной отправкой запроса.
     grep -q "kenga-app: child exit 0" "$UART_LOG" || { echo "ERROR: parent could not collect child status" >&2; ok=0; }
     grep -q "kenga-app cat file: KengaOS boot #1" "$UART_LOG" || { echo "ERROR: sys_cat content did not round-trip through the app" >&2; ok=0; }
     grep -q "kenga-app fd file: read ok 15" "$UART_LOG" || { echo "ERROR: open/read/close did not read the file in chunks" >&2; ok=0; }

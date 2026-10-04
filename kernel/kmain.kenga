@@ -516,7 +516,7 @@ fn user_app_from_disk(fs: FsState) -> i64 {
        класс 2, ttl 4, rdlen 2 -> данные A на 71+13+2+2+4+2 = 94.
        Ожидаем адрес 8.6.112.0 (байты 08 06 70 00). */
     uart_puts(" dns_a=");
-    kf_puti(e1000_rx_dword(rva + 64, 94));
+    kf_puti(e1000_dns_answer(rva));
     uart_puts(" rxdd=");
     let di: i64 = 0;
     while di < 4 {
