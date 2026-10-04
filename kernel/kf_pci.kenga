@@ -542,3 +542,50 @@ fn e1000_dns_answer(rxring: i64) -> i64 {
     }
     return res;
 }
+/* --- Поиск кадров ПО ПРИЗНАКУ (а не по номеру слота) ---------------------
+ * Номера слотов зависят от конфигурации: на pc и q35 порядок принятых кадров
+ * разный, поэтому разбор по фиксированному слоту работал только на pc.
+ */
+
+/* ARP-ответ: ethertype 0x0806 (2054) и opcode 0x0002. Возвращает MAC
+   отправителя (байты 22-25) или -1. */
+fn e1000_arp_mac(rxring: i64) -> i64 {
+    let i: i64 = 0;
+    let res: i64 = -1;
+    while i < 8 {
+        let desc: i64 = rxring + i * 16;
+        let st: i64 = e1000_peek(desc + 12) - (e1000_peek(desc + 12) / 256) * 256;
+        if st == 7 {
+            let et: i64 = e1000_rx_byte(desc, 12) * 256 + e1000_rx_byte(desc, 13);
+            if et == 2054 {
+                let op: i64 = e1000_rx_byte(desc, 20) * 256 + e1000_rx_byte(desc, 21);
+                if op == 2 { if res < 0 { res = e1000_rx_dword(desc, 22); } }
+            }
+        }
+        i = i + 1;
+    }
+    return res;
+}
+
+/* Эхо-ответ ICMP: ethertype 0x0800 (2048), proto 1, типа 0 (reply).
+   Возвращает сумму 16 байт данных (смещение 42) или -1. */
+fn e1000_icmp_payload(rxring: i64) -> i64 {
+    let i: i64 = 0;
+    let res: i64 = -1;
+    while i < 8 {
+        let desc: i64 = rxring + i * 16;
+        let st: i64 = e1000_peek(desc + 12) - (e1000_peek(desc + 12) / 256) * 256;
+        if st == 7 {
+            let et: i64 = e1000_rx_byte(desc, 12) * 256 + e1000_rx_byte(desc, 13);
+            if et == 2048 {
+                if e1000_rx_byte(desc, 23) == 1 {
+                    if e1000_rx_byte(desc, 34) == 0 {
+                        if res < 0 { res = e1000_rx_sum(desc, 42, 16); }
+                    }
+                }
+            }
+        }
+        i = i + 1;
+    }
+    return res;
+}
