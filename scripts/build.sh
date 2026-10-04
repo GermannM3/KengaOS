@@ -463,6 +463,10 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     # rxd2=64 — длина принятого кадра равна длине ARP-ответа (0x40).
     grep -q "rxlate=7" "$UART_LOG" || { echo "ERROR: e1000 did not receive the ARP reply (DD=0)" >&2; ok=0; }
     grep -q "rxd2=64" "$UART_LOG" || { echo "ERROR: received frame is not the 64-byte ARP reply" >&2; ok=0; }
+    # РАЗБОР ОТВЕТА: 677202 = 0x000A5552 — первые четыре байта MAC отправителя
+    # ARP-ответа, то есть 52 55 0a 00; полный MAC slirp — 52:55:0a:00:02:02.
+    # Совпадает с дампом трафика побитово: адрес шлюза РАЗРЕШЁН (ARP работает).
+    grep -q "arpmac=677202" "$UART_LOG" || { echo "ERROR: ARP reply was not parsed (gateway MAC not resolved)" >&2; ok=0; }
     grep -q "kenga-app: child exit 0" "$UART_LOG" || { echo "ERROR: parent could not collect child status" >&2; ok=0; }
     grep -q "kenga-app cat file: KengaOS boot #1" "$UART_LOG" || { echo "ERROR: sys_cat content did not round-trip through the app" >&2; ok=0; }
     grep -q "kenga-app fd file: read ok 15" "$UART_LOG" || { echo "ERROR: open/read/close did not read the file in chunks" >&2; ok=0; }

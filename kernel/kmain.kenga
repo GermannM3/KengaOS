@@ -481,6 +481,10 @@ fn user_app_from_disk(fs: FsState) -> i64 {
     kf_puti(e1000_peek(rva + 4));
     uart_puts(" rxd2=");
     kf_puti(e1000_peek(rva + 8));
+    /* Разбор принятого кадра: MAC отправителя ARP-ответа лежит на смещении 22
+       (Ethernet 14 + ARP: htype2 ptype2 hlen1 plen1 op2 + 2 байта MAC). */
+    uart_puts(" arpmac=");
+    kf_puti(e1000_rx_dword(rva, 22));
     uart_putc(10);
 
     /* а этот файл приложение удалило само (syscall 19) — должен исчезнуть */

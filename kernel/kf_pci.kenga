@@ -233,6 +233,12 @@ fn e1000_tx_init(bar0: i64) -> i64 {
 fn e1000_tdbal(bar0: i64) -> i64 { return mm_r32(bar0 + kf_get_hhdm() + 14336); }
 /* Прочитать слово по адресу — для дампа памяти, как её видит устройство. */
 fn e1000_peek(a: i64) -> i64 { return mm_r32(a); }
+
+/* Прочитать 32 бита по смещению off внутри принятого кадра. Приёмный дескриптор
+   хранит ФИЗИЧЕСКИЙ адрес буфера, поэтому для CPU нужно прибавить HHDM. */
+fn e1000_rx_dword(rxring: i64, off: i64) -> i64 {
+    return e1000_peek(e1000_peek(rxring) + kf_get_hhdm() + off);
+}
 fn e1000_tdlen(bar0: i64) -> i64 { return mm_r32(bar0 + kf_get_hhdm() + 14344); }
 fn e1000_tctl(bar0: i64) -> i64 { return mm_r32(bar0 + kf_get_hhdm() + 1024); }
 /* --- Отправка ARP-запроса -----------------------------------------------
