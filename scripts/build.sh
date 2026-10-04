@@ -405,7 +405,7 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     # Спать обязаны ОБА процесса: одного "sleep ok" недостаточно (16-й круг:
     # второй процесс печатал "too short", а гейт этого не замечал).
     grep -q "kenga-app: spawn /apps/hello.elf" "$UART_LOG" || { echo "ERROR: app could not spawn another app (syscall 24)" >&2; ok=0; }
-    grep -q "userapp exit pid=0x66" "$UART_LOG" || { echo "ERROR: spawned child process did not run" >&2; ok=0; }
+    grep -q "userapp exit pid=0x66 code=0x0" "$UART_LOG" || { echo "ERROR: spawned child did not run or its exit code is wrong" >&2; ok=0; }
     grep -q "kenga-app: child exit 0" "$UART_LOG" || { echo "ERROR: parent could not collect child status" >&2; ok=0; }
     grep -q "kenga-app cat file: KengaOS boot #1" "$UART_LOG" || { echo "ERROR: sys_cat content did not round-trip through the app" >&2; ok=0; }
     grep -q "kenga-app fd file: read ok 15" "$UART_LOG" || { echo "ERROR: open/read/close did not read the file in chunks" >&2; ok=0; }
