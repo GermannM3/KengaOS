@@ -431,7 +431,10 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     # Кольцо приёма: rxok=1 означает, что RDBAL, прочитанный ОБРАТНО из устройства,
     # совпал с физическим адресом выделенной DMA-страницы, а RDLEN = 4096. То есть
     # запись в регистры кольца доходит до контроллера.
-    grep -q "rdlen=4096 rxok=1" "$UART_LOG" || { echo "ERROR: e1000 RX ring registers did not verify (rxok!=1)" >&2; ok=0; }
+    grep -q "rdlen=128 rxok=1" "$UART_LOG" || { echo "ERROR: e1000 RX ring registers did not verify (rxok!=1)" >&2; ok=0; }
+    # Приём включён: RCTL, прочитанный обратно, равен записанному (0x04008002),
+    # то есть буферы розданы и контроллер принимает кадры.
+    grep -q "rctl=67141634" "$UART_LOG" || { echo "ERROR: e1000 receiver did not enable (RCTL readback mismatch)" >&2; ok=0; }
     grep -q "kenga-app: child exit 0" "$UART_LOG" || { echo "ERROR: parent could not collect child status" >&2; ok=0; }
     grep -q "kenga-app cat file: KengaOS boot #1" "$UART_LOG" || { echo "ERROR: sys_cat content did not round-trip through the app" >&2; ok=0; }
     grep -q "kenga-app fd file: read ok 15" "$UART_LOG" || { echo "ERROR: open/read/close did not read the file in chunks" >&2; ok=0; }

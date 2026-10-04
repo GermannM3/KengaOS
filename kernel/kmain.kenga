@@ -415,14 +415,19 @@ fn user_app_from_disk(fs: FsState) -> i64 {
     /* Кольцо приёма: адрес физический, устройство работает по DMA. Проверяем
        обратным чтением, что запись дошла, и печатаем вердикт rxok. */
     let nbar: i64 = pci_bar0(pci_find_class(2));
-    let rpa: i64 = e1000_rx_init(nbar);
+    let rva: i64 = e1000_rx_init(nbar);
     uart_puts(" rxpa=");
-    kf_puti(rpa);
+    kf_puti(mem_virt_to_phys(rva));
     uart_puts(" rdbal=");
     kf_puti(e1000_rdbal(nbar));
     uart_puts(" rdlen=");
     kf_puti(e1000_rdlen(nbar));
-    if e1000_rdbal(nbar) == rpa { uart_puts(" rxok=1"); } else { uart_puts(" rxok=0"); }
+    if e1000_rdbal(nbar) == mem_virt_to_phys(rva) { uart_puts(" rxok=1"); } else { uart_puts(" rxok=0"); }
+    let rctl: i64 = e1000_rx_enable(nbar, rva);
+    uart_puts(" rctl=");
+    kf_puti(rctl);
+    uart_puts(" rdh=");
+    kf_puti(e1000_rdh(nbar));
     uart_putc(10);
     uart_puts("EC status=");
     kf_puti(ec_status());

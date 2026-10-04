@@ -112,11 +112,50 @@ fn e1000_rx_init(bar0: i64) -> i64 {
     let ring: i64 = mem_palloc();
     let pa: i64 = mem_virt_to_phys(ring);
     mm_w32(bar0 + kf_get_hhdm() + 10240, pa);
-    mm_w32(bar0 + kf_get_hhdm() + 10248, 4096);
+    mm_w32(bar0 + kf_get_hhdm() + 10248, 128);
     mm_w32(bar0 + kf_get_hhdm() + 10256, 0);   /* RDH = 0 */
-    mm_w32(bar0 + kf_get_hhdm() + 10264, 255); /* RDT = 255 (все дескрипторы наши) */
-    return pa;
+    mm_w32(bar0 + kf_get_hhdm() + 10264, 7);   /* RDT = 7 (8 дескрипторов) */
+    return ring;   /* CPU пишет дескрипторы по ВИРТУАЛЬНОМУ адресу */
 }
 
 fn e1000_rdbal(bar0: i64) -> i64 { return mm_r32(bar0 + kf_get_hhdm() + 10240); }
 fn e1000_rdlen(bar0: i64) -> i64 { return mm_r32(bar0 + kf_get_hhdm() + 10248); }
+/* Буферы приёма: 8 буферов по 2048 байт — это 4 страницы по 4 КиБ. */
+fn mm_w8(a: i64, v: i64) -> i64 { mmio_write8(a, v); return 0; }
+fn mm_w16(a: i64, v: i64) -> i64 { mmio_write16(a, v); return 0; }
+
+/* Заполнить дескриптор i: физический адрес буфера, длина, статус = 0. */
+fn e1000_rx_desc(ring: i64, i: i64, buf_pa: i64, len: i64) -> i64 {
+    let lo: i64 = buf_pa - (buf_pa >> 32) * 4294967296;
+    let hi: i64 = buf_pa >> 32;
+    mm_w32(ring + i * 16, lo);
+    mm_w32(ring + i * 16 + 4, hi);
+    mm_w16(ring + i * 16 + 8, len);
+    mm_w8(ring + i * 16 + 12, 0);
+    return 0;
+}
+
+/* Включить приём: раздать буферы и выставить RCTL = EN | SBP | BAM | BSIZE 2048.
+   Возвращает прочитанный ОБРАТНО RCTL — вердикт печатает ядро. */
+fn e1000_rx_enable(bar0: i64, ring: i64) -> i64 {
+    let p0: i64 = mem_palloc();
+    let p1: i64 = mem_palloc();
+    let p2: i64 = mem_palloc();
+    let p3: i64 = mem_palloc();
+    let b0: i64 = mem_virt_to_phys(p0);
+    let b1: i64 = mem_virt_to_phys(p1);
+    let b2: i64 = mem_virt_to_phys(p2);
+    let b3: i64 = mem_virt_to_phys(p3);
+    e1000_rx_desc(ring, 0, b0, 2048);
+    e1000_rx_desc(ring, 1, b0 + 2048, 2048);
+    e1000_rx_desc(ring, 2, b1, 2048);
+    e1000_rx_desc(ring, 3, b1 + 2048, 2048);
+    e1000_rx_desc(ring, 4, b2, 2048);
+    e1000_rx_desc(ring, 5, b2 + 2048, 2048);
+    e1000_rx_desc(ring, 6, b3, 2048);
+    e1000_rx_desc(ring, 7, b3 + 2048, 2048);
+    mm_w32(bar0 + kf_get_hhdm() + 256, 67141634);   /* RCTL: EN|SBP|BAM, BSIZE 2048 */
+    return mm_r32(bar0 + kf_get_hhdm() + 256);
+}
+
+fn e1000_rdh(bar0: i64) -> i64 { return mm_r32(bar0 + kf_get_hhdm() + 10256); }
