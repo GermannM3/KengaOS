@@ -658,6 +658,22 @@ fn e1000_tcp_syn(bar0: i64, txring: i64) -> i64 {
     mm_w32(bar0 + kf_get_hhdm() + 14360, 7);
     return 60;
 }
+/* ack = (сетевое число seq собеседника) + 1, упакованное обратно в память.
+   Вывод и проверка на числах — docs/HONEST-CHECKLIST.md, круг 157.
+   Для 00 00 FA 01 (little-endian dword 0x01FA0000) даёт 0x02FA0000. */
+fn tcp_ack_dword(peer: i64) -> i64 {
+    let b0: i64 = peer - (peer / 256) * 256;
+    let b1: i64 = (peer / 256) - (peer / 65536) * 256;
+    let b2: i64 = (peer / 65536) - (peer / 16777216) * 256;
+    let b3: i64 = peer / 16777216;
+    let n: i64 = b0 * 16777216 + b1 * 65536 + b2 * 256 + b3 + 1;
+    let n0: i64 = n / 16777216;
+    let n1: i64 = (n / 65536) - n0 * 256;
+    let n2: i64 = (n / 256) - (n / 65536) * 256;
+    let n3: i64 = n - (n / 256) * 256;
+    return n3 * 16777216 + n2 * 65536 + n1 * 256 + n0;
+}
+
 /* --- TCP: третий шаг рукопожатия (наш ACK на SYN-ACK) --------------------
  * Значения взяты из наблюдённого SYN-ACK (круг 151): его seq = 0x0000FA01,
  * значит наш ack = 0x0000FA02; наш seq увеличиваем на 1 (0x11223345).
@@ -665,7 +681,7 @@ fn e1000_tcp_syn(bar0: i64, txring: i64) -> i64 {
  * ВНИМАНИЕ: seq собеседника здесь зашит; если slirp станет выдавать другой ISN,
  * эти значения придётся брать из принятого кадра (следующий шаг развития).
  */
-fn e1000_tcp_ack(bar0: i64, txring: i64) -> i64 {
+fn e1000_tcp_ack(bar0: i64, txring: i64, peer: i64) -> i64 {
     let buf: i64 = mem_palloc();
     let pa: i64 = mem_virt_to_phys(buf);
     let pseudo: i64 = buf + 128;
@@ -683,7 +699,7 @@ fn e1000_tcp_ack(bar0: i64, txring: i64) -> i64 {
     mm_w16(buf + 34, 0x3930);         /* 12345 */
     mm_w16(buf + 36, 0xBB4B);         /* 19387 */
     mm_w32(buf + 38, 0x45332211);     /* наш seq + 1 -> 11 22 33 45 */
-    mm_w32(buf + 42, 0x02FA0000);     /* ack = их seq + 1 -> 00 00 FA 02 */
+    mm_w32(buf + 42, tcp_ack_dword(peer));   /* ack вычислен из принятого SYN-ACK */
     mm_w16(buf + 46, 0x1050);         /* data offset 5, флаг ACK -> 50 10 */
     mm_w16(buf + 48, 0x0020);         /* window */
     mm_w16(buf + 50, 0);
@@ -720,7 +736,7 @@ fn e1000_tcp_ack(bar0: i64, txring: i64) -> i64 {
  * Заголовок и данные лежат ПОДРЯД (смещения 34..71), поэтому сумма TCP считается
  * одним вызовом ip_sum по 38 байтам.
  */
-fn e1000_tcp_get(bar0: i64, txring: i64) -> i64 {
+fn e1000_tcp_get(bar0: i64, txring: i64, peer: i64) -> i64 {
     let buf: i64 = mem_palloc();
     let pa: i64 = mem_virt_to_phys(buf);
     let pseudo: i64 = buf + 128;
@@ -738,7 +754,7 @@ fn e1000_tcp_get(bar0: i64, txring: i64) -> i64 {
     mm_w16(buf + 34, 0x3930);         /* 12345 */
     mm_w16(buf + 36, 0xBB4B);         /* 19387 */
     mm_w32(buf + 38, 0x45332211);     /* наш seq + 1 */
-    mm_w32(buf + 42, 0x02FA0000);     /* их seq + 1 */
+    mm_w32(buf + 42, tcp_ack_dword(peer));   /* ack вычислен из SYN-ACK */
     mm_w16(buf + 46, 0x1850);         /* data offset 5, ACK|PSH -> 50 18 */
     mm_w16(buf + 48, 0x0020);
     mm_w16(buf + 50, 0);
