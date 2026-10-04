@@ -27,6 +27,7 @@
 @intrinsic fn sys_open(path: str) -> i64;
 @intrinsic fn sys_read(fd: i64, buf: i64, len: i64) -> i64;
 @intrinsic fn sys_close(fd: i64) -> i64;
+@intrinsic fn sys_kill(pid: i64, code: i64) -> i64;
 
 fn main() -> i64 {
     let pid: i64 = sys_getpid();
@@ -115,6 +116,16 @@ fn main() -> i64 {
                 println("kenga-app: child exit ?");
             }
             println("kenga-app: blocking wait done");
+        }
+    }
+
+    /* kill: порождаем ребёнка и убиваем его ДО первого запуска, поэтому
+       результат детерминирован: планирование не успевает его выполнить */
+    if pid == 100 {
+        let p2: i64 = sys_spawn("/apps/hello.elf");
+        if p2 > 0 {
+            sys_kill(p2, 137);
+            sys_save("/apps/kill.txt", "killed", 6);
         }
     }
 
