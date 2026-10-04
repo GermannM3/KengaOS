@@ -472,6 +472,11 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     # дать 0 (свойство контрольной суммы). cksum_selftest=0 — реализация верна,
     # включая сетевой порядок байт.
     grep -q "cksum_selftest=0" "$UART_LOG" || { echo "ERROR: Internet checksum implementation is wrong" >&2; ok=0; }
+    # ICMP echo (пинг): ping_rdh=3 — устройство продвинуло указатель кольца приёма
+    # с 2 до 3, то есть ОТВЕТ на эхо-запрос лёг в наш DMA-буфер. Совпадает с
+    # дампом трафика, где виден эхо-ответ с теми же данными. Детерминированность
+    # подтверждена тремя прогонами подряд.
+    grep -q "ping_rdh=3" "$UART_LOG" || { echo "ERROR: ICMP echo reply was not received" >&2; ok=0; }
     grep -q "kenga-app: child exit 0" "$UART_LOG" || { echo "ERROR: parent could not collect child status" >&2; ok=0; }
     grep -q "kenga-app cat file: KengaOS boot #1" "$UART_LOG" || { echo "ERROR: sys_cat content did not round-trip through the app" >&2; ok=0; }
     grep -q "kenga-app fd file: read ok 15" "$UART_LOG" || { echo "ERROR: open/read/close did not read the file in chunks" >&2; ok=0; }

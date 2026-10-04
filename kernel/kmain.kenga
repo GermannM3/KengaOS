@@ -497,6 +497,8 @@ fn user_app_from_disk(fs: FsState) -> i64 {
     /* Отправляем ICMP echo (ответ проверим позже, без активного ожидания). */
     uart_puts(" ping_sent=");
     kf_puti(e1000_ping(nbar, tva));
+    uart_puts(" ping_rdh=");
+    kf_puti(e1000_rdh(nbar));
     uart_putc(10);
 
     /* а этот файл приложение удалило само (syscall 19) — должен исчезнуть */
