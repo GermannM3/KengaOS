@@ -164,7 +164,9 @@ fn e1000_rx_init(bar0: i64) -> i64 {
     let ring: i64 = mem_palloc();
     let pa: i64 = mem_virt_to_phys(ring);
     mm_w32(bar0 + kf_get_hhdm() + 10240, pa);
-    mm_w32(bar0 + kf_get_hhdm() + 10248, 128);
+    mm_w32(bar0 + kf_get_hhdm() + 10248, 128);   /* 8 дескрипторов — столько же,
+       сколько буферов в e1000_rx_enable. Увеличивать только ВМЕСТЕ с буферами:
+       иначе устройство будет DMA-ить по неинициализированным адресам. */
     mm_w32(bar0 + kf_get_hhdm() + 10256, 0);   /* RDH = 0 */
     mm_w32(bar0 + kf_get_hhdm() + 10264, 7);   /* RDT = 7 (8 дескрипторов) */
     return ring;   /* CPU пишет дескрипторы по ВИРТУАЛЬНОМУ адресу */
@@ -804,6 +806,39 @@ fn e1000_tcp_peer_seq(rxring: i64) -> i64 {
                 if e1000_rx_byte(desc, 23) == 6 {
                     let fl: i64 = e1000_rx_byte(desc, 46) * 256 + e1000_rx_byte(desc, 47);
                     if (fl & 18) == 18 { if res < 0 { res = e1000_rx_dword(desc, 38); } }
+                }
+            }
+        }
+        i = i + 1;
+    }
+    return res;
+}
+/* --- Разбор HTTP-ответа --------------------------------------------------
+ * Ищем принятый TCP-кадр ОТ сервера: ethertype 0x0800, proto 6, порт
+ * ИСТОЧНИКА = 19387 (байты 34-35 = 4B BB). Данные начинаются после TCP-
+ * заголовка: смещение данных = (байт 46 >> 4) * 4, то есть для обычного
+ * заголовка 20 байт данные лежат с 54. Код состояния — первые три цифры:
+ * возвращаем их числом (200 и т.п.) или -1.
+ */
+fn e1000_http_status(rxring: i64) -> i64 {
+    let i: i64 = 0;
+    let res: i64 = -1;
+    while i < 8 {
+        let desc: i64 = rxring + i * 16;
+        let st: i64 = e1000_peek(desc + 12) - (e1000_peek(desc + 12) / 256) * 256;
+        if (st & 1) == 1 {
+            let et: i64 = e1000_rx_byte(desc, 12) * 256 + e1000_rx_byte(desc, 13);
+            if et == 2048 {
+                if e1000_rx_byte(desc, 23) == 6 {
+                    let sp: i64 = e1000_rx_byte(desc, 34) * 256 + e1000_rx_byte(desc, 35);
+                    if sp == 19387 {
+                        if res < 0 {
+                            let d0: i64 = e1000_rx_byte(desc, 54);
+                            let d1: i64 = e1000_rx_byte(desc, 55);
+                            let d2: i64 = e1000_rx_byte(desc, 56);
+                            if d0 >= 48 { if d0 <= 57 { res = (d0 - 48) * 100 + (d1 - 48) * 10 + (d2 - 48); } }
+                        }
+                    }
                 }
             }
         }
