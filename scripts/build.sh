@@ -467,6 +467,11 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     # ARP-ответа, то есть 52 55 0a 00; полный MAC slirp — 52:55:0a:00:02:02.
     # Совпадает с дампом трафика побитово: адрес шлюза РАЗРЕШЁН (ARP работает).
     grep -q "arpmac=677202" "$UART_LOG" || { echo "ERROR: ARP reply was not parsed (gateway MAC not resolved)" >&2; ok=0; }
+    # Контрольная сумма Интернета (RFC 1071), нужная для IP и ICMP, проверяется
+    # САМОПРОВЕРКОЙ: после подстановки вычисленной суммы повторный расчёт обязан
+    # дать 0 (свойство контрольной суммы). cksum_selftest=0 — реализация верна,
+    # включая сетевой порядок байт.
+    grep -q "cksum_selftest=0" "$UART_LOG" || { echo "ERROR: Internet checksum implementation is wrong" >&2; ok=0; }
     grep -q "kenga-app: child exit 0" "$UART_LOG" || { echo "ERROR: parent could not collect child status" >&2; ok=0; }
     grep -q "kenga-app cat file: KengaOS boot #1" "$UART_LOG" || { echo "ERROR: sys_cat content did not round-trip through the app" >&2; ok=0; }
     grep -q "kenga-app fd file: read ok 15" "$UART_LOG" || { echo "ERROR: open/read/close did not read the file in chunks" >&2; ok=0; }

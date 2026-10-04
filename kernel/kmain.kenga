@@ -485,6 +485,10 @@ fn user_app_from_disk(fs: FsState) -> i64 {
        (Ethernet 14 + ARP: htype2 ptype2 hlen1 plen1 op2 + 2 байта MAC). */
     uart_puts(" arpmac=");
     kf_puti(e1000_rx_dword(rva, 22));
+    /* Самопроверка контрольной суммы Интернета: повторный расчёт после
+       подстановки суммы обязан дать 0. */
+    uart_puts(" cksum_selftest=");
+    kf_puti(ip_checksum_selftest(mem_palloc()));
     uart_putc(10);
 
     /* а этот файл приложение удалило само (syscall 19) — должен исчезнуть */
