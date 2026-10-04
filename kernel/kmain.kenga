@@ -466,6 +466,15 @@ fn user_app_from_disk(fs: FsState) -> i64 {
     uart_puts(" probe ok=");
     kf_puti(ec_probe());
     uart_putc(10);
+    /* ARP-ответ приходит через мгновение после отправки, поэтому проверяем
+       приём ПОЗЖЕ — когда ядро уже сделало остальную работу. Байт 0 статуса
+       приёмного дескриптора: бит DD = устройство положило кадр. */
+    uart_puts(" rxlate=");
+    kf_puti(e1000_peek(rva + 12) - (e1000_peek(rva + 12) / 256) * 256);
+    uart_puts(" rdh2=");
+    kf_puti(e1000_rdh(nbar));
+    uart_putc(10);
+
     /* а этот файл приложение удалило само (syscall 19) — должен исчезнуть */
     let rdel: i64 = fs_read(fs, "/apps/demo/bye.txt", fs.dat, 256);
     if (rdel > 0) {
