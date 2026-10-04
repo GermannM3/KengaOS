@@ -59,7 +59,7 @@ fn ec_read(addr: i64) -> i64 {
 fn ec_probe() -> i64 {
     let ok: i64 = 0;
     let a: i64 = 0;
-    while a < 8 {
+    while a < 4 {
         if ec_read(a) >= 0 { ok = ok + 1; }
         a = a + 1;
     }

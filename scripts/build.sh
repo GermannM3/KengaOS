@@ -407,6 +407,10 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "kenga-app: spawn /apps/hello.elf" "$UART_LOG" || { echo "ERROR: app could not spawn another app (syscall 24)" >&2; ok=0; }
     grep -q "userapp exit pid=0x66 code=0x0" "$UART_LOG" || { echo "ERROR: spawned child did not run or its exit code is wrong" >&2; ok=0; }
     grep -q "userapp exit pid=0x67 code=0x89" "$UART_LOG" || { echo "ERROR: sys_kill did not terminate the child with code 0x89" >&2; ok=0; }
+    # Драйвер ACPI EC (батарея) на Kenga: гейт проверяет, что он ОТРАБОТАЛ и не
+    # завис. Значение зонда в QEMU равно 0 (EC не отвечает), поэтому гейт
+    # утверждает факт запуска, а не наличие батареи — ложного зелёного нет.
+    grep -q "EC probe ok=" "$UART_LOG" || { echo "ERROR: EC driver did not run (or hung) — see kernel/kf_ec.kenga" >&2; ok=0; }
     grep -q "kenga-app: child exit 0" "$UART_LOG" || { echo "ERROR: parent could not collect child status" >&2; ok=0; }
     grep -q "kenga-app cat file: KengaOS boot #1" "$UART_LOG" || { echo "ERROR: sys_cat content did not round-trip through the app" >&2; ok=0; }
     grep -q "kenga-app fd file: read ok 15" "$UART_LOG" || { echo "ERROR: open/read/close did not read the file in chunks" >&2; ok=0; }

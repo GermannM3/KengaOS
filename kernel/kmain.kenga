@@ -1,6 +1,7 @@
 import "ui.kenga";
 import "desktop.kenga";
 import "fs.kenga";
+import "kf_ec.kenga";
 import "../kenga-desktop/src/platform/kernel_bridge.kenga";
 
 @intrinsic fn kf_get_boot_info() -> i64;
@@ -393,6 +394,10 @@ fn user_app_from_disk(fs: FsState) -> i64 {
     } else {
         uart_puts("kenga-app fd file: (nothing)\n");
     }
+    /* ACPI EC: батарея/температуры. Логика драйвера — на Kenga. */
+    uart_puts("EC probe ok=");
+    kf_puti(ec_probe());
+    uart_putc(10);
     /* а этот файл приложение удалило само (syscall 19) — должен исчезнуть */
     let rdel: i64 = fs_read(fs, "/apps/demo/bye.txt", fs.dat, 256);
     if (rdel > 0) {
