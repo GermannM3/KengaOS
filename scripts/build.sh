@@ -526,7 +526,10 @@ if [[ "$QEMU_RAN" == 1 ]]; then
     grep -q "userapp exit pid=0x64 code=0x0" "$UART_LOG" || { echo "ERROR: exit code of pid 100 not reported" >&2; ok=0; }
     grep -q "userapp exit pid=0x65 code=0x7" "$UART_LOG" || { echo "ERROR: exit code of pid 101 not per-process" >&2; ok=0; }
     nsleep=$(grep -c "kenga-app: sleep ok" "$UART_LOG" || true)
-    if [[ "$nsleep" != "2" ]]; then
+    # Спать должны КАК МИНИМУМ два процесса. Точное равенство 2 больше не годится:
+    # приложение теперь запускается ДВАЖДЫ (второй раз — после сетевой работы,
+    # чтобы прочитать /apps/net.txt), поэтому "sleep ok" приходит трижды.
+    if [[ "$nsleep" -lt 2 ]]; then
         echo "ERROR: expected 2 processes to sleep, got $nsleep" >&2; ok=0
     fi
     grep -q "STORE INSTALL OK" "$UART_LOG" || { echo "ERROR: .kpkg v2 install from the store failed" >&2; ok=0; }

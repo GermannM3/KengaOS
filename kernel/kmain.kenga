@@ -551,8 +551,12 @@ fn user_app_from_disk(fs: FsState) -> i64 {
        не могло (установлено в круге 165). Запускаем его ВТОРОЙ раз — теперь файл
        существует, и приложение выложит прочитанное в /apps/netapp.txt. Это
        дешевле переноса сетевого блока: порядок существующих шагов не меняется. */
+    uart_puts("run2 begin pid=");
     let p3: i64 = user_spawn_vfs("user-kenga.elf");
+    kf_puti(p3);
+    uart_putc(10);
     if p3 > 0 { let sr2: i64 = user_sched_run(); }
+    uart_puts("run2 end\n");
 
     let rna: i64 = fs_read(fs, "/apps/netapp.txt", fs.dat, 64);
     if rna > 0 {
