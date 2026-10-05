@@ -41,3 +41,11 @@ int64_t k_disk_rw_test(void) {
     for (int i = 0; i < 512; i++) if (orig[i] != back[i]) return -7;
     return 1;
 }
+/* Заглушка для сборки aarch64: функция состояния сетевого драйвера объявлена и
+   вызывается из общего kmain.kenga, но реализована в x86-коде (kernel/kf_user.c).
+   Без неё линковка aarch64 падает: undefined symbol: k_net_state_set.
+   На aarch64 сетевого драйвера e1000 нет, поэтому достаточно вернуть 0. */
+int64_t k_net_state_set(int64_t bar, int64_t rx, int64_t tx) {
+    (void)bar; (void)rx; (void)tx;
+    return 0;
+}
