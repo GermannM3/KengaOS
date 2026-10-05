@@ -597,6 +597,8 @@ int64_t k_net_state_set(int64_t bar, int64_t rx, int64_t tx) {
     g_net_bar = bar;
     g_net_rx = rx;
     g_net_tx = tx;
+    /* Маркер: видно, что Kenga действительно сообщила состояние. */
+    { const char* t = "net state set bar="; while (*t) u_putc(*t++); ulog_hx((uint64_t)bar); u_putc('\n'); }
     return 0;
 }
 

@@ -23,6 +23,16 @@ import "../kenga-desktop/src/platform/kernel_bridge.kenga";
 @intrinsic fn mem_region_type(i: i64) -> i64;
 @intrinsic fn mem_palloc() -> i64;
 @intrinsic fn mem_pfree(addr: i64) -> i64;
+/* Сообщить C-стороне состояние сетевого драйвера (bar0, кольца). Нужно, чтобы
+   обработчик сисколла net мог выполнить сетевую работу ПО ЗАПРОСУ приложения.
+   Ноль на C-стороне означает «ещё не инициализировано» — защита от обращения
+   драйвера по нулевым адресам. */
+@intrinsic fn net_state_set(bar: i64, rx: i64, tx: i64) -> i64;
+/* Сообщить C-стороне состояние сетевого драйвера (bar0, кольца). Нужно, чтобы
+   обработчик сисколла net мог выполнить сетевую работу ПО ЗАПРОСУ приложения.
+   Ноль на C-стороне означает «ещё не инициализировано» — защита от обращения
+   драйвера по нулевым адресам. */
+@intrinsic fn net_state_set(bar: i64, rx: i64, tx: i64) -> i64;
 @intrinsic fn kf_get_modules() -> i64;
 @intrinsic fn vfs_init_rd(addr: i64, size: i64) -> i64;
 @intrinsic fn vfs_version_addr() -> i64;
@@ -445,6 +455,9 @@ fn user_app_from_disk(fs: FsState) -> i64 {
     uart_puts(" rdh=");
     kf_puti(e1000_rdh(nbar));
     tva = e1000_tx_init(nbar);
+    /* ШАГ (b) моста: сообщаем C состояние драйвера — с этого момента обработчик
+       сисколла net вправе обращаться к драйверу (шаг (c) включит живой вызов). */
+    let nset: i64 = net_state_set(nbar, rva, tva);
     uart_puts(" tdbal=");
     kf_puti(e1000_tdbal(nbar));
     uart_puts(" tdlen=");
