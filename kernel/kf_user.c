@@ -69,6 +69,8 @@ static int64_t g_net_bar = 0;
 static int64_t g_net_rx = 0;
 static int64_t g_net_tx = 0;
 int64_t k_net_state_set(int64_t bar, int64_t rx, int64_t tx);
+extern int64_t k_net_do(int64_t bar, int64_t tx, int64_t rx);
+static int64_t net_live(uint64_t uva, uint64_t maxlen);
 
 /* k_mem_palloc возвращает УЖЕ отображённый VA (phys+hhdm).
    Для PTE нужен физический: va - hhdm. */
@@ -602,6 +604,28 @@ int64_t k_net_state_set(int64_t bar, int64_t rx, int64_t tx) {
     return 0;
 }
 
+/* ЖИВОЙ запрос: выполняем сетевую работу по просьбе приложения. При неудаче
+   ОТКАТЫВАЕМСЯ на файл — доставку результата не ломаем, а причину печатаем
+   маркером (замер гипотезы «драйвер не работает в адресном пространстве
+   приложения», круги 215-216). Барьеры обязательны: Kenga затирает callee-saved. */
+static int64_t net_live(uint64_t uva, uint64_t maxlen) {
+    if (!uxfer || g_net_bar == 0) return net_status(uva, maxlen);
+    int64_t code;
+    __asm__ __volatile__("" ::: "rbx", "rbp", "r12", "r13", "r14", "r15");
+    code = k_net_do(g_net_bar, g_net_tx, g_net_rx);
+    __asm__ __volatile__("" ::: "rbx", "rbp", "r12", "r13", "r14", "r15");
+    { const char* t = "net live code="; while (*t) u_putc(*t++); ulog_hx((uint64_t)code); u_putc('\n'); }
+    if (code < 0) return net_status(uva, maxlen);
+    char out[24];
+    const char* t = "net http=";
+    int n = 0;
+    while (*t) out[n++] = *t++;
+    out[n++] = (char)('0' + (int)((code / 100) % 10));
+    out[n++] = (char)('0' + (int)((code / 10) % 10));
+    out[n++] = (char)('0' + (int)(code % 10));
+    if ((uint64_t)n > maxlen) n = (int)maxlen;
+    return (int64_t)ux_to_user(uva, out, (uint64_t)n);
+}
 static int64_t net_status(uint64_t uva, uint64_t maxlen) {
     static uint8_t nbuf[512];
     if (!uxfer || !&k_fs_syscall) return -1;
