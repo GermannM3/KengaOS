@@ -396,6 +396,15 @@ fn user_app_from_disk(fs: FsState) -> i64 {
         uart_puts("kenga-app fd file: (nothing)\n");
     }
     /* ACPI EC: батарея/температуры. Логика драйвера — на Kenga. */
+    /* ЗАЯВКА + ВЫНОС ОБЪЯВЛЕНИЙ. nbar/rva/tva нужны и после сетевого раздела, поэтому
+       объявлены здесь, а внутри только присваиваются. Ветка закрывается ПОСЛЕ
+       последнего использования rva — это вложенный цикл по дескрипторам (строка 595),
+       поэтому закрывать надо после ЕГО закрывающей скобки, а не после строки с rva. */
+    let nbar: i64 = 0;
+    let rva: i64 = 0;
+    let tva: i64 = 0;
+    let nreq: i64 = fs_read(fs, "/apps/net.req", fs.dat, 16);
+    if nreq > 0 {
     uart_puts("PCI dev0=");
     kf_puti(pci_dev0());
     uart_puts(" nic=");
@@ -421,8 +430,8 @@ fn user_app_from_disk(fs: FsState) -> i64 {
     kf_puti(pci_enable_bus_master(pci_find_class(2)));
     uart_puts(" cmd_word=");
     kf_puti(pci_cmd_set(pci_find_class(2), 7));
-    let nbar: i64 = pci_bar0(pci_find_class(2));
-    let rva: i64 = e1000_rx_init(nbar);
+    nbar = pci_bar0(pci_find_class(2));
+    rva = e1000_rx_init(nbar);
     uart_puts(" rxpa=");
     kf_puti(mem_virt_to_phys(rva));
     uart_puts(" rdbal=");
@@ -435,7 +444,7 @@ fn user_app_from_disk(fs: FsState) -> i64 {
     kf_puti(rctl);
     uart_puts(" rdh=");
     kf_puti(e1000_rdh(nbar));
-    let tva: i64 = e1000_tx_init(nbar);
+    tva = e1000_tx_init(nbar);
     uart_puts(" tdbal=");
     kf_puti(e1000_tdbal(nbar));
     uart_puts(" tdlen=");
@@ -554,8 +563,8 @@ fn user_app_from_disk(fs: FsState) -> i64 {
     /* Повторный запуск — ТОЛЬКО если приложение оставило ЗАЯВКУ (/apps/net.req).
        Так поток становится «приложение просит — ядро отвечает», а не «ядро делает
        всегда, приложение потом смотрит»: нет заявки — нет и работы. */
-    let nreq: i64 = fs_read(fs, "/apps/net.req", fs.dat, 16);
-    if nreq > 0 {
+    let nreq2: i64 = fs_read(fs, "/apps/net.req", fs.dat, 16);
+    if nreq2 > 0 {
         uart_puts("run2 begin pid=");
         let p3: i64 = user_spawn_vfs("user-kenga.elf");
         kf_puti(p3);
@@ -597,6 +606,7 @@ fn user_app_from_disk(fs: FsState) -> i64 {
         uart_putc(44);
         di = di + 1;
     }
+    }   /* конец ветки «заявка есть»: объявления вынесены наружу */
     uart_putc(10);
 
     /* Результат убийства процесса: приложение подтверждает его файлом. */
