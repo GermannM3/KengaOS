@@ -408,7 +408,9 @@ void k_syscall_handler(void* frame_v) {
         if (g_net_bar == 0) {
             f[0] = (uint64_t)net_status(f[5], f[4]);
         } else {
-            f[0] = (uint64_t)net_status(f[5], f[4]);
+            /* ЗАМЕР (шаг c): живой вызов драйвера; при неудаче net_live
+               сам откатывается на файл, поэтому доставка не ломается. */
+            f[0] = (uint64_t)net_live(f[5], f[4]);
         }
     } else if (num == 29) {     /* close(fd) */
         f[0] = (uint64_t)fd_close(f[5]);
