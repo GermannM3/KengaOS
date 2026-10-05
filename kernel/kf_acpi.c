@@ -47,8 +47,46 @@ static int ac_sig(uint64_t pa, const char* s) {
     return 1;
 }
 
-/* RSDP: "RSD PTR " на 16-байтной границе в области BIOS/EBDA */
+/* RSDP: "RSD PTR " на 16-байтной границе.
+ * 1) По карте памяти от загрузчика ищем в областях ACPI-reclaimable (тип 2) и
+ *    ACPI-NVS (тип 3) — это работает и под UEFI, где legacy-области нет.
+ *    Запрос memmap у Limine старый и отвечает даже при базовой ревизии 0.
+ * 2) Затем legacy-скан 0xE0000..0xFFFFF (только BIOS).
+ */
+extern volatile uint64_t limine_memmap_request[];
+
+static int ac_rsdp_at(uint64_t pa) {
+    if (!pa) return 0;
+    if (!ac_sig(pa, "RSD ")) return 0;
+    volatile uint8_t* p = ac_phys(pa);
+    return p[4]=='P'&&p[5]=='T'&&p[6]=='R'&&p[7]==' ';
+}
+
+static uint64_t ac_find_rsdp_memmap(void) {
+    uint64_t resp = limine_memmap_request[5];
+    if (!resp) return 0;
+    /* struct limine_memmap_response { revision; entry_count; entries** } */
+    volatile uint64_t* rr = (volatile uint64_t*)(uintptr_t)resp;
+    uint64_t cnt = rr[1];
+    uint64_t ents = rr[2];
+    if (!cnt || cnt > 256 || !ents) return 0;
+    for (uint64_t i = 0; i < cnt; i++) {
+        uint64_t e = *(volatile uint64_t*)(uintptr_t)(ents + i * 8);
+        if (!e) continue;
+        volatile uint64_t* ep = (volatile uint64_t*)(uintptr_t)e;
+        uint64_t base = ep[0], len = ep[1], type = ep[2];
+        if (type != 2 && type != 3) continue;          /* ACPI reclaimable / NVS */
+        if (len > (1ull << 26)) len = 1ull << 26;
+        for (uint64_t off = 0; off + 16 <= len; off += 16) {
+            if (ac_rsdp_at(base + off)) return base + off;
+        }
+    }
+    return 0;
+}
+
 static uint64_t ac_find_rsdp(void) {
+    uint64_t m = ac_find_rsdp_memmap();
+    if (m) { ac_uart("acpi: rsdp via memmap\n"); return m; }
     for (uint64_t pa = 0xE0000; pa < 0x100000; pa += 16) {
         if (ac_sig(pa, "RSD ")) {
             volatile uint8_t* p = ac_phys(pa);
