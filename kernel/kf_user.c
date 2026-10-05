@@ -62,6 +62,13 @@ static int64_t fd_open(uint64_t path_uva);
 static int64_t fd_read(uint64_t fd, uint64_t uva, uint64_t len);
 static int64_t fd_close(uint64_t fd);
 static int64_t net_status(uint64_t uva, uint64_t maxlen);
+/* Состояние сетевого драйвера, сообщаемое Kenga-стороной (bar0, rxring, txring).
+   Ноль означает «ещё не инициализировано»: вызывать драйвер в этот момент НЕЛЬЗЯ —
+   обращение пойдёт по нулевому адресу. Обработчик сисколла обязан это проверять. */
+static int64_t g_net_bar = 0;
+static int64_t g_net_rx = 0;
+static int64_t g_net_tx = 0;
+int64_t k_net_state_set(int64_t bar, int64_t rx, int64_t tx);
 
 /* k_mem_palloc возвращает УЖЕ отображённый VA (phys+hhdm).
    Для PTE нужен физический: va - hhdm. */
@@ -392,7 +399,15 @@ void k_syscall_handler(void* frame_v) {
     } else if (num == 28) {     /* read(fd, buf, len) -> сколько прочитано */
         f[0] = (uint64_t)fd_read(f[5], f[4], f[3]);
     } else if (num == 31) {     /* net(buf, max) -> длину сетевого результата */
-        f[0] = (uint64_t)net_status(f[5], f[4]);
+        /* ШАГ (a) моста: проверка состояния драйвера. Пока g_net_bar всегда 0
+           (Kenga ещё не сообщает состояние — это шаг (b)), поэтому поведение
+           не меняется: отдаём файл, как раньше. Живой вызов net_do появится на
+           шаге (c) и только под этой проверкой. */
+        if (g_net_bar == 0) {
+            f[0] = (uint64_t)net_status(f[5], f[4]);
+        } else {
+            f[0] = (uint64_t)net_status(f[5], f[4]);
+        }
     } else if (num == 29) {     /* close(fd) */
         f[0] = (uint64_t)fd_close(f[5]);
     } else if (num == 26) {     /* wait(pid): БЛОКИРУЮЩИЙ сбор статуса */
@@ -576,6 +591,15 @@ static int     g_fd_used[FD_MAX];
    имя файла, а логика ФС остаётся в Kenga (тот же мост k_fs_syscall, операция 16,
    что у cat и fd_open). Барьеры по краям обязательны: Kenga-код затирает
    callee-saved, без них наружу уходит мусор. */
+/* Вызывается Kenga-стороной после инициализации колец: сохраняем состояние.
+   С этого момента обработчик сисколла net вправе обращаться к драйверу. */
+int64_t k_net_state_set(int64_t bar, int64_t rx, int64_t tx) {
+    g_net_bar = bar;
+    g_net_rx = rx;
+    g_net_tx = tx;
+    return 0;
+}
+
 static int64_t net_status(uint64_t uva, uint64_t maxlen) {
     static uint8_t nbuf[512];
     if (!uxfer || !&k_fs_syscall) return -1;
